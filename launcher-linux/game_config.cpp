@@ -88,9 +88,9 @@ GameSettings GameConfig::read(QSettings& in) {
   result.highpassHz =
       in.value(QStringLiteral("audio/highpass_hz"), 100).toInt();
 
-  result.languageId =
-      in.value(QStringLiteral("locale/language_id"), 5).toInt();
-  result.countryId = in.value(QStringLiteral("locale/country_id"), 31).toInt();
+    result.languageId =
+        in.value(QStringLiteral("locale/language_id"), 1).toInt();
+    result.countryId = in.value(QStringLiteral("locale/country_id"), 103).toInt();
   result.logging = in.value(QStringLiteral("general/logging"), true).toBool();
   return result;
 }

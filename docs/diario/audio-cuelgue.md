@@ -1,33 +1,34 @@
-# El cuelgue del audio
+# The audio hang
 
-El fallo más difícil del proyecto, y el que mejor enseña cómo se diagnostica aquí.
+The project's hardest bug, and the one that best teaches how diagnosis is done here.
 
-**Síntoma:** después del prólogo, al salir del garaje el audio se moría. Y al volver al
-menú, el juego se congelaba entero.
+**Symptom:** after the prologue, on leaving the garage the audio died. And on returning
+to the menu, the game froze completely.
 
-## Lo que resultó ser
+## What it turned out to be
 
-Todo el audio de Most Wanted lo lleva **un solo hilo del guest** (el `0xD`). Ese mismo
-hilo hace tres cosas:
+All of Most Wanted's audio is driven by **a single guest thread** (the `0xD`). That same
+thread does three things:
 
-1. alimenta al descodificador XMA con datos comprimidos
-2. consume lo que sale
-3. mezcla las voces
+1. feeds the XMA decoder with compressed data
+2. consumes what comes out
+3. mixes the voices
 
-El atasco: cuando ese hilo entra a mezclar una voz que se acaba de quedar sin datos, se
-pone a esperar audio que solo podría producir el descodificador. Y al descodificador
-tendría que alimentarlo él, en cuanto saliera de ahí. No sale. Se espera a sí mismo.
+The stall: when that thread goes to mix a voice that has just run out of data, it
+starts waiting for audio that only the decoder could produce. And the decoder would
+have to be fed by that same thread, as soon as it got out of there. It doesn't get
+out. It waits for itself.
 
-## El arreglo
+## The fix
 
-El propio juego tiene una salida de emergencia. Se ve en su código recompilado: cuando
-su lectura alcanza a la escritura, pregunta si el buffer sigue siendo válido
-(`XMAIsOutputBufferValid`), y si le dicen que no, lo da por terminado y sigue.
+The game itself has an escape hatch. It can be seen in its recompiled code: when
+its read catches up to the write, it asks whether the buffer is still valid
+(`XMAIsOutputBufferValid`), and if told no, it considers it finished and moves on.
 
-En el atasco se queda a **un bloque** de alcanzarla, así que nunca llega a preguntar.
+In the stall it stops **one block** short of catching up, so it never gets to ask.
 
-`parche_desatasco.py` le da esa señal cuando lleva más de 250 ms girando sobre una voz
-sin entrada:
+`parche_desatasco.py` gives it that signal when it has been spinning for more than
+250 ms on a voice with no input:
 
 ```cpp
 const bool atascado = llevo > 250 && context.output_buffer_valid &&
@@ -41,57 +42,58 @@ if (atascado) {
 }
 ```
 
-Es un apaño deliberado: rompe el atasco en vez de evitarlo. Puede costar un tropiezo de
-audio en esa voz. Si en el log salen muchas líneas `[desatasco]`, significa que el hilo
-de audio va justo de tiempo en esa máquina y hay que ir a por eso, no por el síntoma.
+It's a deliberate hack: it breaks the stall instead of preventing it. It may cost an
+audio glitch on that voice. If many `[desatasco]` lines show up in the log, it means the
+audio thread is tight on time on that machine and that's what needs to be worked on,
+not the symptom.
 
-## El intento equivocado, que es la parte útil
+## The wrong attempt, which is the useful part
 
-Antes de esto probé otra cosa: reservar un bloque en el buffer circular para que
-`read == write` solo pudiera significar "vacío" y nunca "lleno". Es el arreglo de libro
-para un buffer circular ambiguo.
+Before this I tried something else: reserving one block in the ring buffer so that
+`read == write` could only mean "empty" and never "full". It's the textbook fix
+for an ambiguous ring buffer.
 
-**Estaba mal, y lo estaba por una razón que no se ve desde fuera del juego.**
+**It was wrong, and wrong for a reason you can't see from outside the game.**
 
-Leyendo el código recompilado del propio juego se ve que `output_buffer_valid = 0` con
-el anillo lleno **no es un bug: es la señal que el hardware le da al juego** para decir
-"buffer completo". El juego la lee y actúa en consecuencia. Al "arreglarlo" le estaba
-quitando la única salida que tenía.
+Reading the game's own recompiled code shows that `output_buffer_valid = 0` with
+the ring full **is not a bug: it's the signal the hardware gives the game** to say
+"buffer full". The game reads it and acts accordingly. By "fixing" it I was
+removing the only exit it had.
 
-Se revirtió entero.
+It was reverted entirely.
 
-La lección: en una recompilación, el comportamiento raro del emulador puede ser
-exactamente lo que el juego espera. Antes de arreglar una rareza, mira si el juego la
-está usando.
+The lesson: in a recompilation, the emulator's odd behavior may be
+exactly what the game expects. Before fixing an oddity, check whether the game
+is using it.
 
-## Cómo se llegó ahí
+## How we got there
 
-El camino, porque el método vale más que el resultado:
+The path, because the method is worth more than the result:
 
-1. **Instrumentar el kernel del XMA** (`parche_anillo.py`) para ver cada llamada.
-2. **Un fallo del propio diagnóstico:** limité a una traza por segundo *todas* las
-   funciones, getters y setters. Eso escondió justo lo que hacía falta ver —las entregas
-   de entrada— y estuve un rato mirando en la dirección equivocada. Al dejar los setters
-   sin límite apareció el patrón.
-3. **Ver que no se producía nada**: se añadió una traza explícita para el caso "el
-   contexto giró y no produjo ni una muestra", con el estado completo. Ahí quedó claro
-   que era un contexto sin entrada, dando vueltas.
-4. **Leer el código del juego**, no solo el del emulador. `codegen.partition.json` mapea
-   direcciones del guest a ficheros generados; con eso se encuentra la función que
-   pregunta por el buffer y se ve qué hace con la respuesta.
+1. **Instrument the XMA kernel** (`parche_anillo.py`) to see every call.
+2. **A bug in the diagnosis itself:** I limited *all* functions, getters and setters,
+   to one trace per second. That hid exactly what needed to be seen —the input
+   deliveries— and I spent a while looking in the wrong direction. When the setters
+   were left unlimited, the pattern showed up.
+3. **Seeing that nothing was produced**: an explicit trace was added for the case "the
+   context spun without producing a single sample", with the full state. There it
+   became clear that it was a context with no input, spinning.
+4. **Read the game's code**, not just the emulator's. `codegen.partition.json` maps
+   guest addresses to generated files; with that you find the function that
+   asks about the buffer and see what it does with the answer.
 
-El paso 4 es el que resolvió el caso. Los tres primeros solo acotaron dónde mirar.
+Step 4 is the one that solved the case. The first three only narrowed down where to look.
 
-## Qué mirar si vuelve
+## What to check if it comes back
 
-En el log:
+In the log:
 
-- Líneas `[desatasco]`: cuántas y cada cuánto. Ninguna y el juego aguanta = era esto.
-  Muchas = el hilo de audio va justo en esa máquina.
-- `XmaContext {}: NO PRODUJO NADA` con la instrumentación pesada puesta
-  (`tools/diagnostico/parche_xma.py`): dice qué contexto, con qué entradas y en qué
-  posición del anillo.
+- `[desatasco]` lines: how many and how often. None and the game holds up = it was this.
+  Many = the audio thread is tight on time on that machine.
+- `XmaContext {}: NO PRODUJO NADA` with the heavy instrumentation enabled
+  (`tools/diagnostico/parche_xma.py`): it says which context, with what inputs and at what
+  position in the ring.
 
-Y el aviso `Too few processor cores - scheduling will be wonky` en el arranque no es
-decorativo: en máquinas con pocos núcleos el hilo de audio compite peor y el atasco es
-más probable.
+And the warning `Too few processor cores - scheduling will be wonky` at startup is not
+decorative: on machines with few cores the audio thread competes worse and the stall is
+more likely.

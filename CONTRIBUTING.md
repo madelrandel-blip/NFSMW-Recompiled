@@ -1,8 +1,7 @@
 # Contributing
 
-Pull requests are welcome. This file is the short version in English; the detailed
-conventions live in [docs/parches.md](docs/parches.md), in Spanish, alongside the
-source comments.
+Pull requests are welcome. This file is the short version; the detailed conventions
+live in [docs/parches.md](docs/parches.md), alongside the source comments.
 
 ## Ground rules
 

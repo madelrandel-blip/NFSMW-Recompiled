@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
 """
-Anade un ajuste de velocidad del juego, en porcentaje, movible desde F4.
+Adds an in-game speed setting, as a percentage, movable from F4.
 
-    python tools/parche_velocidad.py            aplicar
+    python tools/parche_velocidad.py            apply
     python tools/parche_velocidad.py --estado
     python tools/parche_velocidad.py --revertir
 
-Toca un fichero del SDK:  src/system/runtime.cpp
+It touches one SDK file:  src/system/runtime.cpp
 
-No guarda .original y no le hace falta: aplica y deshace por sustitucion de
-texto exacta, bloque a bloque. Es a proposito: runtime.cpp YA lleva otro
-parche encima, y guardar ahi un ".original" a estas alturas guardaria el
-fichero ya parcheado como si fuera el limpio; de paso, un --revertir se
-llevaria por delante el parche del otro.
+It does not keep a .original and does not need one: it applies and undoes by
+exact text replacement, block by block. That is on purpose: runtime.cpp ALREADY
+carries another patch on top, and keeping a ".original" there at this point
+would save the already patched file as if it were the clean one; incidentally,
+a --revertir would wipe out the other patch.
 
-Y va bloque a bloque en vez de con una marca global POR UN FALLO QUE YA PASO
-en el parche hermano: con una sola marca, cambiar el contenido del parche no
-servia de nada -encontraba la marca de la version anterior, decia "ya estaba"
-y no tocaba nada-. Aqui ademas hay migracion: si detecta la version vieja del
-propio parche, la quita antes de poner la nueva.
+And it goes block by block instead of with a global mark BECAUSE OF A BUG THAT
+ALREADY HAPPENED in the sibling patch: with a single mark, changing the patch
+content was useless -it found the mark from the previous version, said "already
+applied" and touched nothing-. Here there is also migration: if it detects the
+old version of the patch itself, it removes it before putting in the new one.
 
 
-PRIMERO, LA PREGUNTA: LAS ANIMACIONES VAN CON LOS FPS?
-======================================================
+FIRST, THE QUESTION: DO ANIMATIONS FOLLOW THE FPS?
+==================================================
 
-No. Y se puede comprobar leyendo el SDK, en src/graphics/graphics_system.cpp:
+No. And it can be checked by reading the SDK, in src/graphics/graphics_system.cpp:
 
     // Guest vblank timer based on the configured guest video mode.
     ...
@@ -39,50 +39,50 @@ No. Y se puede comprobar leyendo el SDK, en src/graphics/graphics_system.cpp:
       Sleep(1ms);
     }
 
-El parpadeo vertical -el latido al que el juego mide el tiempo- lo genera un
-HILO APARTE con un reloj de pared, no el bucle de dibujado. A 18 fps el juego
-sigue recibiendo sus 60 avisos por segundo; lo unico que pasa es que se
-dibujan menos fotogramas. Limitar a 30 fps NO ralentiza el juego.
+The vertical blank -the heartbeat by which the game measures time- is generated
+by a SEPARATE THREAD with a wall clock, not by the drawing loop. At 18 fps the
+game still receives its 60 notifications per second; all that happens is that
+fewer frames are drawn. Limiting to 30 fps does NOT slow the game down.
 
-UNA TRAMPA QUE SI IMPORTA, Y ESTA EN LA MISMA FUNCION:
+A TRAP THAT DOES MATTER, AND IT IS IN THE SAME FUNCTION:
 
     uint64_t no_vsync_interval_ticks = guest_tick_frequency / 1000;
     interval_ticks = vsync ? vsync_interval_ticks : no_vsync_interval_ticks;
 
-Con vsync APAGADO el aviso pasa a 1000 por segundo en vez de 60. Es a
-proposito -asi el juego no se queda esperando al parpadeo-, pero si el juego
-contase el tiempo por esos avisos en vez de por el reloj, con vsync apagado
-iria disparado. Merece la pena mirarlo, porque las pruebas de rendimiento las
-estamos haciendo justo asi.
+With vsync OFF the notification goes to 1000 per second instead of 60. That is
+on purpose -so the game does not sit waiting for the blank-, but if the game
+counted time by those notifications instead of by the clock, with vsync off it
+would run wild. It is worth looking at, because we are doing the performance
+tests exactly that way.
 
 
-QUE ANADE ESTE PARCHE
-=====================
+WHAT THIS PATCH ADDS
+====================
 
-Un cvar  game_speed  EN PORCENTAJE: 100 es normal, 50 la mitad, 200 el doble.
+A cvar  game_speed  AS A PERCENTAGE: 100 is normal, 50 half, 200 double.
 
-En porcentaje y no en multiplicador porque en la ventana de F4 sale un numero
-pelado y "1.0" no dice de que; escribir "100" ahi era lo natural, y con el
-rango de multiplicador -0.05 a 4.0- eso se recortaba al maximo y el ajuste se
-quedaba clavado en 4. Ademas 0..200 es un recorrido comodo para una barra.
+As a percentage and not a multiplier because in the F4 window a bare number
+shows up and "1.0" does not say what it is; typing "100" there was natural, and
+with the multiplier range -0.05 to 4.0- that got clipped to the maximum and the
+setting stayed nailed at 4. Also 0..200 is a comfortable range for a bar.
 
-No lo inventa: el SDK ya trae Clock::set_guest_time_scalar(), que escala el
-reloj del guest entero -el contador de ticks, la hora del sistema, los
-temporizadores y las esperas-. Estaba fijado a 1.0 y sin forma de tocarlo.
-Como el hilo del parpadeo compara ticks del guest, ese tambien se ajusta solo:
-no hay nada que pueda quedarse desincronizado.
+It does not invent it: the SDK already brings Clock::set_guest_time_scalar(),
+which scales the whole guest clock -the tick counter, system time, timers and
+waits-. It was fixed at 1.0 with no way to touch it. Since the blank thread
+compares guest ticks, that one also adjusts itself: there is nothing that can
+get out of sync.
 
-Y se puede mover en marcha. El SDK tiene RegisterChangeCallback para eso -ya
-lo usa para el modo pantalla completa-, asi que en cuanto mueves la barra en
-F4 se aplica, sin reiniciar.
+And it can be moved on the fly. The SDK has RegisterChangeCallback for that -it
+already uses it for fullscreen mode-, so as soon as you move the bar in F4 it
+is applied, without restarting.
 
-OJO CON LO QUE ES Y LO QUE NO ES:
+WATCH OUT FOR WHAT IT IS AND WHAT IT IS NOT:
 
-  - limitar los fps  = cuantas veces se DIBUJA por segundo
-  - game_speed       = a que velocidad PASA EL TIEMPO dentro del juego
+  - limiting the fps  = how many times it DRAWS per second
+  - game_speed        = how fast TIME PASSES inside the game
 
-Son cosas distintas. Esto no da rendimiento: bajarlo hace que el juego vaya a
-camara lenta, no que vaya mas fino.
+They are different things. This does not give performance: lowering it makes
+the game go in slow motion, not smoother.
 """
 
 import argparse
@@ -90,7 +90,7 @@ import pathlib
 import sys
 
 # ---------------------------------------------------------------------------
-#  1) Cabeceras
+#  1) Headers
 # ---------------------------------------------------------------------------
 
 CAB_ANCLA = """#include <rex/chrono/clock.h>
@@ -104,7 +104,7 @@ CAB_NUEVO = """#include <algorithm>  // PARCHE LOCAL - std::max, para el suelo d
 """
 
 # ---------------------------------------------------------------------------
-#  2) El cvar y la funcion que lo aplica
+#  2) The cvar and the function that applies it
 # ---------------------------------------------------------------------------
 
 CVAR_ANCLA = """REXCVAR_DEFINE_STRING(metadata_root, "", "Runtime", "Override metadata path");
@@ -161,7 +161,7 @@ void aplicar_velocidad_del_juego() {
 """
 
 # ---------------------------------------------------------------------------
-#  3) Aplicarlo al arrancar, y engancharlo al cambio en caliente
+#  3) Apply it at startup, and hook it to hot changes
 # ---------------------------------------------------------------------------
 
 RELOJ_ANCLA = """  chrono::Clock::set_guest_tick_frequency(50000000);
@@ -197,11 +197,11 @@ BLOQUES = [
 ]
 
 # ---------------------------------------------------------------------------
-#  Version anterior de ESTE parche, para poder migrar
+#  Previous version of THIS patch, so it can be migrated
 #
-#  La v1 definia game_speed como MULTIPLICADOR (1.0, rango 0.05..4.0) y llamaba
-#  al reloj directamente, sin funcion auxiliar. Si sigue puesta hay que
-#  quitarla antes, o los anclajes de arriba no encajan: su sitio esta ocupado.
+#  v1 defined game_speed as a MULTIPLIER (1.0, range 0.05..4.0) and called the
+#  clock directly, with no helper function. If it is still installed it must be
+#  removed first, or the anchors above do not fit: its place is taken.
 # ---------------------------------------------------------------------------
 
 VIEJO_CVAR = """REXCVAR_DEFINE_STRING(metadata_root, "", "Runtime", "Override metadata path");
@@ -247,10 +247,10 @@ VIEJO_RELOJ = """  chrono::Clock::set_guest_tick_frequency(50000000);
 """
 
 VIEJOS = [
-    # (nombre, huella que SOLO aparece en esa version, bloque entero, anclaje)
-    ("cvar de la v1 (multiplicador)",
+    # (name, fingerprint that ONLY appears in that version, whole block, anchor)
+    ("v1 cvar (multiplier)",
      'REXCVAR_DEFINE_DOUBLE(game_speed, 1.0, "Runtime",', VIEJO_CVAR, CVAR_ANCLA),
-    ("reloj de la v1 (sin funcion auxiliar)",
+    ("v1 clock (without helper function)",
      'chrono::Clock::set_guest_time_scalar(REXCVAR_GET(game_speed));', VIEJO_RELOJ, RELOJ_ANCLA),
 ]
 
@@ -260,51 +260,52 @@ def localizar_sdk():
     for cand in [raiz.parent / "rexglue-sdk", raiz / "sdk"]:
         if (cand / "src" / "system" / "runtime.cpp").exists():
             return cand
-    sys.exit("[ERROR] No encuentro src/system/runtime.cpp del SDK.\n"
-             "        Se busca en ..\\rexglue-sdk y en .\\sdk")
+    sys.exit("[ERROR] Cannot find the SDK's src/system/runtime.cpp.\n"
+             "        Looked in ..\\rexglue-sdk and .\\sdk")
 
 
 def quitar_version_vieja(txt):
-    """Quita los restos de una version anterior de este mismo parche.
+    """Removes the remains of a previous version of this same patch.
 
-    EL PROBLEMA, QUE ME COSTO TRES INTENTOS
-    ---------------------------------------
-    Un bloque viejo y el de ahora pueden solaparse de dos maneras, y cada una
-    rompe la solucion obvia de la otra:
+    THE PROBLEM, WHICH COST ME THREE ATTEMPTS
+    -----------------------------------------
+    An old block and the current one can overlap in two ways, and each one
+    breaks the obvious solution to the other:
 
-      * EL VIEJO ES UN TROZO DEL DE AHORA (al bloque se le anadio codigo).
-        Buscar el viejo lo encuentra DENTRO del bueno, y sustituirlo por el
-        anclaje le corta la cabeza al bloque recien puesto. Luego se vuelve a
-        aplicar y queda la cola DUPLICADA. El fichero crecia cada pasada.
+      * THE OLD ONE IS A PIECE OF THE CURRENT ONE (code was added to the
+        block). Searching for the old one finds it INSIDE the good one, and
+        replacing it with the anchor cuts the head off the freshly placed
+        block. Then applying again leaves the tail DUPLICATED. The file grew
+        on every pass.
 
-      * EL DE AHORA ES UN TROZO DEL VIEJO (al bloque se le quito codigo).
-        Entonces "el bloque bueno esta" da que si aunque lo que hay siga
-        siendo el viejo entero, y el script se da por aplicado dejando dentro
-        codigo muerto.
+      * THE CURRENT ONE IS A PIECE OF THE OLD ONE (code was removed from the
+        block). Then "the good block is there" says yes even though what is
+        present is still the whole old one, and the script considers itself
+        applied while leaving dead code inside.
 
-    Intente resolverlo con una HUELLA por version -un trozo que solo estuviera
-    en esa version-. No siempre existe: cuando el viejo es prefijo exacto del
-    nuevo, TODO lo que hay en el viejo esta tambien en el nuevo.
+    I tried to solve it with a FINGERPRINT per version -a piece that only
+    existed in that version-. It does not always exist: when the old one is an
+    exact prefix of the new one, EVERYTHING in the old one is also in the new
+    one.
 
-    LA REGLA QUE SI VALE, Y NO NECESITA HUELLAS
-    -------------------------------------------
-    Encontrar el bloque viejo solo cuenta si NO puede ser el bueno visto a
-    medias:
+    THE RULE THAT DOES WORK, AND NEEDS NO FINGERPRINTS
+    --------------------------------------------------
+    Finding the old block only counts if it CANNOT be the good one seen
+    halfway:
 
         es_de_verdad_vieja = (viejo in txt) and
                              (viejo not in nuevo or nuevo not in txt)
 
-    Los dos casos de arriba salen bien con eso, y se comprueba solo con los
-    textos, sin que yo tenga que acertar a mano con ninguna huella.
+    Both cases above come out right with that, and it is checked with the
+    texts alone, without me having to guess any fingerprint by hand.
 
-    VIEJOS sigue yendo DE MAS NUEVO A MAS VIEJO, y en cuanto una version
-    encaja para un anclaje las demas de ese anclaje se saltan: si la v2 es la
-    v1 con cosas anadidas, mirar la v1 primero dejaria huerfana la cola de la
-    v2. Eso tambien paso.
+    VIEJOS still goes FROM NEWEST TO OLDEST, and as soon as one version fits
+    an anchor the rest for that anchor are skipped: if v2 is v1 with things
+    added, looking at v1 first would orphan v2's tail. That happened too.
 
-    Y esto se prueba corriendo el parche DOS VECES seguidas sobre el fichero
-    de verdad y comparando. El fallo del duplicado no se ve en la primera
-    pasada, que es la unica que se suele mirar.
+    And this is tested by running the patch TWICE in a row on the real file
+    and comparing. The duplication bug does not show on the first pass, which
+    is the only one usually looked at.
     """
     ahora = {ancla: nuevo for _, ancla, nuevo in BLOQUES}
     quitados = 0
@@ -314,21 +315,21 @@ def quitar_version_vieja(txt):
             continue
         nuevo = ahora[ancla]
         if viejo not in txt:
-            # La huella solo se usa para avisar: si asoma un trozo de esa
-            # version pero el bloque entero no cuadra, alguien lo ha editado a
-            # mano y prefiero no adivinar.
+            # The fingerprint is only used to warn: if a piece of that version
+            # shows up but the whole block does not fit, someone edited it by
+            # hand and I prefer not to guess.
             if huella in txt and nuevo not in txt:
-                print(f"[aviso] Veo restos de '{nombre}' pero no en la forma que esperaba.")
-                print(f"        Lo dejo estar; miralo a mano si algo va raro.")
+                print(f"[aviso] I see remains of '{nombre}' but not in the form I expected.")
+                print(f"        Leaving it alone; look at it by hand if something seems off.")
             continue
         if viejo in nuevo and nuevo in txt:
-            # No es una version vieja: es el bloque de ahora, que contiene al
-            # viejo dentro. Este anclaje ya esta al dia.
+            # It is not an old version: it is the current block, which
+            # contains the old one inside. This anchor is already up to date.
             anclajes_hechos.add(ancla)
             continue
         txt = txt.replace(viejo, ancla)
         anclajes_hechos.add(ancla)
-        print(f"[ok] Quitada la version anterior: {nombre}")
+        print(f"[ok] Removed previous version: {nombre}")
         quitados += 1
     return txt, quitados
 
@@ -344,17 +345,17 @@ def main():
 
     if args.estado:
         puestos = sum(1 for _, _, nuevo in BLOQUES if nuevo in txt)
-        print(f"  {f.name:26s} {puestos} de {len(BLOQUES)} bloques aplicados")
+        print(f"  {f.name:26s} {puestos} of {len(BLOQUES)} blocks applied")
         for nombre, _, nuevo in BLOQUES:
-            print(f"      {'si' if nuevo in txt else 'NO':>2}  {nombre}")
-        # Con la misma regla que usa la migracion, para que --estado no avise
-        # de restos que en realidad son trozos del bloque bueno.
+            print(f"      {'yes' if nuevo in txt else 'NO':>2}  {nombre}")
+        # With the same rule the migration uses, so --estado does not warn
+        # about remains that are actually pieces of the good block.
         ahora = {ancla: nuevo for _, ancla, nuevo in BLOQUES}
         viejos = sum(1 for _, _, viejo, ancla in VIEJOS
                      if viejo in txt
                      and (viejo not in ahora[ancla] or ahora[ancla] not in txt))
         if viejos:
-            print(f"      -- quedan {viejos} bloques de la version anterior")
+            print(f"      -- {viejos} blocks of the previous version remain")
         return 0
 
     if args.revertir:
@@ -363,43 +364,43 @@ def main():
             if nuevo not in txt:
                 continue
             if txt.count(nuevo) != 1:
-                sys.exit(f"[ERROR] El bloque '{nombre}' aparece {txt.count(nuevo)} veces.\n"
-                         f"        No lo toco, quitalo tu.")
+                sys.exit(f"[ERROR] The block '{nombre}' appears {txt.count(nuevo)} times.\n"
+                         f"        I am not touching it, remove it yourself.")
             txt = txt.replace(nuevo, ancla)
             quitados += 1
         txt, viejos = quitar_version_vieja(txt)
         quitados += viejos
         if not quitados:
-            print(f"[ok] {f.name}: no habia nada puesto")
+            print(f"[ok] {f.name}: there was nothing applied")
             return 0
         f.write_text(txt, encoding="utf-8")
-        print(f"[ok] Quitados {quitados} bloques de {f.name}")
+        print(f"[ok] Removed {quitados} blocks from {f.name}")
         print()
-        print("  HAY QUE RECOMPILAR EL SDK.")
+        print("  THE SDK MUST BE RECOMPILED.")
         return 0
 
     txt, _ = quitar_version_vieja(txt)
 
     faltan = [(n, a, v) for n, a, v in BLOQUES if v not in txt]
     if not faltan:
-        print(f"[ok] {f.name}: los {len(BLOQUES)} bloques ya estaban")
+        print(f"[ok] {f.name}: all {len(BLOQUES)} blocks were already there")
         return 0
 
     for nombre, ancla, _ in faltan:
         n = txt.count(ancla)
         if n != 1:
-            sys.exit(f"[ERROR] El anclaje de '{nombre}' aparece {n} veces, esperaba 1.\n"
-                     f"        El SDK habra cambiado, o quedan restos de una version\n"
-                     f"        anterior que no reconozco. No he tocado nada.")
+            sys.exit(f"[ERROR] The anchor for '{nombre}' appears {n} times, expected 1.\n"
+                     f"        The SDK must have changed, or remains of a previous version\n"
+                     f"        that I do not recognize are left. I have not touched anything.")
 
     for nombre, ancla, nuevo in faltan:
         txt = txt.replace(ancla, nuevo)
-        print(f"[ok] Aplicado: {nombre}")
+        print(f"[ok] Applied: {nombre}")
     f.write_text(txt, encoding="utf-8")
     print()
-    print("  En F4, categoria Runtime, ajuste  game_speed  (0 a 200 %)")
+    print("  In F4, Runtime category, setting  game_speed  (0 to 200 %)")
     print()
-    print("  HAY QUE RECOMPILAR EL SDK para que sirva de algo:")
+    print("  THE SDK MUST BE RECOMPILED for this to do anything:")
     print("    cmake --build out/build/win-amd64 --config Release --target install")
     print()
     return 0

@@ -1,67 +1,67 @@
 #!/usr/bin/env python3
 """
-Que el juego no se cierre en silencio cuando la GPU no vale.
+Keeps the game from closing silently when the GPU is not good enough.
 
-    python tools/parche_gpu_fallback.py            aplicar
+    python tools/parche_gpu_fallback.py            apply
     python tools/parche_gpu_fallback.py --estado
     python tools/parche_gpu_fallback.py --revertir
 
-Toca un solo fichero del SDK:  src/ui/d3d12/d3d12_provider.cpp
-Guarda un .original la primera vez y es idempotente.
+It touches a single SDK file:  src/ui/d3d12/d3d12_provider.cpp
+It keeps a .original on the first run and is idempotent.
 
 
-QUE PASABA
-==========
+WHAT WAS HAPPENING
+==================
 
-La eleccion de adaptador ya era por capacidades, no por lista de modelos: se
-recorren los adaptadores con EnumAdapters1 y se coge el primero que sepa crear
-un dispositivo D3D12 a feature level 11_0. Eso esta bien y no se toca.
+The adapter choice was already by capabilities, not by model list: it walks
+the adapters with EnumAdapters1 and takes the first one that can create a D3D12
+device at feature level 11_0. That part is fine and is not touched.
 
-Lo que estaba mal eran las dos salidas de emergencia:
+What was wrong were the two emergency exits:
 
-1. NO SE USABA EL FALLBACK QUE YA EXISTIA.
-   El cvar d3d12_adapter admite -2, que significa "usa WARP" -el rasterizador
-   por software de Microsoft-. Pero con el valor por defecto (-1) el bucle
-   descarta explicitamente los adaptadores marcados como software:
+1. THE FALLBACK THAT ALREADY EXISTED WAS NOT USED.
+   The d3d12_adapter cvar accepts -2, which means "use WARP" -Microsoft's
+   software rasterizer-. But with the default value (-1) the loop explicitly
+   discards adapters marked as software:
 
        if (!(adapter_desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) break;
 
-   O sea que si no habia ninguna GPU fisica valida, no se probaba WARP: se
-   fallaba directamente. El fallback estaba ahi, pero habia que saber que
-   existia y escribirlo a mano en la linea de comandos.
+   So if there was no valid physical GPU, WARP was not tried: it failed
+   directly. The fallback was there, but you had to know it existed and write
+   it by hand on the command line.
 
-2. EL ERROR NO LO VEIA NADIE.
-   Un REXLOG_ERROR y return false. La ventana no llega a abrirse, asi que
-   desde fuera el juego "no hace nada": doble clic y ni un parpadeo. Para
-   quien recibe la carpeta y no sabe que hay un log, eso es indistinguible de
-   un ejecutable roto.
+2. NOBODY SAW THE ERROR.
+   A REXLOG_ERROR and return false. The window never opens, so from the
+   outside the game "does nothing": double click and not even a flicker. For
+   whoever receives the folder and does not know there is a log, that is
+   indistinguishable from a broken executable.
 
 
-QUE HACE EL PARCHE
-==================
+WHAT THE PATCH DOES
+===================
 
-  - Convierte el bucle en una funcion a la que se le dice si acepta
-    adaptadores software. Misma logica, mismo orden, mismos criterios.
+  - Turns the loop into a function that is told whether it accepts software
+    adapters. Same logic, same order, same criteria.
 
-  - Primera pasada: solo GPU fisica, exactamente como antes.
+  - First pass: physical GPU only, exactly as before.
 
-  - Si no hay ninguna Y el usuario no pidio un adaptador concreto, SEGUNDA
-    pasada aceptando software. Si WARP esta disponible, el juego arranca.
-    Ira lentisimo -es un rasterizador por CPU-, y se avisa de ello en el log,
-    pero arranca y se ve, que es infinitamente mejor que cerrarse.
+  - If there is none AND the user did not ask for a specific adapter, SECOND
+    pass accepting software. If WARP is available, the game starts. It will be
+    extremely slow -it is a CPU rasterizer-, and it warns about it in the log,
+    but it starts and is visible, which is infinitely better than closing.
 
-  - Si tampoco hay WARP, se muestra un cuadro de dialogo de Windows que
-    explica que hace falta y que hacer. El log sigue teniendo el mismo mensaje
-    de siempre, para no romper nada que lo lea.
+  - If WARP is not there either, a Windows dialog box is shown explaining what
+    is needed and what to do. The log still has the same message as always, so
+    as not to break anything that reads it.
 
-El cuadro de dialogo se llama por LoadLibrary/GetProcAddress en vez de
-enlazar user32.lib. Es una linea mas de codigo y a cambio el parche no toca
-la configuracion de enlazado del SDK, que es justo el tipo de cambio que
-luego rompe una build ajena.
+The dialog box is called via LoadLibrary/GetProcAddress instead of linking
+user32.lib. It is one more line of code and in exchange the patch does not
+touch the SDK's linking configuration, which is exactly the kind of change
+that later breaks someone else's build.
 
-NO cambia el criterio de seleccion cuando SI hay GPU. Un equipo que hoy
-funciona se comporta exactamente igual: la segunda pasada solo se ejecuta si
-la primera se quedo sin candidatos.
+It does NOT change the selection criteria when there IS a GPU. A machine that
+works today behaves exactly the same: the second pass only runs if the first
+one ran out of candidates.
 """
 
 import argparse
@@ -222,8 +222,8 @@ def localizar_sdk():
         f = cand / "src" / "ui" / "d3d12" / "d3d12_provider.cpp"
         if f.exists():
             return f
-    sys.exit("[ERROR] No encuentro src/ui/d3d12/d3d12_provider.cpp del SDK.\n"
-             "        Se busca en ..\\rexglue-sdk y en .\\sdk")
+    sys.exit("[ERROR] Cannot find the SDK's src/ui/d3d12/d3d12_provider.cpp.\n"
+             "        Looked in ..\\rexglue-sdk and .\\sdk")
 
 
 def main():
@@ -239,39 +239,40 @@ def main():
 
     if args.estado:
         print(f"  {f}")
-        print("  Parche:", "APLICADO" if puesto else "sin aplicar")
+        print("  Patch:", "APPLIED" if puesto else "not applied")
         return 0
 
     if args.revertir:
         if original.exists():
             shutil.copy2(original, f)
-            print("[ok] Restaurado desde .original")
+            print("[ok] Restored from .original")
         else:
-            print("[aviso] No hay .original que restaurar.")
+            print("[aviso] There is no .original to restore.")
         return 0
 
     if puesto:
-        print("[ok] Ya estaba aplicado. No toco nada.")
+        print("[ok] It was already applied. I am touching nothing.")
         return 0
 
     n = txt.count(ANCLA)
     if n != 1:
-        sys.exit(f"[ERROR] El anclaje 'eleccion de adaptador' aparece {n} veces,\n"
-                 f"        esperaba 1. El SDK habra cambiado. No he tocado nada.")
+        sys.exit(f"[ERROR] The anchor 'adapter choice' appears {n} times,\n"
+                 f"        expected 1. The SDK must have changed. I have not touched anything.")
 
-    # OJO: este fichero comparte el .original con parche_presentador.py? No.
-    # Ese toca d3d12_presenter.cpp, este d3d12_provider.cpp. Son distintos.
+    # NOTE: does this file share the .original with parche_presentador.py? No.
+    # That one touches d3d12_presenter.cpp, this one d3d12_provider.cpp. They
+    # are different.
     if not original.exists():
         shutil.copy2(f, original)
-        print(f"[ok] Copia de seguridad: {original.name}")
+        print(f"[ok] Backup: {original.name}")
 
     f.write_text(txt.replace(ANCLA, NUEVO), encoding="utf-8")
-    print("[ok] Parche aplicado.")
+    print("[ok] Patch applied.")
     print()
-    print("  Sin GPU valida -> se intenta WARP antes de rendirse")
-    print("  Sin WARP        -> cuadro de dialogo explicando que pasa")
+    print("  No valid GPU -> WARP is tried before giving up")
+    print("  No WARP      -> dialog box explaining what is happening")
     print()
-    print("  HAY QUE RECOMPILAR EL SDK para que sirva de algo:")
+    print("  THE SDK MUST BE RECOMPILED for this to do anything:")
     print("    cmake --build out/build/win-amd64 --config Release --target install")
     print()
     return 0

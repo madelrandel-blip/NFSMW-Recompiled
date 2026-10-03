@@ -1,150 +1,154 @@
-# El lanzador
+# The launcher
 
-Ventana nativa de Windows en C# con WinForms, con la portada del juego al lado en plan
-instalador. Es lo que se abre para jugar.
+A native Windows window in C# with WinForms, with the game cover next to it,
+installer-style. It's what opens to play.
 
-## Compilarlo
+## Building it
 
 ```bat
 CONSTRUIR_LANZADOR.bat
 ```
 
-Usa el `csc.exe` del .NET Framework que **ya viene con Windows**, en
-`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\`. No hace falta Visual Studio, ni el
-SDK de .NET, ni nada.
+It uses the `csc.exe` from the .NET Framework that **already ships with Windows**, in
+`C:\Windows\Microsoft.NET\Framework64\v4.0.30319\`. No Visual Studio, no .NET SDK,
+nothing needed.
 
-Se eligió C# frente a las alternativas por eso:
+C# was chosen over the alternatives for that reason:
 
-- **C++ con Win32 a pelo**: sale un exe pequeño, pero montar a mano una ventana con
-  veinte controles es muchísimo código para lo que es.
-- **Python empaquetado**: hay que instalar Python y PyInstaller, y el exe acaba pesando
-  30 MB.
-- **C# con el compilador que ya trae Windows**: un solo fichero, los mismos controles
-  que ya usaba el lanzador de PowerShell —WinForms es lo que había debajo—, icono y
-  portada dentro del exe, y cero instalaciones.
+- **Raw Win32 C++**: you get a small exe, but hand-building a window with twenty
+  controls is a ton of code for what it is.
+- **Packaged Python**: you have to install Python and PyInstaller, and the exe ends up
+  weighing 30 MB.
+- **C# with the compiler Windows already ships**: a single file, the same controls the
+  PowerShell launcher already used —WinForms is what was underneath—, icon and cover
+  inside the exe, and zero installs.
 
-### Se compila con un csc viejo
+### It builds with an old csc
 
-El que trae Windows es de C# 5 (2012). En `Lanzador.cs` **no** se puede usar nada
-moderno: ni cadenas interpoladas `$"..."`, ni `?.`, ni `nameof`, ni miembros con `=>`.
-Todo con `string.Format` y sintaxis clásica.
+The one Windows ships is C# 5 (2012). In `Lanzador.cs` you **cannot** use anything
+modern: no interpolated strings `$"..."`, no `?.`, no `nameof`, no expression-bodied
+members `=>`. Everything with `string.Format` and classic syntax.
 
-Si algo de eso se cuela, el error que sale no dice "necesitas un compilador más nuevo":
-dice cosas raras sobre `;` que faltan, y se pierde media tarde.
+If any of that slips in, the error you get doesn't say "you need a newer compiler": it
+says strange things about missing `;`, and you lose half an afternoon.
 
-## Los nombres, que están intercambiados a propósito
+## The names, which are swapped on purpose
 
-En la carpeta portable:
+In the portable folder:
 
-| Fichero | Qué es |
+| File | What it is |
 |---|---|
-| `NFS_Most_Wanted.exe` | **El lanzador**, con el icono del juego |
-| `nfsmw.exe` | El juego de verdad |
+| `NFS_Most_Wanted.exe` | **The launcher**, with the game's icon |
+| `nfsmw.exe` | The actual game |
 
-El motivo es solo que al hacer doble clic en el icono del juego salga la ventana de
-opciones, como en cualquier juego con lanzador.
+The only reason is so that double-clicking the game icon brings up the options window,
+like any game with a launcher.
 
-**El juego sigue sabiendo arrancar solo.** `nfsmw.exe` a pelo funciona: `nfsmw_app.h` le
-pone `gpu_plugin`, `mnk_mode` y `readback_resolve` si nadie los pidió, y busca una ISO en
-su carpeta. Queda como salida si el lanzador diera guerra.
+**The game still knows how to start on its own.** `nfsmw.exe` by itself works:
+`nfsmw_app.h` sets `gpu_plugin`, `mnk_mode` and `readback_resolve` if nobody asked for
+them, and looks for an ISO in its folder. It remains as a fallback if the launcher gives
+you trouble.
 
-Dos consecuencias del cambio de nombre:
+Two consequences of the rename:
 
-- El buscador de ISO prefiere la que se llame **igual que el ejecutable**. Al renombrar,
-  una `NFS_Most_Wanted.iso` deja de ser la preferida y entra por la segunda regla (la
-  primera por orden alfabético). Con una sola ISO da igual. Llámala `nfsmw.iso` si
-  quieres que vuelva a ser la preferida.
-- **No cambia dónde guarda sus cosas el juego.** Esa carpeta sale de
-  `GetUserFolder() / GetName()`, y `GetName()` está en el código, no en el nombre del
-  fichero. La caché de shaders sigue en `Documents\nfsmw\cache`.
+- The ISO finder prefers the one named the **same as the executable**. After the rename,
+  an `NFS_Most_Wanted.iso` stops being the preferred one and falls under the second rule
+  (the first alphabetically). With a single ISO it doesn't matter. Name it `nfsmw.iso`
+  if you want it to be preferred again.
+- **It doesn't change where the game stores its stuff.** That folder comes from
+  `GetUserFolder() / GetName()`, and `GetName()` is in the code, not the file name. The
+  shader cache is still in `Documents\nfsmw\cache`.
 
-## Los ajustes
+## The settings
 
-Todo se guarda en `lanzador.json`, en la misma carpeta. El lanzador antiguo de PowerShell
-lee y escribe el mismo fichero con los mismos nombres de campo, así que conviven.
+Everything is saved in `lanzador.json`, in the same folder. The old PowerShell launcher
+reads and writes the same file with the same field names, so they coexist.
 
-| Grupo | Qué |
+| Group | What |
 |---|---|
-| Imagen del juego | La ISO |
-| Pantalla y resolución | Tamaño de la ventana, resolución interna, ventana o completa |
-| Fotogramas | Vsync y límite de fps |
-| Motor de vídeo | Automático / Rápido (rtv) / Exacto (rov) |
-| API gráfica | DirectX 12 / Vulkan |
+| Game image | The ISO |
+| Display and resolution | Window size, internal resolution, windowed or fullscreen |
+| Frames | Vsync and fps limit |
+| Video engine | Automatic / Fast (rtv) / Exact (rov) |
+| Graphics API | DirectX 12 / Vulkan |
 
-### Por qué la API gráfica no tiene "automático"
+### Why the graphics API has no "automatic"
 
-Es una salida de emergencia, y por eso es distinta del resto.
+It's an escape hatch, and that's why it differs from the rest.
 
-`gpu_backend` también se puede cambiar desde el menú de F4. El problema: si eliges una
-API que en tu equipo da pantalla negra, guardas y reinicias, el valor se queda escrito en
-`nfsmw.toml` y **ya no hay forma de volver** — para cambiarlo necesitas el menú, y para
-llegar al menú necesitas ver algo. Pasó de verdad.
+`gpu_backend` can also be changed from the F4 menu. The problem: if you pick an API that
+gives a black screen on your machine, save and restart, the value stays written in
+`nfsmw.toml` and **there's no way back** — you need the menu to change it, and you need
+to see something to reach the menu. It happened for real.
 
-Lo que lo arregla es el orden de prioridad de los cvars del SDK: la línea de comandos
-manda sobre el fichero de configuración. Así que el lanzador pasa **siempre**
-`--gpu_backend`, aunque coincida con el toml. La ventana siempre gana.
+What fixes it is the SDK's cvar priority order: the command line beats the config file.
+So the launcher **always** passes `--gpu_backend`, even if it matches the toml. The
+window always wins.
 
-Un "automático" que no pasara nada devolvería el mando al toml, que es justo el agujero.
-En "Motor de vídeo" sí tiene sentido, porque elegir mal ahí no deja el juego invisible.
+An "automatic" that passed nothing would hand control back to the toml, which is exactly
+the hole. Under "Video engine" it does make sense, because choosing wrong there doesn't
+leave the game invisible.
 
-### Los dos ajustes de resolución
+### The two resolution settings
 
-Se llamaban "Resolución de salida" y "Escala de renderizado", y con esos nombres es fácil
-tocar el primero esperando lo segundo, ver que no cambia nada y darlo por roto. Ahora:
+They used to be called "Output resolution" and "Render scale", and with those names it's
+easy to touch the first expecting the second, see that nothing changes and call it
+broken. Now:
 
-- **Tamaño de la ventana** → `--resolution`. Solo agranda la imagen.
-- **Resolución interna** → `--resolution_scale`. El "x2" de los emuladores.
+- **Window size** → `--resolution`. It only enlarges the image.
+- **Internal resolution** → `--resolution_scale`. The emulators' "x2".
 
-Debajo del segundo hay una línea que dice qué hace la escala elegida. No pone la
-resolución en píxeles a propósito: la escala no multiplica el tamaño de la ventana, sino
-los render targets del juego, que son de un tamaño suyo que desde el lanzador no se
-conoce. Poner "2560 x 1440" sería inventárselo.
+Below the second there's a line saying what the chosen scale does. It deliberately
+doesn't show the resolution in pixels: the scale doesn't multiply the window size, but
+the game's render targets, which have a size of their own that the launcher doesn't
+know. Writing "2560 x 1440" would be making it up.
 
-### Argumentos fijos
+### Fixed arguments
 
-Van siempre, y no son preferencias:
+They're always passed, and they're not preferences:
 
-| Argumento | Por qué |
+| Argument | Why |
 |---|---|
-| `--readback_resolve=fast` | Sin esto la imagen sale lavada y el sol reventado |
-| `--gpu_plugin xenos` | Es el único backend construido |
-| `--mnk_mode` | Teclado y ratón además del mando |
-| `--gpu_backend=...` | Siempre; ver arriba |
+| `--readback_resolve=fast` | Without this the image comes out washed out and the sun blown out |
+| `--gpu_plugin xenos` | It's the only backend built |
+| `--mnk_mode` | Keyboard and mouse in addition to the controller |
+| `--gpu_backend=...` | Always; see above |
 
-## La portada
+## The cover
 
-`tools/lanzador/portada.jpg` y `icono.ico` **no están en el repositorio**: son la
-carátula del juego, arte de Electronic Arts.
+`tools/lanzador/portada.jpg` and `icono.ico` **aren't in the repository**: they're the
+game's cover art, Electronic Arts artwork.
 
-El lanzador arranca perfectamente sin ellas. `CargarRecurso` devuelve null si el recurso
-no está y el panel lateral se dibuja en negro con el título del proyecto.
+The launcher starts fine without them. `CargarRecurso` returns null if the resource
+isn't there and the side panel is drawn black with the project title.
 
-Si quieres poner una:
+If you want to add one:
 
-- `portada.jpg` — se dibuja entera, pegada arriba del panel, con el hueco de abajo para
-  el texto. Relación recomendada parecida a una carátula (algo así como 760×1064).
-- `icono.ico` — cuadrado, con los tamaños del 16 al 256.
+- `portada.jpg` — drawn whole, stuck to the top of the panel, with the gap below for the
+  text. Recommended aspect ratio close to a cover (something like 760×1064).
+- `icono.ico` — square, with sizes from 16 to 256.
 
-`CONSTRUIR_LANZADOR.bat` avisa si faltan.
+`CONSTRUIR_LANZADOR.bat` warns if they're missing.
 
-## Detalles de implementación que conviene conocer
+## Implementation details worth knowing
 
-**El juego se espera en otro hilo.** El lanzador de PowerShell hacía `WaitForExit` en el
-hilo de la ventana, y mientras jugabas la ventana se quedaba colgada: Windows la pintaba
-en blanco y la marcaba como "no responde". Aquí se lanza aparte y se vuelve con `Invoke`
-al terminar, con una comprobación delante por si cerraste el lanzador mientras jugabas.
+**The game is waited on in another thread.** The PowerShell launcher did `WaitForExit`
+on the window thread, and while you played the window hung: Windows painted it white and
+marked it as "not responding". Here it's launched separately and control returns with
+`Invoke` when it finishes, with a check in front in case you closed the launcher while
+playing.
 
-**El json se parsea a mano.** Son diez parejas clave/valor sin anidar; no hacía falta
-traerse Newtonsoft (que habría que descargar) ni `JavaScriptSerializer` (que obliga a
-referenciar `System.Web.Extensions`). Lo único delicado son las barras invertidas de las
-rutas de Windows, que en json van dobladas.
+**The json is parsed by hand.** It's ten key/value pairs with no nesting; no need to
+bring in Newtonsoft (which would have to be downloaded) or `JavaScriptSerializer` (which
+forces a reference to `System.Web.Extensions`). The only delicate part is the
+backslashes in Windows paths, which are doubled in json.
 
-**El panel de la portada se pinta a mano**, no con un `PictureBox`, para controlar cómo
-encaja: la imagen entra entera y pegada arriba en vez de recortarse por los lados, que se
-comería parte del título.
+**The cover panel is painted by hand**, not with a `PictureBox`, to control how it fits:
+the image goes in whole and stuck to the top instead of being cropped at the sides,
+which would eat part of the title.
 
-## El lanzador antiguo
+## The old launcher
 
-`tools/lanzador/lanzador.ps1` es la versión en PowerShell. Hace lo mismo, comparte los
-ajustes y se abre con `LANZADOR.bat` en la carpeta portable. Está por si el lanzador
-compilado diera problemas en alguna máquina.
+`tools/lanzador/lanzador.ps1` is the PowerShell version. It does the same thing, shares
+the settings and opens with `LANZADOR.bat` in the portable folder. It's there in case
+the compiled launcher gives trouble on some machine.

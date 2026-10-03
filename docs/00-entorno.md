@@ -1,30 +1,30 @@
-# Fase 0 — Entorno de compilación
+# Phase 0 — Build environment
 
-ReXGlue **solo** funciona con Clang. MSVC y GCC no están soportados: el código
-generado depende de intrinsics y de comportamiento de optimización específicos de
-Clang/LLVM. No intentes forzarlo, se rompe de formas raras.
+ReXGlue **only** works with Clang. MSVC and GCC are not supported: the generated
+code depends on intrinsics and optimization behavior specific to Clang/LLVM. Don't
+try to force it, it breaks in strange ways.
 
 ## Windows
 
-| Herramienta | Versión mínima | Nota |
+| Tool | Minimum version | Note |
 |---|---|---|
-| Visual Studio 2022 Community | — | workload *Desktop development with C++* |
-| C++ Clang Compiler for Windows | 20.x | componente opcional dentro del instalador de VS |
-| MSBuild support for LLVM (clang-cl) | — | componente opcional |
-| CMake | 3.25+ | el que trae VS sirve |
-| Ninja | cualquiera | el que trae VS sirve |
-| Windows SDK + headers D3D12 | — | vienen con el workload |
-| Python | 3.8+ | solo para las herramientas de extracción |
-| Git | — | con `--recursive` para submódulos |
+| Visual Studio 2022 Community | — | *Desktop development with C++* workload |
+| C++ Clang Compiler for Windows | 20.x | optional component inside the VS installer |
+| MSBuild support for LLVM (clang-cl) | — | optional component |
+| CMake | 3.25+ | the one bundled with VS works |
+| Ninja | any | the one bundled with VS works |
+| Windows SDK + D3D12 headers | — | they come with the workload |
+| Python | 3.8+ | only for the extraction tools |
+| Git | — | with `--recursive` for submodules |
 
-En el instalador de VS: pestaña **Individual components** → busca "clang" → marca
-*C++ Clang Compiler for Windows* y *MSBuild support for LLVM (clang-cl) toolset*.
+In the VS installer: the **Individual components** tab → search for "clang" → check
+*C++ Clang Compiler for Windows* and *MSBuild support for LLVM (clang-cl) toolset*.
 
-Verificación:
+Verification:
 ```powershell
 cmake --version
 ninja --version
-clang --version     # debe decir 20.x o superior
+clang --version     # must say 20.x or higher
 python --version
 ```
 
@@ -36,7 +36,7 @@ sudo apt update
 sudo apt install -y clang-20 lld-20 cmake ninja-build git python3 libgtk-3-dev
 ```
 
-Si tu distro no tiene `clang-20` en repos, usa el instalador de LLVM:
+If your distro doesn't have `clang-20` in its repos, use the LLVM installer:
 ```bash
 wget https://apt.llvm.org/llvm.sh
 chmod +x llvm.sh
@@ -48,7 +48,7 @@ Arch:
 sudo pacman -S clang lld cmake ninja git python gtk3
 ```
 
-Verificación:
+Verification:
 ```bash
 clang --version    # 20+
 cmake --version    # 3.25+
@@ -56,36 +56,36 @@ ninja --version
 pkg-config --modversion gtk+-3.0
 ```
 
-## Camino rápido (Windows)
+## Fast path (Windows)
 
-Doble clic en **`FASE0_ENTORNO.bat`** en la raíz del proyecto. Localiza Visual Studio
-con `vswhere` (incluidas las versiones Insiders/Preview), carga el entorno de
-compilación x64, verifica cada herramienta, y si está todo clona y compila el SDK.
+Double-click **`FASE0_ENTORNO.bat`** in the project root. It locates Visual Studio
+with `vswhere` (including Insiders/Preview versions), loads the x64 build
+environment, checks every tool, and if everything is there, clones and builds the SDK.
 
-### El error clásico: marcar solo los componentes de Clang
+### The classic mistake: checking only the Clang components
 
-Es tentador ir a *Componentes individuales*, buscar "clang", marcar los dos que
-salen, y darle a instalar. **No funciona.** Clang en Windows no es autosuficiente:
-necesita las cabeceras y librerías del **Windows SDK** y el toolchain de **MSVC**
-para enlazar. Y ReXGlue necesita además los headers de **D3D12**, que también vienen
-del SDK.
+It's tempting to go to *Individual components*, search for "clang", check the two
+that show up, and hit install. **It doesn't work.** Clang on Windows is not
+self-sufficient: it needs the headers and libraries of the **Windows SDK** and the
+**MSVC** toolchain to link. And ReXGlue also needs the **D3D12** headers, which also
+come from the SDK.
 
-Si el instalador te pregunta *"¿Desea continuar sin las cargas de trabajo?"*, la
-respuesta es **no**: dale a *Agregar cargas de trabajo* y marca
-**"Desarrollo para el escritorio con C++"**.
+If the installer asks you *"Do you want to continue without workloads?"*, the
+answer is **no**: click *Add workloads* and check
+**"Desktop development with C++"**.
 
-### Por qué hace falta el .bat y no vale una consola normal
+### Why the .bat is needed and a normal console won't do
 
-`cmake`, `ninja` y `clang-cl` que instala Visual Studio **no están en el PATH global**.
-Tampoco lo están las variables `INCLUDE` y `LIB` que apuntan al Windows SDK. Todo eso
-solo existe después de ejecutar `vcvars64.bat`, que es lo que hace el *Developer
-Command Prompt*.
+The `cmake`, `ninja` and `clang-cl` that Visual Studio installs **are not on the
+global PATH**. Neither are the `INCLUDE` and `LIB` variables that point to the
+Windows SDK. All of that only exists after running `vcvars64.bat`, which is what the
+*Developer Command Prompt* does.
 
-El `.bat` de fase 0 hace eso por ti. Si prefieres trabajar a mano, abre
-**"Developer PowerShell for VS"** desde el menú de inicio en vez de una PowerShell
-normal.
+The Phase 0 `.bat` does that for you. If you prefer to work by hand, open
+**"Developer PowerShell for VS"** from the Start menu instead of a normal
+PowerShell.
 
-## Instalar el SDK
+## Installing the SDK
 
 ```bash
 git clone --recursive https://github.com/rexglue/rexglue-sdk.git
@@ -100,68 +100,67 @@ cmake --preset linux-amd64
 cmake --build out/build/linux-amd64 --target install
 ```
 
-`install` registra el SDK en el *user package registry* de CMake, así que tu proyecto
-lo encuentra solo con `find_package(rexglue)` sin rutas absolutas.
+`install` registers the SDK in CMake's *user package registry*, so your project
+finds it with just `find_package(rexglue)` and no absolute paths.
 
-Comprueba que el CLI quedó en el PATH:
+Check that the CLI ended up on the PATH:
 ```bash
 rexglue --help
 ```
 
-Si no aparece, añade el `bin/` de la instalación al PATH, o llama al binario por ruta
-completa desde `out/install/<preset>/bin/`.
+If it doesn't show up, add the installation's `bin/` to PATH, or call the binary by
+full path from `out/install/<preset>/bin/`.
 
-## Sobre compilar en Windows y Linux a la vez
+## About building on Windows and Linux at the same time
 
-Es viable y de hecho recomendable: los dos toolchains usan Clang, así que los errores
-de codegen aparecen igual en ambos, pero Linux te da mejores sanitizers (ASan/UBSan)
-para cazar corrupciones de memoria del guest, y Windows te da RenderDoc/PIX cómodos
-para depurar la parte gráfica. Mantén un solo `config/nfsmw_config.toml` y dos
-directorios de build separados.
-
+It's viable and in fact recommended: both toolchains use Clang, so codegen errors
+show up the same on both, but Linux gives you better sanitizers (ASan/UBSan) to hunt
+down guest memory corruption, and Windows gives you convenient RenderDoc/PIX for
+debugging the graphics side. Keep a single `config/nfsmw_config.toml` and two
+separate build directories.
 
 ---
 
-## Problemas conocidos
+## Known issues
 
-### `error: expected identifier or '('` en `lzxd.c` (libmspack)
+### `error: expected identifier or '('` in `lzxd.c` (libmspack)
 
 ```
 lzxd.c:1:1: error: expected identifier or '('
     1 | ../../libmspack/mspack/lzxd.c
 ```
 
-El archivo no tiene código C dentro: tiene una **ruta**. Varios submódulos
-(libmspack el primero) usan enlaces simbólicos en su árbol. Crear symlinks en
-Windows requiere permisos especiales, así que git —cuando no los tiene— hace
-check out del enlace como un fichero de texto normal cuyo único contenido es la
-ruta del destino. El compilador lo abre esperando C y encuentra eso.
+The file has no C code inside: it has a **path**. Several submodules (libmspack
+first) use symbolic links in their tree. Creating symlinks on Windows requires
+special permissions, so git —when it doesn't have them— checks out the link as a
+normal text file whose only content is the destination path. The compiler opens it
+expecting C and finds that.
 
-`FASE0_ENTORNO.bat` lo repara solo antes de compilar. Para lanzarlo a mano:
+`FASE0_ENTORNO.bat` fixes it by itself before building. To run it manually:
 
 ```powershell
 python tools\arreglar_symlinks.py ..\rexglue-sdk
-python tools\arreglar_symlinks.py ..\rexglue-sdk --simular   # ver sin tocar
+python tools\arreglar_symlinks.py ..\rexglue-sdk --simular   # see without touching
 ```
 
-Sustituye cada enlace roto por una copia real del archivo destino. No hace falta
-ser administrador ni volver a clonar.
+It replaces each broken link with a real copy of the target file. You don't need to
+be an administrator or clone again.
 
-**Ojo:** git verá esos archivos como modificados, y un `git submodule update`
-los revierte. Si vuelves a actualizar el SDK, relanza el script (es idempotente).
+**Note:** git will see those files as modified, and a `git submodule update`
+reverts them. If you update the SDK again, re-run the script (it's idempotent).
 
-La alternativa "correcta" es activar el Modo de desarrollador de Windows, poner
-`git config --global core.symlinks true` y volver a clonar — pero son 800 MB de
-descarga otra vez para arreglar tres archivos.
+The "correct" alternative is to enable Windows Developer Mode, set
+`git config --global core.symlinks true` and clone again — but that's 800 MB of
+downloading again to fix three files.
 
-### El preset `win-amd64` sale como desactivado
+### The `win-amd64` preset shows as disabled
 
 ```
 CMake Error: Cannot use disabled configure preset ... "win-amd64"
 ```
 
-Tienes MSYS2, Cygwin o Git Bash por delante de Visual Studio en el PATH. Su
-`cmake` reporta `${hostSystemName}` como `MSYS` en vez de `Windows`, y el preset
-exige `Windows`. `FASE0_ENTORNO.bat` lo evita anteponiendo al PATH el `cmake`,
-`ninja` y `clang` de Visual Studio, y marca con `[??]` cualquier herramienta que
-no venga de ahí.
+You have MSYS2, Cygwin or Git Bash ahead of Visual Studio in the PATH. Their
+`cmake` reports `${hostSystemName}` as `MSYS` instead of `Windows`, and the preset
+requires `Windows`. `FASE0_ENTORNO.bat` avoids that by putting Visual Studio's
+`cmake`, `ninja` and `clang` at the front of the PATH, and flags with `[??]` any
+tool that doesn't come from there.

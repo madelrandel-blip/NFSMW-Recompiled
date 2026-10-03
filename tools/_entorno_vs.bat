@@ -1,13 +1,13 @@
 @echo off
 rem ===========================================================================
-rem  Prepara el entorno de compilacion. Se invoca con CALL desde los demas
-rem  .bat, por eso NO lleva setlocal: las variables tienen que sobrevivir.
+rem  Prepares the build environment. It is invoked with CALL from the other
+rem  .bat files, so it does NOT use setlocal: the variables must survive.
 rem
-rem  Deja listo:
-rem    - el entorno x64 de Visual Studio (INCLUDE, LIB, PATH)
-rem    - cmake / ninja / clang NATIVOS de VS por delante de cualquier MSYS2
-rem    - el bin del ReXGlue SDK instalado, para que "rexglue" responda
-rem    - ENTORNO_OK=1 si todo fue bien
+rem  It leaves ready:
+rem    - the Visual Studio x64 environment (INCLUDE, LIB, PATH)
+rem    - VS NATIVE cmake / ninja / clang ahead of any MSYS2
+rem    - the installed ReXGlue SDK bin, so that "rexglue" responds
+rem    - ENTORNO_OK=1 if everything went well
 rem ===========================================================================
 
 set "ENTORNO_OK="
@@ -40,21 +40,21 @@ if not defined VSPATH (
 )
 
 if not defined VSPATH (
-    echo [ERROR] No se encontro Visual Studio con herramientas de C++.
+    echo [ERROR] Visual Studio with C++ tools was not found.
     exit /b 1
 )
 
 call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] vcvars64.bat fallo.
+    echo [ERROR] vcvars64.bat failed.
     exit /b 1
 )
 
-rem System32 PRIMERO, antes que las de VS. Con MSYS2 en el PATH, utilidades
-rem de Windows como find.exe, sort.exe o where.exe quedan tapadas por sus
-rem homonimas de Unix, que aceptan otros parametros y fallan de formas raras
-rem ("find: /c/$Recycle.Bin: Permission denied"). Se antepone aqui para que
-rem los prepends de VS que vienen despues queden por delante de esta.
+rem System32 FIRST, before the VS ones. With MSYS2 in the PATH, Windows
+rem utilities such as find.exe, sort.exe or where.exe get covered by their
+rem Unix namesakes, which accept other parameters and fail in strange ways
+rem ("find: /c/$Recycle.Bin: Permission denied"). It is prepended here so
+rem that the VS prepends that come after end up ahead of this one.
 set "PATH=%SystemRoot%\System32;%PATH%"
 
 set "VSCMAKE=%VSPATH%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin"
@@ -64,7 +64,7 @@ if exist "%VSNINJA%\ninja.exe" set "PATH=%VSNINJA%;%PATH%"
 if exist "%VSCMAKE%\cmake.exe" set "PATH=%VSCMAKE%;%PATH%"
 if exist "%VSLLVM%\clang.exe"  set "PATH=%VSLLVM%;%PATH%"
 
-rem El SDK instalado
+rem The installed SDK
 set "SDK=%~dp0..\..\rexglue-sdk"
 set "SDKBIN=%SDK%\out\install\win-amd64\bin"
 if exist "%SDKBIN%" set "PATH=%SDKBIN%;%PATH%"

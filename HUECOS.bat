@@ -3,12 +3,12 @@ setlocal
 cd /d "%~dp0"
 
 echo ============================================
-echo   NFSMW Recomp - Mapa de huecos de codigo
+echo   NFSMW Recomp - Code gap map
 echo ============================================
 echo.
-echo No compila nada: solo lee el C++ generado y calcula donde hay
-echo codigo sin funcion asignada. Es donde viven las llamadas
-echo indirectas que revientan el arranque.
+echo It compiles nothing: it only reads the generated C++ and works out where
+echo there is code with no function assigned. That is where the indirect
+echo calls that blow up the boot live.
 echo.
 
 set "PY="
@@ -17,7 +17,7 @@ if not defined PY (
     python --version >nul 2>nul && set "PY=python"
 )
 if not defined PY (
-    echo [ERROR] No se encontro Python.
+    echo [ERROR] Python was not found.
     pause
     exit /b 1
 )

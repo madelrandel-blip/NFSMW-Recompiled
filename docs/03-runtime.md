@@ -1,74 +1,72 @@
-# Fase 3 y 4 — Runtime, stubs y el ciclo largo
+# Phases 3 and 4 — Runtime, stubs and the long cycle
 
-Aquí es donde vive el trabajo de verdad. El codegen es un fin de semana; esto son
-meses.
+This is where the real work lives. Codegen is a weekend; this is months.
 
-## Qué te da ReXGlue
+## What ReXGlue gives you
 
-El SDK trae un runtime derivado de Xenia:
+The SDK ships a runtime derived from Xenia:
 
-- **Memory** — el mapa de memoria del guest (base `0x82000000`), heaps, protecciones
-- **Kernel State & Objects** — hilos, eventos, mutex, semáforos, TLS
-- **Virtual File System** — mapea las rutas del guest (`game:\`, `d:\`) a tu disco
-- **ReXApp** — el marco de la aplicación host: ventana, bucle principal, presentación
-- **CVar System** — variables de configuración en runtime
-- **Logging** — imprescindible; súbelo a `trace` cuando algo se rompa
+- **Memory** — the guest memory map (base `0x82000000`), heaps, protections
+- **Kernel State & Objects** — threads, events, mutexes, semaphores, TLS
+- **Virtual File System** — maps the guest paths (`game:\`, `d:\`) to your disk
+- **ReXApp** — the host application framework: window, main loop, presentation
+- **CVar System** — runtime configuration variables
+- **Logging** — essential; turn it up to `trace` when something breaks
 
-Lo que **tú** pones: los imports del kernel que este juego usa y que no están
-implementados, los shaders, y todos los parches específicos de NFSMW.
+What **you** provide: the kernel imports this game uses that aren't implemented, the
+shaders, and all the NFSMW-specific patches.
 
-## El ciclo
+## The cycle
 
 ```
-compilar → ejecutar → crash/hang → leer el log → identificar qué falta → implementar → repetir
+compile → run → crash/hang → read the log → identify what's missing → implement → repeat
 ```
 
-Arranca siempre con logging alto la primera vez:
+Always start with high logging the first time:
 
 ```bash
 ./app/build/nfsmw --log_level trace --log_file run.log
 ```
 
-El primer arranque va a morir rápido. Casi siempre con algo del estilo:
+The first boot is going to die quickly. Almost always with something like:
 
 ```
 [error] unimplemented kernel import: XamUserGetSigninState (ordinal 0x0000014B)
 ```
 
-## Implementar un import que falta
+## Implementing a missing import
 
-Los imports no resueltos se declaran como stubs. Empieza por la versión más tonta que
-deje avanzar al juego:
+Unresolved imports are declared as stubs. Start with the dumbest version that lets
+the game move forward:
 
 ```cpp
 // app/src/stubs/xam.cpp
 uint32_t XamUserGetSigninState(uint32_t user_index) {
-    // 1 = signed in locally. Suficiente para pasar el chequeo de perfil.
+    // 1 = signed in locally. Enough to pass the profile check.
     return user_index == 0 ? 1 : 0;
 }
 ```
 
-Regla práctica: **devuelve lo mínimo que no rompa**, no lo correcto. Si el juego
-consulta el estado de Xbox Live, di que no hay conexión. Si pregunta por logros,
-devuelve lista vacía. Ya volverás a ello. Lo que no puedes hacer es devolver basura:
-un handle inválido tratado como puntero te da un crash 40 frames después, imposible
-de rastrear hasta aquí.
+Rule of thumb: **return the minimum that doesn't break**, not the correct thing. If
+the game asks about Xbox Live status, say there's no connection. If it asks about
+achievements, return an empty list. You'll come back to it. What you can't do is
+return garbage: an invalid handle treated as a pointer gives you a crash 40 frames
+later, impossible to trace back to here.
 
-Marca cada stub:
+Mark every stub:
 ```cpp
-// STUB: devuelve siempre "sin conexión". Revisar si el modo carrera lo consulta.
+// STUB: always returns "no connection". Check whether career mode queries it.
 ```
-y mantén un `STUBS.md` con la lista. Vas a acumular cientos.
+and keep a `STUBS.md` with the list. You're going to accumulate hundreds.
 
-## Mid-ASM hooks: el bisturí
+## Mid-ASM hooks: the scalpel
 
-Cuando necesitas intervenir en medio de una función del juego sin reescribirla —
-saltarte un chequeo, forzar un valor, instrumentar — usas un hook a nivel de
-instrucción:
+When you need to intervene in the middle of a game function without rewriting it —
+skip a check, force a value, instrument — you use an instruction-level hook:
 
 ```toml
 [[midasm_hook]]
-address           = 0x8214C880   # la instrucción exacta a interceptar
+address           = 0x8214C880   # the exact instruction to intercept
 name              = "SkipDiscCheck"
 registers         = ["r3", "r4"]
 after_instruction = false
@@ -77,64 +75,62 @@ return_on_true    = true
 
 ```cpp
 bool SkipDiscCheck(PPCRegister& r3, PPCRegister& r4) {
-    if (r3.u32 == 0) { r3.u32 = 1; return true; }  // return desde la función guest
-    return false;                                   // seguir normal
+    if (r3.u32 == 0) { r3.u32 = 1; return true; }  // return from the guest function
+    return false;                                   // continue normally
 }
 ```
 
-Usos típicos en un juego de coches:
-- desactivar el chequeo de disco / DVD region
-- forzar resolución o aspect ratio distintos del 720p fijo
-- desbloquear el framerate (NFSMW 2005 está clavado a 30)
-- saltarse la intro de EA sin tocar los assets
+Typical uses in a racing game:
+- disable the disc / DVD region check
+- force a resolution or aspect ratio other than the fixed 720p
+- unlock the framerate (NFSMW 2005 is locked to 30)
+- skip the EA intro without touching the assets
 
-Los hooks son la herramienta preferida frente a parchear el binario: quedan en el
-TOML, son versionables, y no distribuyes nada del juego.
+Hooks are the preferred tool over patching the binary: they live in the TOML, they're
+versionable, and you don't distribute anything from the game.
 
-## Gráficos
+## Graphics
 
-El juego emite microcódigo de shaders de Xenos y comandos del ring buffer. Necesitas
-traducirlo. Dos caminos:
+The game emits Xenos shader microcode and ring buffer commands. You need to
+translate it. Two paths:
 
-1. **XenosRecomp** (de los mismos de XenonRecomp) — recompila los shaders a HLSL/SPIR-V
-   ahead-of-time. Es lo que usó Unleashed Recompiled.
-2. Lo que traiga ReXGlue en su capa gráfica — revisa `Runtime Architecture Overview`
-   en la wiki, que está evolucionando rápido.
+1. **XenosRecomp** (from the same people as XenonRecomp) — recompiles the shaders to
+   HLSL/SPIR-V ahead-of-time. It's what Unleashed Recompiled used.
+2. Whatever ReXGlue brings in its graphics layer — check `Runtime Architecture
+   Overview` in the wiki, which is evolving fast.
 
-Cosas específicas de NFSMW 2005 que te van a dar guerra:
-- **Motion blur y bloom**: usa render targets con formatos que no tienen equivalente
-  directo en D3D12/Vulkan. Vas a necesitar conversión manual.
-- **EDRAM tiling**: el 360 resuelve desde EDRAM con predicated tiling. Hay que emularlo
-  como render passes.
-- **Reflejos del coche en tiempo real**: cubemaps dinámicos, sensibles al orden de
-  comandos.
+NFSMW 2005-specific things that will give you trouble:
+- **Motion blur and bloom**: use render targets with formats that have no direct
+  equivalent in D3D12/Vulkan. You'll need manual conversion.
+- **EDRAM tiling**: the 360 resolves from EDRAM with predicated tiling. It has to be
+  emulated as render passes.
+- **Real-time car reflections**: dynamic cubemaps, sensitive to command order.
 
-Consejo: no persigas fidelidad al principio. Un frame que dibuja *algo* reconocible ya
-es un hito enorme. Primero geometría, luego texturas, luego post-proceso.
+Advice: don't chase fidelity at first. A frame that draws *something* recognizable is
+already a huge milestone. Geometry first, then textures, then post-processing.
 
 ## Audio
 
-El punto más flojo del stack. El decodificador XMA del 360 es un bloque MMIO, y tanto
-XenonRecomp como ReXGlue lo tienen incompleto. Opciones:
+The weakest point of the stack. The 360's XMA decoder is an MMIO block, and both
+XenonRecomp and ReXGlue have it incomplete. Options:
 
-- Usar el decodificador XMA de Xenia (código portable, hay implementaciones basadas en
-  FFmpeg).
-- Stub silencioso al principio: devuelve buffers en cero. El juego arranca, tú avanzas,
-  y vuelves al audio cuando lo demás funcione.
+- Use Xenia's XMA decoder (portable code, there are FFmpeg-based implementations).
+- Silent stub at first: return zeroed buffers. The game boots, you make progress,
+  and you come back to audio when everything else works.
 
-NFSMW 2005 mezcla XMA (música, el soundtrack licenciado) con ADPCM y streams de motor.
-Los efectos de motor son procedurales sobre samples cortos — esos suelen ser más
-fáciles que la música.
+NFSMW 2005 mixes XMA (music, the licensed soundtrack) with ADPCM and engine streams.
+Engine effects are procedural over short samples — those tend to be easier than the
+music.
 
 ## Input
 
-`XamInputGetState` mapeado a SDL2/XInput. Es de lo más agradecido: un mando de Xbox
-moderno mapea 1:1 al de 360. Suele funcionar casi a la primera.
+`XamInputGetState` mapped to SDL2/XInput. It's one of the most rewarding: a modern
+Xbox controller maps 1:1 to the 360's. It usually works almost first try.
 
 ## Assets
 
-El juego busca sus archivos en rutas del guest. Configura el VFS para que
-`game:\` apunte a la carpeta donde extrajiste el ISO:
+The game looks for its files in guest paths. Configure the VFS so `game:\` points to
+the folder where you extracted the ISO:
 
 ```
 assets/game_root/
@@ -144,33 +140,35 @@ assets/game_root/
 └── SOUND/
 ```
 
-Si el juego se cuelga leyendo, sube el log del VFS a `trace` y mira qué ruta exacta
-pide. Casi siempre es un problema de mayúsculas (el 360 es case-insensitive, Linux no)
-o de separadores `\` vs `/`.
+If the game hangs while reading, turn the VFS log up to `trace` and see which exact
+path it's asking for. It's almost always a case-sensitivity issue (the 360 is
+case-insensitive, Linux isn't) or a `\` vs `/` separator issue.
 
-## Hitos realistas, en orden
+## Realistic milestones, in order
 
-1. El codegen termina sin errores
-2. El binario compila y enlaza
-3. Arranca y llega al `main` del juego sin crashear
-4. El VFS resuelve el primer archivo
-5. Primer frame dibujado (aunque sea negro con un triángulo)
-6. Logo de EA / pantalla de carga visible
-7. Menú principal navegable con mando
-8. Una carrera carga
-9. Una carrera es jugable
+1. Codegen finishes without errors
+2. The binary compiles and links
+3. It boots and reaches the game's `main` without crashing
+4. The VFS resolves the first file
+5. First frame drawn (even if it's black with a triangle)
+6. EA logo / loading screen visible
+7. Main menu navigable with a controller
+8. A race loads
+9. A race is playable
 10. Audio
-11. Todo lo demás
+11. Everything else
 
-Entre el 3 y el 5 se va la mitad del esfuerzo total. Es normal quedarse semanas ahí.
+Half of the total effort goes between 3 and 5. It's normal to get stuck there for
+weeks.
 
-## Cómo pedir ayuda
+## How to ask for help
 
-Cuando te atores, lo útil que puedes compartir sin distribuir nada del juego:
-- el `codegen.log` con el error
-- las líneas relevantes del `run.log`
-- el fragmento de TOML que estás intentando
-- la dirección y el desensamblado de la función problemática
+When you get stuck, the useful things you can share without distributing anything
+from the game:
+- the `codegen.log` with the error
+- the relevant lines from `run.log`
+- the TOML snippet you're trying
+- the address and disassembly of the problematic function
 
-El Discord de hedge-dev (XenonRecomp / Unleashed Recompiled) y el repo de ReXGlue son
-donde está la gente que sabe.
+The hedge-dev Discord (XenonRecomp / Unleashed Recompiled) and the ReXGlue repo are
+where the people who know are.

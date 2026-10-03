@@ -1,100 +1,101 @@
 #!/usr/bin/env python3
 """
-Desatasca la voz XMA cuando el juego se queda girando sobre ella.
+Unsticks the XMA voice when the game gets stuck spinning on it.
 
-    python tools/parche_desatasco.py            aplicar
+    python tools/parche_desatasco.py            apply
     python tools/parche_desatasco.py --estado
     python tools/parche_desatasco.py --revertir
 
-Toca un fichero del SDK:  src/kernel/xboxkrnl/xboxkrnl_audio_xma.cpp
-Va DESPUES de tools/parche_anillo.py, sobre ese mismo fichero.
+It touches one SDK file:  src/kernel/xboxkrnl/xboxkrnl_audio_xma.cpp
+It goes AFTER tools/parche_anillo.py, on that same file.
 
-AVISO POR DELANTE: esto es un APANO, no la cura. Rompe el atasco desde fuera
-en vez de evitar que ocurra. Lo digo aqui para que quede escrito.
+WARNING UP FRONT: this is a PATCH-UP, not the cure. It breaks the jam from the
+outside instead of preventing it from happening. I say it here so it is written
+down.
 
 
-LO QUE YA ESTA MEDIDO, SIN HUECOS
-=================================
+WHAT IS ALREADY MEASURED, WITH NO GAPS
+======================================
 
-Todo el audio del juego lo lleva UN SOLO hilo, el 0xD. El mismo alimenta al
-descodificador, consume lo descodificado y mezcla. Esto es el final, con el
-detalle al milisegundo:
+All the game's audio is carried by ONE SINGLE thread, 0xD. The same one feeds
+the decoder, consumes what is decoded and mixes. This is the end, with
+millisecond detail:
 
-  01.528  el juego le da entrada a la voz 19
-  01.679  entra en el bucle de mezcla (sub_825E1CD0) para esa voz
-  01.679  Work produce, escritura 0 -> 4
-  01.700  Work produce, escritura 4 -> 8
-  01.709  Work produce, escritura 8 -> 12
-  01.728  Work NO PRODUCE NADA.  ent0=0 ent1=0.  Se acabo la entrada.
+  01.528  the game feeds input to voice 19
+  01.679  it enters the mixing loop (sub_825E1CD0) for that voice
+  01.679  Work produces, write 0 -> 4
+  01.700  Work produces, write 4 -> 8
+  01.709  Work produces, write 8 -> 12
+  01.728  Work PRODUCES NOTHING.  ent0=0 ent1=0.  The input is gone.
   01.739  ...
-  01.782  ...  y el juego, mientras, mueve su lectura 16, 20, 0, 4, 8: una
-               vuelta entera al anillo consumiendo lo que ya nadie rellena.
-               Al volver a 8 se para.
-  02.119  a partir de aqui, 90 segundos leyendo los dos offsets y nada mas.
+  01.782  ...  and meanwhile the game moves its read 16, 20, 0, 4, 8: a full
+               lap around the ring consuming what nobody refills anymore.
+               On returning to 8 it stops.
+  02.119  from here on, 90 seconds reading the two offsets and nothing else.
 
-Y en ese mismo tramo el juego SI le da entrada a las voces vecinas -6500 y
-6540- a las 01.549, 01.608, 01.658, 01.698, 01.759 y 01.779. A la voz 19 no le
-da ninguna. No es que se le olvide: para llegar a alimentarla tendria que
-salir del bucle de mezcla, y de ahi ya no sale.
-
-
-POR QUE NO SALE
-===============
-
-El bucle, leido instruccion a instruccion:
-
-  - si una voz esta mal servida, pone una bandera y NO pasa a la siguiente:
-    repite esa misma voz sin parar
-  - para saber cuanto audio hay, resta:  escritura*256 - su cursor
-  - si esa resta da CERO, y solo entonces, pregunta si el buffer de salida
-    sigue valido. Si le dicen que no, lo entiende como "buffer completo" y se
-    lleva los 6144 bytes de golpe. Esa es su salida de emergencia.
-
-En el atasco la resta da unos 1000, no cero: la lectura del juego se queda a
-UN BLOQUE de alcanzar a la escritura. Asi que nunca llega a preguntar, y su
-salida de emergencia no se dispara. Espera audio que solo podria producir un
-descodificador que no tiene con que, alimentado por el mismo hilo que espera.
+And in that same stretch the game DOES feed input to the neighboring voices
+-6500 and 6540- at 01.549, 01.608, 01.658, 01.698, 01.759 and 01.779. To voice
+19 it gives none. It is not that it forgets: to get to feed it, it would have
+to leave the mixing loop, and it never leaves.
 
 
-QUE HACE ESTE PARCHE
+WHY IT DOES NOT LEAVE
+=====================
+
+The loop, read instruction by instruction:
+
+  - if a voice is badly served, it sets a flag and does NOT move to the next:
+    it repeats that same voice endlessly
+  - to know how much audio there is, it subtracts:  write*256 - its cursor
+  - if that subtraction gives ZERO, and only then, it asks whether the output
+    buffer is still valid. If told no, it takes it as "buffer complete" and
+    takes the 6144 bytes at once. That is its emergency exit.
+
+In the jam the subtraction gives about 1000, not zero: the game's read stops
+ONE BLOCK short of reaching the write. So it never gets to ask, and its
+emergency exit does not trigger. It waits for audio that only a decoder with
+nothing to work on could produce, fed by the same thread that waits.
+
+
+WHAT THIS PATCH DOES
 ====================
 
-Vigila esa situacion exacta, en la propia funcion que el juego consulta en
-bucle. Cuando lleva mas de 250 ms cumpliendose TODO esto a la vez:
+It watches that exact situation, in the very function the game polls in a loop.
+When for more than 250 ms ALL of this holds at the same time:
 
-  - el juego pide el offset de escritura del mismo contexto una y otra vez
-  - ese contexto tiene la salida marcada como valida
-  - sus dos buffers de entrada estan vacios, o sea que el descodificador no
-    tiene absolutamente nada que producir
-  - y escritura y lectura no coinciden, que es lo que impide que el juego
-    llegue a hacer su pregunta
+  - the game asks for the write offset of the same context over and over
+  - that context has its output marked as valid
+  - both of its input buffers are empty, i.e. the decoder has absolutely
+    nothing to produce
+  - and write and read do not match, which is what keeps the game from ever
+    getting to its question
 
-entonces le da la senal que su propio codigo sabe interpretar: iguala la
-escritura a la lectura y apaga output_buffer_valid. Es decir, "este buffer
-esta terminado". El juego hace su resta, le da cero o negativo, pregunta, se
-entera, se lleva lo que queda y sigue.
+then it gives it the signal its own code knows how to interpret: it makes the
+write equal the read and turns output_buffer_valid off. That is, "this buffer
+is finished". The game does its subtraction, gets zero or negative, asks, finds
+out, takes what is left and moves on.
 
-Los 250 ms son de sobra: en marcha normal esas consultas se resuelven en
-microsegundos. La condicion no se cumple jugando bien.
+The 250 ms are plenty: in normal operation those queries resolve in
+microseconds. The condition does not hold while playing properly.
 
-El precio es un tropiezo de audio en esa voz, porque parte de lo que se lleva
-es material viejo del anillo. A cambio de no colgarse.
+The price is a hiccup in that voice's audio, because part of what it takes is
+old material from the ring. In exchange for not hanging.
 
 
-POR QUE ES UN APANO Y NO LA CURA
-================================
+WHY IT IS A PATCH-UP AND NOT THE CURE
+=====================================
 
-La cura seria que el descodificador no se quedara nunca seco a media mezcla, y
-eso pasa por entender por que el juego llega tan justo de entrada. Sospecho
-del ritmo: en esta maquina, a 18 fps y con el log a tope, el hilo de audio
-llega tarde a rellenar. Pero sospechar no es saberlo, y no lo voy a vender
-como que lo se.
+The cure would be for the decoder to never run dry mid-mix, and that means
+understanding why the game gets so short on input. I suspect the pacing: on
+this machine, at 18 fps and with logging maxed out, the audio thread arrives
+late to refill. But suspecting is not knowing, and I am not going to sell it as
+if I knew.
 
-Lo que si se puede decir es que ataca una situacion IMPOSIBLE de alcanzar
-jugando bien -un hilo girando un cuarto de segundo sobre una voz sin entrada-
-y que si se dispara deja un aviso en el log. Si aparece a menudo, el problema
-de ritmo es gordo y hay que ir a por el. Si no aparece nunca y el juego deja
-de colgarse, era esto.
+What can be said is that it attacks a situation IMPOSSIBLE to reach while
+playing properly -a thread spinning a quarter of a second on a voice with no
+input- and that if it triggers it leaves a warning in the log. If it shows up
+often, the pacing problem is serious and must be chased. If it never shows up
+and the game stops hanging, this was it.
 """
 
 import argparse
@@ -173,7 +174,7 @@ def localizar_sdk():
     for cand in [raiz.parent / "rexglue-sdk", raiz / "sdk"]:
         if (cand / "src" / "audio" / "xma_context.cpp").exists():
             return cand
-    sys.exit("[ERROR] No encuentro el SDK. Se busca en ..\\rexglue-sdk y en .\\sdk")
+    sys.exit("[ERROR] SDK not found. Looked in ..\\rexglue-sdk and .\\sdk")
 
 
 def main():
@@ -184,51 +185,51 @@ def main():
 
     f = localizar_sdk() / "src" / "kernel" / "xboxkrnl" / "xboxkrnl_audio_xma.cpp"
     if not f.exists():
-        sys.exit(f"[ERROR] No encuentro {f}")
+        sys.exit(f"[ERROR] Cannot find {f}")
 
     if args.estado:
         puesto = MARCA in f.read_text(encoding="utf-8")
-        print(f"  {f.name:30s} desatasco {'aplicado' if puesto else 'sin aplicar'}")
+        print(f"  {f.name:30s} unstick {'applied' if puesto else 'not applied'}")
         return 0
 
     if args.revertir:
-        # La copia de seguridad de este fichero la hace parche_anillo.py, que es
-        # quien lo toca primero. Restaurarla aqui se llevaria por delante su
-        # instrumentacion, asi que se manda al que corresponde.
-        print("  Este parche va encima de parche_anillo.py y comparte con el la")
-        print("  copia de seguridad, asi que se deshace desde alli:")
+        # The backup of this file is made by parche_anillo.py, which is the one
+        # that touches it first. Restoring it here would wipe out its
+        # instrumentation, so this is redirected to the one in charge.
+        print("  This patch goes on top of parche_anillo.py and shares its")
+        print("  backup, so it is undone from there:")
         print(r"    py -3 tools\parche_anillo.py --revertir")
         print()
-        print("  Y si quieres la instrumentacion pero sin el desatasco, ejecuta")
-        print(r"  despues tools\parche_anillo.py otra vez.")
+        print("  And if you want the instrumentation but without the unstick,")
+        print(r"  run tools\parche_anillo.py again afterwards.")
         return 0
 
     txt = f.read_text(encoding="utf-8")
     if MARCA in txt:
-        print(f"[ok] {f.name}: el desatasco ya estaba puesto")
+        print(f"[ok] {f.name}: the unstick was already in place")
         return 0
 
-    # Este parche usa std::atomic y std::chrono, y quien mete esas dos
-    # cabeceras en el fichero es parche_anillo.py. Sin el, esto compilaria mal
-    # y el error saldria a mitad de la build del SDK, que es el peor sitio
-    # posible para enterarse. Mejor pararlo aqui.
+    # This patch uses std::atomic and std::chrono, and the one that puts those
+    # two headers in the file is parche_anillo.py. Without it, this would fail
+    # to compile and the error would come out halfway through the SDK build,
+    # which is the worst possible place to find out. Better to stop here.
     if "PARCHE LOCAL - escucha de la conversacion XMA" not in txt:
-        sys.exit("[ERROR] Falta parche_anillo.py, que es quien pone las cabeceras\n"
-                 "        que este necesita. Ejecutalo antes:\n"
+        sys.exit("[ERROR] parche_anillo.py is missing, and it is the one that puts\n"
+                 "        in the headers this needs. Run it first:\n"
                  "            py -3 tools\\parche_anillo.py\n"
-                 "        No he tocado nada.")
+                 "        I have not touched anything.")
 
     n = txt.count(ANCLA)
     if n != 1:
-        sys.exit(f"[ERROR] El anclaje aparece {n} veces, esperaba 1.\n"
-                 f"        Ejecuta antes tools\\parche_anillo.py. No he tocado nada.")
+        sys.exit(f"[ERROR] The anchor appears {n} times, expected 1.\n"
+                 f"        Run tools\\parche_anillo.py first. I have not touched anything.")
 
     f.write_text(txt.replace(ANCLA, NUEVO), encoding="utf-8")
-    print(f"[ok] Desatasco puesto en {f.name}")
+    print(f"[ok] Unstick installed in {f.name}")
     print()
-    print("  Si salta, dejara un aviso [desatasco] en el log.")
+    print("  If it triggers, it will leave a [desatasco] warning in the log.")
     print()
-    print("  HAY QUE RECOMPILAR EL SDK para que sirva de algo:")
+    print("  THE SDK MUST BE RECOMPILED for this to do anything:")
     print("    cmake --build out/build/win-amd64 --config Release --target install")
     print()
     return 0

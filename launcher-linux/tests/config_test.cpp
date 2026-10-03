@@ -23,8 +23,8 @@ void LauncherConfigTest::savesAndLoadsSettings() {
   QTemporaryDir root;
   QVERIFY(root.isValid());
   GameSettings expected;
-  expected.languageId = 5;
-  expected.countryId = 31;
+  expected.languageId = 1;
+  expected.countryId = 103;
   expected.outputGain = 0.65;
   expected.resolutionScale = 2;
 
@@ -32,15 +32,15 @@ void LauncherConfigTest::savesAndLoadsSettings() {
   QVERIFY2(GameConfig::save(root.path(), expected, &error),
            qPrintable(error));
   const GameSettings actual = GameConfig::load(root.path());
-  QCOMPARE(actual.languageId, 5);
-  QCOMPARE(actual.countryId, 31);
+  QCOMPARE(actual.languageId, 1);
+  QCOMPARE(actual.countryId, 103);
   QCOMPARE(actual.outputGain, 0.65);
   QCOMPARE(actual.resolutionScale, 2);
 }
 
 void LauncherConfigTest::buildsQuotedSafeArguments() {
   GameSettings settings;
-  settings.languageId = 5;
+  settings.languageId = 1;
   const QString dataRoot = QStringLiteral("/tmp/NFSMW Data");
   const QString gameRoot = QStringLiteral("/tmp/NFSMW Game");
   const QStringList arguments =
@@ -49,7 +49,7 @@ void LauncherConfigTest::buildsQuotedSafeArguments() {
       QStringLiteral("--game_data_root=/tmp/NFSMW Game")));
   QVERIFY(arguments.contains(
       QStringLiteral("--user_data_root=/tmp/NFSMW Data")));
-  QVERIFY(arguments.contains(QStringLiteral("--user_language=5")));
+  QVERIFY(arguments.contains(QStringLiteral("--user_language=1")));
   QVERIFY(arguments.contains(QStringLiteral("--gpu_plugin=xenos")));
   for (const QString& argument : arguments) {
     QVERIFY(!argument.contains(QLatin1Char('"')));

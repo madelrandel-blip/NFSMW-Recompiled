@@ -1,121 +1,118 @@
-# Problemas conocidos
+# Known issues
 
-Lo que está roto, y hasta dónde se llegó investigando cada cosa. Un problema con el
-diagnóstico a medias vale más que uno sin empezar.
+What's broken, and how far the investigation into each thing got. A problem with a
+half-finished diagnosis is worth more than one not started.
 
-## Abiertos
+## Open
 
-### Vulkan renderiza en negro (Intel)
+### Vulkan renders black (Intel)
 
-**Estado:** reproducible, sin diagnosticar.
+**Status:** reproducible, undiagnosed.
 
-El backend de Vulkan está entero en el SDK y compila. Se carga bien —tan bien que el
-respaldo automático no salta, porque ese solo entra cuando la API ni siquiera existe en
-la copia— y la pantalla sale negra.
+The Vulkan backend is complete in the SDK and compiles. It loads fine —so fine that the
+automatic fallback doesn't trigger, because that only kicks in when the API doesn't even
+exist in the copy— and the screen comes out black.
 
-Lo siguiente sería mirar el log de esa ejecución con `--log_level=debug` a ver qué dice
-antes de quedarse en negro. No se ha hecho.
+The next step would be to look at that run's log with `--log_level=debug` to see what it
+says before going black. It hasn't been done.
 
-Mientras tanto: el lanzador siempre pasa `--gpu_backend`, así que elegir mal aquí nunca
-deja el juego sin poder abrirse. Vuelves al lanzador y marcas DirectX 12.
+In the meantime: the launcher always passes `--gpu_backend`, so choosing wrong here never
+leaves the game unable to open. You go back to the launcher and select DirectX 12.
 
-### Franja horizontal con el camino RTV
+### Horizontal band with the RTV path
 
-**Estado:** visto, no acotado.
+**Status:** seen, not narrowed down.
 
-En algunas gráficas integradas el camino rápido de la EDRAM deja una franja horizontal
-rara. Como cuesta la mitad de los fps, merece la pena investigarlo antes que renunciar.
+On some integrated GPUs the fast EDRAM path leaves a strange horizontal band. Since it
+costs half the fps, it's worth investigating before giving up.
 
-Sin comprobar todavía: si depende de la versión del driver de Intel, y si se reproduce en
-otras integradas o solo en la Iris 540.
+Not checked yet: whether it depends on the Intel driver version, and whether it
+reproduces on other integrated GPUs or only on the Iris 540.
 
-### Multijugador
+### Multiplayer
 
-**Estado:** diagnosticado a fondo, sin implementar.
+**Status:** thoroughly diagnosed, not implemented.
 
-La puerta de los privilegios está resuelta. Debajo faltan 114 de 158 funciones de red,
-incluidas las del System Link, y los manejadores de sesión son stubs que devuelven éxito
-sin hacer nada.
+The privileges gate is solved. Below it, 114 of 158 network functions are missing,
+including the System Link ones, and the session handlers are stubs that return success
+without doing anything.
 
-El detalle completo, con la tabla de qué falta, está en
+The full detail, with the table of what's missing, is in
 [diario/red-y-privilegios.md](diario/red-y-privilegios.md).
 
-### Pocos núcleos
+### Too few cores
 
-El SDK avisa en el arranque:
+The SDK warns at startup:
 
 ```
 Too few processor cores - scheduling will be wonky
 ```
 
-No es decorativo. En máquinas con pocos núcleos el hilo de audio compite peor y el
-atasco del XMA es más probable. Si en el log salen muchas líneas `[desatasco]`, es por
-aquí.
+It's not decorative. On machines with few cores the audio thread competes worse and the
+XMA deadlock is more likely. If many `[desatasco]` lines show up in the log, this is why.
 
-## Resueltos, documentados por si vuelven
+## Resolved, documented in case they come back
 
-### El audio se moría y el juego se congelaba
+### Audio died and the game froze
 
-Arreglado por `parche_desatasco.py`. La historia completa, incluido el arreglo que
-parecía obvio y estaba mal, en [diario/audio-cuelgue.md](diario/audio-cuelgue.md).
+Fixed by `parche_desatasco.py`. The full story, including the fix that looked obvious and
+was wrong, in [diario/audio-cuelgue.md](diario/audio-cuelgue.md).
 
-### Pantalla verde rota que parecía un fallo del backend
+### Broken green screen that looked like a backend bug
 
-**No era el código.** Eran dos interruptores de depuración que se habían colado en
-`nfsmw.toml` desde el menú de F4:
+**It wasn't the code.** It was two debug switches that had slipped into `nfsmw.toml` from
+the F4 menu:
 
 ```toml
 d3d12_tessellation_wireframe = true
 native_stencil_value_output_d3d12_intel = true
 ```
 
-El primero dibuja en alambre la geometría teselada. El segundo fuerza la salida nativa de
-stencil **en Intel**, que es justo el caso que el SDK excluye a propósito. Con el camino
-RTV destroza el render sin dar un solo error de GPU.
+The first draws tessellated geometry as wireframe. The second forces native stencil
+output **on Intel**, which is exactly the case the SDK excludes on purpose. With the RTV
+path it wrecks the render without giving a single GPU error.
 
-**Lección: si de repente se ve mal, mira el toml antes de sospechar del código.**
+**Lesson: if it suddenly looks wrong, check the toml before suspecting the code.**
 
-### `NtCreateFile FAILED` en el log
+### `NtCreateFile FAILED` in the log
 
-43 avisos de ficheros del juego que no se abren, con `0xc000000f`. **Es normal.** El
-juego tantea ficheros que en este disco no existen. Se confirmó comparando con una
-ejecución larga que llegó hasta el final: salen exactamente los mismos 43.
+43 warnings for game files that don't open, with `0xc000000f`. **It's normal.** The game
+probes files that don't exist on this disc. It was confirmed by comparing with a long run
+that made it to the end: exactly the same 43 show up.
 
-No perseguir esto.
+Don't chase this.
 
-### El aviso permanente de "hace falta reiniciar"
+### The permanent "restart needed" warning
 
-El menú de F4 abría siempre diciendo `Restart needed to apply: gpu_backend`, aunque no
-hubieras tocado nada.
+The F4 menu always opened saying `Restart needed to apply: gpu_backend`, even if you
+hadn't touched anything.
 
-`SetFlagFromSource` apunta en la lista de pendientes cualquier cvar `kRequiresRestart`
-que se toque, sin mirar de dónde viene el valor. Como el lanzador pasa `--gpu_backend`
-siempre, entraba en la lista pese a estar ya aplicado. Un aviso que no se puede quitar
-deja de leerse, y entonces tampoco se lee cuando es real.
+`SetFlagFromSource` records any `kRequiresRestart` cvar that's touched into the pending
+list, without looking at where the value comes from. Since the launcher always passes
+`--gpu_backend`, it entered the list despite already being applied. A warning that can't
+be dismissed stops being read, and then it isn't read when it's real either.
 
-`parche_backend.py` limpia la lista cuando termina el arranque.
+`parche_backend.py` clears the list when startup finishes.
 
-### Subir la resolución no cambiaba nada
+### Raising the resolution changed nothing
 
-No era un fallo: eran dos controles distintos con nombres parecidos. `--resolution` solo
-agranda la imagen; el que la hace más fina es `--resolution_scale`. El lanzador ahora los
-llama "Tamaño de la ventana" y "Resolución interna", y enseña qué hace la escala elegida.
+It wasn't a bug: they were two different controls with similar names. `--resolution` only
+enlarges the image; the one that makes it finer is `--resolution_scale`. The launcher now
+calls them "Window size" and "Internal resolution", and shows what the chosen scale does.
 
-Ver [rendimiento.md](rendimiento.md).
+See [rendimiento.md](rendimiento.md).
 
-## Cosas que conviene no volver a intentar
+## Things it's best not to try again
 
-**Reservar un bloque en el anillo del XMA** para desambiguar lleno/vacío. Parece el
-arreglo de libro y es incorrecto: `output_buffer_valid = 0` con el anillo lleno es la
-señal que el juego usa para saber que el buffer terminó. Quitársela le quita su única
-salida.
+**Reserving a block in the XMA ring** to disambiguate full/empty. It looks like the
+textbook fix and it's wrong: `output_buffer_valid = 0` with the ring full is the signal
+the game uses to know the buffer finished. Taking it away removes its only exit.
 
-**Buscar un backend de DirectX 11.** No existe en este SDK y no es un olvido: la
-emulación de la Xenos se apoya en cosas de la generación de DX12 —los rasterizer ordered
-views, los descriptores sin límite, las escrituras tipadas desde shaders para el
-memexport—. Un backend de DX11 no es un ajuste, es rehacer el plugin de GPU. Y no
-arreglaría nada: el cuello está en la GPU al 100%, y la API no cambia cuántos píxeles hay
-que sombrear.
+**Looking for a DirectX 11 backend.** It doesn't exist in this SDK and it's not an
+oversight: the Xenos emulation relies on DX12-generation features —rasterizer ordered
+views, unbounded descriptors, typed writes from shaders for memexport—. A DX11 backend
+isn't a setting, it's redoing the GPU plugin. And it wouldn't fix anything: the
+bottleneck is the GPU at 100%, and the API doesn't change how many pixels have to be
+shaded.
 
-**Perseguir los servidores de EA.** Están apagados. La única vía para el multijugador es
-System Link.
+**Chasing EA's servers.** They're shut down. The only path to multiplayer is System Link.

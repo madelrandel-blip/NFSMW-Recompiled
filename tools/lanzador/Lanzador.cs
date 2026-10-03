@@ -1,41 +1,42 @@
 // =============================================================================
-//  NFS Most Wanted - Recompilacion : Lanzador
+//  NFS Most Wanted - Recompilation : Launcher
 //
-//  Ventana nativa de Windows, en C# con WinForms. Sustituye a lanzador.ps1 y
-//  hace exactamente lo mismo, con la portada del juego al lado en plan
-//  instalador.
+//  Native Windows window, in C# with WinForms. Replaces lanzador.ps1 and
+//  does exactly the same, with the game cover art on the side like an
+//  installer.
 //
-//  Se compila con CONSTRUIR_LANZADOR.bat, que usa el csc.exe del .NET
-//  Framework que YA VIENE con Windows. No hay que instalar Visual Studio, ni
-//  el SDK de .NET, ni nada: el compilador esta en
-//  C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe desde Windows 8.
+//  It is built with CONSTRUIR_LANZADOR.bat, which uses the csc.exe from the
+//  .NET Framework that ALREADY SHIPS with Windows. There is no need to install
+//  Visual Studio, the .NET SDK, or anything: the compiler is at
+//  C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe since Windows 8.
 //
-//  POR QUE C# Y NO OTRA COSA
-//  =========================
-//  Hacia falta un .exe de verdad, con su icono, y que no dependa de instalar
-//  nada. Las opciones eran:
+//  WHY C# AND NOT SOMETHING ELSE
+//  =============================
+//  A real .exe was needed, with its icon, and not depending on installing
+//  anything. The options were:
 //
-//    - C++ con Win32 a pelo: sale un exe pequeno, pero montar a mano una
-//      ventana con veinte controles es muchisimo codigo para lo que es.
-//    - Python empaquetado: hay que instalar Python y PyInstaller, y el exe
-//      acaba pesando 30 MB.
-//    - C# con el compilador que ya trae Windows: un solo fichero, los mismos
-//      controles que ya usaba el lanzador de PowerShell -WinForms es lo que
-//      habia debajo-, icono y portada dentro del exe, y cero instalaciones.
+//    - Raw Win32 C++: it produces a small exe, but hand-building a window
+//      with twenty controls is a huge amount of code for what this is.
+//    - Packaged Python: you have to install Python and PyInstaller, and the
+//      exe ends up weighing 30 MB.
+//    - C# with the compiler Windows already ships: a single file, the same
+//      controls the PowerShell launcher already used -WinForms is what was
+//      underneath-, icon and cover art inside the exe, and zero installs.
 //
-//  ESTO SE COMPILA CON UN csc VIEJO
-//  ================================
-//  El que trae Windows es de C# 5 (2012). Asi que aqui NO se puede usar nada
-//  moderno: ni cadenas interpoladas $"...", ni ?., ni nameof, ni miembros con
-//  =>. Todo con string.Format y sintaxis clasica. Si algo de eso se cuela, el
-//  error que sale no dice "necesitas un compilador mas nuevo", dice cosas
-//  raras sobre ';' que faltan, y se pierde media tarde.
+//  THIS IS BUILT WITH AN OLD csc
+//  =============================
+//  The one Windows ships is C# 5 (2012). So nothing modern can be used here:
+//  no interpolated strings $"...", no ?., no nameof, no expression-bodied
+//  members =>. Everything with string.Format and classic syntax. If any of
+//  that slips in, the error it prints does not say "you need a newer
+//  compiler", it says weird things about missing ';', and you lose half an
+//  afternoon.
 //
-//  LOS AJUSTES SE COMPARTEN CON EL LANZADOR VIEJO
+//  THE SETTINGS ARE SHARED WITH THE OLD LAUNCHER
 //  =============================================
-//  Se lee y se escribe el MISMO lanzador.json, con los mismos nombres de
-//  campo. Asi que la configuracion que ya tuvieras se conserva, y los dos
-//  lanzadores conviven sin pisarse.
+//  The SAME lanzador.json is read and written, with the same field names.
+//  So any configuration you already had is preserved, and both launchers
+//  coexist without stepping on each other.
 // =============================================================================
 
 using System;
@@ -54,13 +55,13 @@ using System.Windows.Forms;
 namespace NfsmwRecomp
 {
     // -------------------------------------------------------------------------
-    //  Un json plano, a mano
+    //  A plain json parser, by hand
     //
-    //  El fichero de ajustes es una decena de parejas clave/valor sin anidar.
-    //  Para eso no hace falta traerse Newtonsoft (que habria que descargar) ni
-    //  JavaScriptSerializer (que obliga a referenciar System.Web.Extensions).
-    //  Lo unico con lo que hay que tener cuidado es con las barras invertidas de
-    //  las rutas de Windows, que en json van dobladas.
+    //  The settings file is a dozen or so non-nested key/value pairs.
+    //  For that there is no need to bring in Newtonsoft (which would have to be
+    //  downloaded) nor JavaScriptSerializer (which forces referencing
+    //  System.Web.Extensions). The only thing to be careful about is the
+    //  backslashes in Windows paths, which are doubled in json.
     // -------------------------------------------------------------------------
     internal static class Json
     {
@@ -73,7 +74,7 @@ namespace NfsmwRecomp
             int i = 0;
             while (i < texto.Length)
             {
-                // Buscar la comilla que abre una clave.
+                // Find the quote that opens a key.
                 while (i < texto.Length && texto[i] != '"')
                     i++;
                 if (i >= texto.Length)
@@ -81,7 +82,7 @@ namespace NfsmwRecomp
 
                 string clave = LeerCadena(texto, ref i);
 
-                // Saltar hasta los dos puntos.
+                // Skip to the colon.
                 while (i < texto.Length && texto[i] != ':')
                     i++;
                 if (i >= texto.Length)
@@ -113,11 +114,11 @@ namespace NfsmwRecomp
             return d;
         }
 
-        // Entra apuntando a la comilla de apertura, sale despues de la de cierre.
+        // Enters pointing at the opening quote, exits after the closing one.
         private static string LeerCadena(string texto, ref int i)
         {
             StringBuilder sb = new StringBuilder();
-            i++;  // la comilla de apertura
+            i++;  // the opening quote
             while (i < texto.Length && texto[i] != '"')
             {
                 if (texto[i] == '\\' && i + 1 < texto.Length)
@@ -137,7 +138,7 @@ namespace NfsmwRecomp
                             i += 4;
                         }
                     }
-                    else sb.Append(c);   // \\ y \/ y \" caen aqui
+                    else sb.Append(c);   // \\ and \/ and \" fall through here
                 }
                 else
                 {
@@ -145,7 +146,7 @@ namespace NfsmwRecomp
                 }
                 i++;
             }
-            i++;  // la comilla de cierre
+            i++;  // the closing quote
             return sb.ToString();
         }
 
@@ -166,25 +167,25 @@ namespace NfsmwRecomp
     }
 
     // -------------------------------------------------------------------------
-    //  El panel de la portada
+    //  The cover panel
     //
-    //  Se pinta a mano en vez de usar un PictureBox porque hace falta control
-    //  sobre COMO encaja la imagen. La portada es 760x1064 -relacion 0,71- y el
-    //  panel es mucho mas estrecho y alto que eso.
+    //  It is painted by hand instead of using a PictureBox because control is
+    //  needed over HOW the image fits. The cover is 760x1064 -ratio 0.71- and
+    //  the panel is much narrower and taller than that.
     //
-    //  Si se estirase para llenar el panel, habria que recortar por los lados y
-    //  se comeria parte del titulo, que ocupa todo el ancho arriba. Asi que se
-    //  mete ENTERA, pegada arriba, y el hueco de abajo se aprovecha para poner
-    //  el nombre del proyecto. Que es justo la pinta que tiene la banda lateral
-    //  de un instalador.
+    //  If it were stretched to fill the panel, it would have to be cropped on
+    //  the sides and that would eat part of the title, which spans the full
+    //  width at the top. So it is drawn WHOLE, pinned to the top, and the gap
+    //  below is used for the project name. Which is exactly the look of an
+    //  installer's side banner.
     // -------------------------------------------------------------------------
     // -------------------------------------------------------------------------
-    //  Tema oscuro, estilo terminal verde fosforo
+    //  Dark theme, phosphor-green terminal style
     //
-    //  Colores centralizados aqui para no repetir el mismo Color.FromArgb en
-    //  veinte sitios. AplicarTema() (mas abajo, en Ventana) los reparte solo
-    //  recorriendo el arbol de controles, asi que anadir un control nuevo no
-    //  obliga a acordarse de colorearlo a mano.
+    //  Colors centralized here to avoid repeating the same Color.FromArgb in
+    //  twenty places. AplicarTema() (further down, in Ventana) spreads them
+    //  automatically by walking the control tree, so adding a new control does
+    //  not force you to remember to color it by hand.
     // -------------------------------------------------------------------------
     internal static class Tema
     {
@@ -202,13 +203,13 @@ namespace NfsmwRecomp
     }
 
     // -------------------------------------------------------------------------
-    //  Sustituto de GroupBox para el tema oscuro
+    //  GroupBox replacement for the dark theme
     //
-    //  GroupBox nativo pinta su borde con el tema visual de Windows (UxTheme),
-    //  que da por hecho un fondo claro: sobre un panel oscuro deja un halo o
-    //  una linea que no coincide con nada. Se dibuja el borde y el titulo a
-    //  mano -mismo truco que ya usaba PanelPortada para la portada- en vez de
-    //  pelear con el estilo nativo.
+    //  The native GroupBox paints its border with the Windows visual theme
+    //  (UxTheme), which assumes a light background: over a dark panel it leaves
+    //  a halo or a line that matches nothing. The border and title are drawn by
+    //  hand -same trick PanelPortada already used for the cover- instead of
+    //  fighting the native style.
     // -------------------------------------------------------------------------
     internal sealed class PanelSeccion : Panel
     {
@@ -238,9 +239,9 @@ namespace NfsmwRecomp
                 const int huecoInicio = 10;
                 int huecoFin = medida.Width > 0 ? (int)(huecoInicio + medida.Width + 8) : huecoInicio;
 
-                // El borde deja un hueco donde va el titulo, como un GroupBox
-                // de toda la vida: dos tramos de linea con un espacio en medio
-                // en vez de un rectangulo entero.
+                // The border leaves a gap where the title goes, like a
+                // traditional GroupBox: two line segments with a space in the
+                // middle instead of a full rectangle.
                 using (Pen borde = new Pen(Tema.Borde))
                 {
                     g.DrawLine(borde, 0, y, huecoInicio, y);
@@ -268,21 +269,21 @@ namespace NfsmwRecomp
         {
             this.portada = portada;
             BackColor = Color.Black;
-            // Sin esto la imagen parpadea al redimensionar y al arrastrar la
-            // ventana por encima de otras.
+            // Without this the image flickers when resizing and when dragging
+            // the window over others.
             //
-            // ResizeRedraw ES EL QUE IMPORTA AQUI. Sin el, cuando el panel
-            // crece -maximizar la ventana, por ejemplo- Windows solo invalida
-            // la FRANJA nueva que queda expuesta, no el panel entero: el
-            // tramo de arriba se queda con el pixel antiguo, pintado para el
-            // alto viejo, y la franja nueva de abajo se pinta aparte con
-            // OnPaint recalculando la imagen para el alto NUEVO -distinta
-            // escala de "cover"-. El resultado son dos recortes de la misma
-            // portada, uno encima del otro, cada uno con su propio texto
-            // "Recompilacion nativa": exactamente el "banner duplicado" que
-            // se veia al agrandar la ventana. Con ResizeRedraw, cualquier
-            // cambio de tamano invalida el panel COMPLETO y OnPaint se repite
-            // entero con el alto nuevo, sin restos del anterior.
+            // ResizeRedraw IS THE ONE THAT MATTERS HERE. Without it, when the
+            // panel grows -maximizing the window, for example- Windows only
+            // invalidates the new exposed STRIP, not the whole panel: the top
+            // portion keeps the old pixels, painted for the old height, and
+            // the new bottom strip is painted separately with OnPaint
+            // recalculating the image for the NEW height -a different "cover"
+            // scale-. The result is two crops of the same cover, one on top of
+            // the other, each with its own "Native recompilation" text:
+            // exactly the "duplicated banner" that showed up when enlarging
+            // the window. With ResizeRedraw, any size change invalidates the
+            // WHOLE panel and OnPaint runs again entirely with the new height,
+            // with no leftovers from the previous one.
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
                      ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         }
@@ -300,14 +301,13 @@ namespace NfsmwRecomp
 
             if (portada != null)
             {
-                // "Cover", no "fit": se escala por el eje que haga falta para
-                // cubrir el panel ENTERO -ancho y alto a la vez-, recortando
-                // lo que sobre por el otro eje. Antes se escalaba solo por
-                // ancho y se paraba si la imagen no llegaba a la altura del
-                // panel: en una columna mas alta que ancha -que es esta-, eso
-                // dejaba un tramo negro vacio debajo de la foto. Cubriendo
-                // entero no queda ningun hueco, en ninguna proporcion de
-                // ventana.
+                // "Cover", not "fit": it scales along whichever axis is
+                // needed to cover the WHOLE panel -width and height at once-,
+                // cropping whatever is left over on the other axis. It used to
+                // scale only by width and stop if the image did not reach the
+                // panel height: in a column taller than it is wide -which this
+                // one is-, that left an empty black strip under the photo.
+                // Covering the whole thing leaves no gap, at any window ratio.
                 double escala = Math.Max((double)Width / portada.Width, (double)Height / portada.Height);
                 int ancho = (int)Math.Ceiling(portada.Width * escala);
                 int alto = (int)Math.Ceiling(portada.Height * escala);
@@ -315,22 +315,23 @@ namespace NfsmwRecomp
             }
             else
             {
-                // Sin portada.jpg -la caratula es arte de EA y por eso no va en
-                // el repositorio, ver CONSTRUIR_LANZADOR.bat- el panel se
-                // quedaba en negro liso con dos lineas de texto pegadas abajo:
-                // se leia como un hueco vacio, no como una banda lateral.
+                // Without portada.jpg -the cover is EA art and therefore not
+                // in the repository, see CONSTRUIR_LANZADOR.bat- the panel was
+                // plain black with two lines of text stuck at the bottom: it
+                // read as an empty gap, not as a side banner.
                 //
-                // Esto rellena ese hueco con algo propio: un patron de barras
-                // -estilo ecualizador/lectura de datos- que no reproduce nada
-                // del juego, solo decora en el mismo verde del resto de la
-                // ventana. Semilla fija para que no parpadee ni cambie entre
-                // repintados.
+                // This fills that gap with something of its own: a bar pattern
+                // -equalizer/data-readout style- that reproduces nothing from
+                // the game, it only decorates in the same green as the rest of
+                // the window. Fixed seed so it neither flickers nor changes
+                // between repaints.
                 DibujarPatronDeRelleno(g, Math.Max(0, Height - 110));
             }
 
-            // Degradado permanente en la franja de abajo, PASE LO QUE PASE con
-            // la imagen -cubra entero o no-: es lo que deja el texto legible
-            // encima de cualquier foto, no solo tapa una costura.
+            // Permanent gradient on the bottom strip, WHATEVER HAPPENS with
+            // the image -whether it covers everything or not-: it is what
+            // keeps the text readable over any photo, it does not just hide a
+            // seam.
             {
                 int difuminado = Math.Min(110, Height);
                 Rectangle r = new Rectangle(0, Height - difuminado, Width, difuminado);
@@ -348,23 +349,23 @@ namespace NfsmwRecomp
             using (SolidBrush apagado = new SolidBrush(Tema.TextoNota))
             {
                 int y = Height - 96;
-                g.DrawString("Recompilacion nativa", f1, brillante, 18, y);
-                g.DrawString("Xbox 360 traducida a PC con ReXGlue.\n" +
-                             "Necesita tu propia copia del juego.",
+                g.DrawString("Native recompilation", f1, brillante, 18, y);
+                g.DrawString("Xbox 360 ported to PC with ReXGlue.\n" +
+                             "Requires your own copy of the game.",
                              f2, apagado, new RectangleF(18, y + 26, Width - 36, 60));
             }
         }
 
-        // Barras verticales de alto pseudoaleatorio -estilo ecualizador-,
-        // dentro de un rectangulo de altoDisponible px desde arriba. Random
-        // con semilla fija: mismo dibujo siempre, no cambia entre repintados
-        // ni parpadea al redimensionar.
+        // Vertical bars of pseudo-random height -equalizer style-, inside a
+        // rectangle altoDisponible px tall from the top. Random with a fixed
+        // seed: always the same drawing, it does not change between repaints
+        // nor flicker when resizing.
         private void DibujarPatronDeRelleno(Graphics g, int altoDisponible)
         {
             if (altoDisponible <= 0 || Width <= 0)
                 return;
 
-            Random azar = new Random(454107); // el title id de NFSMW, por ponerle algo fijo
+            Random azar = new Random(454107); // NFSMW's title id, just to use something fixed
             const int anchoBarra = 5;
             const int hueco = 3;
             int paso = anchoBarra + hueco;
@@ -375,8 +376,8 @@ namespace NfsmwRecomp
                 for (int x = paso; x < Width - paso; x += paso)
                 {
                     double t = (double)x / Width;
-                    // Dos "colinas" suaves para que no sea puro ruido plano:
-                    // el patron sube hacia el centro y vuelve a bajar.
+                    // Two soft "hills" so it is not pure flat noise:
+                    // the pattern rises toward the center and falls back down.
                     double envolvente = 0.35 + 0.65 * Math.Sin(t * Math.PI);
                     int alturaBase = (int)(altoDisponible * envolvente * (0.25 + azar.NextDouble() * 0.55));
                     if (alturaBase < 4)
@@ -393,7 +394,7 @@ namespace NfsmwRecomp
 
     internal sealed class Ventana : Form
     {
-        // ---- Presets, sacados de TryParseResolutionPreset del SDK -------------
+        // ---- Presets, taken from the SDK's TryParseResolutionPreset ----------
         private static readonly string[,] Presets = {
             { "480p  - 640 x 480",   "480p"   },
             { "540p  - 960 x 540",   "540p"   },
@@ -403,34 +404,36 @@ namespace NfsmwRecomp
             { "1440p - 2560 x 1440", "1440p"  },
             { "1800p - 3200 x 1800", "1800p"  },
             { "2160p - 3840 x 2160", "2160p"  },
-            { "Personalizada",       "custom" },
+            { "Custom",              "custom" },
         };
 
-        // Los textos llevan el "x" delante porque es el numero que la gente
-        // busca: es el mismo mando que el "resolucion interna x2" de cualquier
-        // emulador. Se guardan tal cual en lanzador.json, asi que cambiarlos
-        // rompe la compatibilidad con lo guardado; por eso CargarAjustes cae a
-        // la primera opcion cuando no reconoce el texto, en vez de fallar.
+        // The texts carry the "x" in front because that is the number people
+        // look for: it is the same control as the "internal resolution x2" of
+        // any emulator. They are saved as-is in lanzador.json, so changing them
+        // breaks compatibility with saved settings; that is why CargarAjustes
+        // falls back to the first option when it does not recognize the text,
+        // instead of failing.
         private static readonly string[,] Escalas = {
-            { "x1  - la original de Xbox 360", "1" },
-            { "x2  - 4 veces los pixeles",     "2" },
-            { "x3  - 9 veces los pixeles",     "3" },
-            { "x4  - 16 veces los pixeles",    "4" },
+            { "x1  - Xbox 360 original",       "1" },
+            { "x2  - 4 times the pixels",      "2" },
+            { "x3  - 9 times the pixels",      "3" },
+            { "x4  - 16 times the pixels",     "4" },
         };
 
-        // Antialiasing por postproceso (--swap_post_effect). El valor es el que
-        // espera el cvar del recomp: none / fxaa / fxaa_extreme. Se aplica al
-        // reiniciar el juego, igual que la resolucion.
+        // Post-process antialiasing (--swap_post_effect). The value is the one
+        // the recomp cvar expects: none / fxaa / fxaa_extreme. It is applied
+        // when restarting the game, same as the resolution.
         private static readonly string[,] Antialias = {
-            { "Desactivado",  "none" },
+            { "Off",          "none" },
             { "FXAA",         "fxaa" },
             { "FXAA Extreme", "fxaa_extreme" },
         };
 
-        // Filtrado anisotropico (--anisotropic_override). El recomp fuerza el
-        // filtrado de texturas aunque el juego no lo pida; 0 lo apaga.
+        // Anisotropic filtering (--anisotropic_override). The recomp forces
+        // texture filtering even if the game does not ask for it; 0 turns it
+        // off.
         private static readonly string[,] Anisotropico = {
-            { "Desactivado (bilinear)", "0" },
+            { "Off (bilinear)", "0" },
             { "1x",                     "1" },
             { "2x",                     "2" },
             { "4x",                     "3" },
@@ -438,16 +441,17 @@ namespace NfsmwRecomp
             { "16x",                    "5" },
         };
 
-        // Efecto al pasar la imagen final a la ventana (--present_effect). Son
-        // los que trae el SDK de ReXGlue (FidelityFX); si este runtime no los
-        // tuviera, el cvar rechaza el valor y se queda en bilinear, sin romper.
+        // Effect when presenting the final image to the window
+        // (--present_effect). These are the ones the ReXGlue SDK ships
+        // (FidelityFX); if this runtime did not have them, the cvar rejects
+        // the value and stays on bilinear, without breaking.
         private static readonly string[,] Efectos = {
-            { "Ninguno (bilinear)", "bilinear" },
-            { "CAS (nitidez)",      "cas" },
-            { "FSR (FidelityFX)",   "fsr" },
+            { "None (bilinear)", "bilinear" },
+            { "CAS (sharpness)", "cas" },
+            { "FSR (FidelityFX)", "fsr" },
         };
 
-        // ---- Donde estamos ----------------------------------------------------
+        // ---- Where we are -----------------------------------------------------
         private string raiz;
         private string exeJuego;
         private string dirLogs;
@@ -456,7 +460,7 @@ namespace NfsmwRecomp
         private string logEjecucion;
         private bool distribuida;
 
-        // ---- Controles --------------------------------------------------------
+        // ---- Controls ---------------------------------------------------------
         private Panel panelContenido;
         private Panel panelColumna;
         private PanelPortada banda;
@@ -478,29 +482,30 @@ namespace NfsmwRecomp
         [STAThread]
         public static void Main()
         {
-            // Sin esto, en un monitor con escala de Windows (125%, 150%...)
-            // el sistema NO reescala la ventana de verdad: la dibuja a tamano
-            // normal y luego estira el bitmap resultante, y todo sale borroso
-            // -texto incluido-. Con el proceso marcado DPI-aware, Windows deja
-            // de estirar, y AutoScaleMode.Dpi en Ventana (ver Construir) hace
-            // que las coordenadas en pixeles de este fichero -pensadas para
-            // 96 DPI- se reescalen de verdad, no solo se vean nitidas.
+            // Without this, on a monitor with Windows scaling (125%, 150%...)
+            // the system does NOT actually rescale the window: it draws it at
+            // normal size and then stretches the resulting bitmap, and
+            // everything comes out blurry -text included-. With the process
+            // marked DPI-aware, Windows stops stretching, and AutoScaleMode.Dpi
+            // in Ventana (see Construir) makes the pixel coordinates in this
+            // file -designed for 96 DPI- actually rescale, not just look
+            // sharp.
             //
-            // SetProcessDPIAware (System-DPI-aware) y no el modo Per-Monitor
-            // V2 mas nuevo: ese ultimo pide declararlo en un manifiesto
-            // embebido, y csc.exe -el compilador viejo de aqui- no tiene forma
-            // sencilla de meter uno sin herramientas aparte. Esto cubre el
-            // caso real -abrir en el monitor de siempre con su escala de
-            // siempre- sin depender de nada mas.
+            // SetProcessDPIAware (System-DPI-aware) and not the newer
+            // Per-Monitor V2 mode: the latter requires declaring it in an
+            // embedded manifest, and csc.exe -the old compiler used here- has
+            // no simple way to embed one without extra tools. This covers the
+            // real case -opening on your usual monitor with its usual scaling-
+            // without depending on anything else.
             try
             {
                 SetProcessDPIAware();
             }
             catch
             {
-                // Windows muy viejo sin esta API: se sigue sin marcar, y el
-                // peor caso es el de siempre (bitmap estirado). No es motivo
-                // para no abrir.
+                // Very old Windows without this API: it just continues
+                // unmarked, and the worst case is the usual one (stretched
+                // bitmap). Not a reason to refuse to open.
             }
 
             Application.EnableVisualStyles();
@@ -519,50 +524,53 @@ namespace NfsmwRecomp
         }
 
         // ---------------------------------------------------------------------
-        //  Donde esta cada cosa
+        //  Where everything is
         //
-        //  El exe puede vivir en dos sitios y tiene que funcionar en los dos:
+        //  The exe can live in two places and must work in both:
         //
-        //    reparto   la carpeta portable, junto a nfsmw.exe. Ahi no hay
-        //              proyecto ni SDK: solo el juego, y todo -logs, ajustes,
-        //              ISO- cuelga de esa misma carpeta.
-        //    proyecto  la raiz de "NFSMW Recomp". El juego esta compilado en
-        //              app\out\build\..., y al lado hay SDK que mirar.
+        //    distribution  the portable folder, next to nfsmw.exe. There is no
+        //              project or SDK there: only the game, and everything
+        //              -logs, settings, ISO- hangs off that same folder.
+        //    project   the root of "NFSMW Recomp". The game is compiled in
+        //              app\out\build\..., and there is an SDK next to it to
+        //              check.
         //
-        //  EL JUEGO SE LLAMA nfsmw.exe, NO NFS_Most_Wanted.exe
-        //  ===================================================
-        //  En la carpeta portable, "NFS_Most_Wanted.exe" ES ESTE LANZADOR. El
-        //  juego de verdad se llama nfsmw.exe, que ademas es como se llama en el
-        //  arbol del proyecto, asi que los dos modos buscan el mismo nombre.
+        //  THE GAME IS CALLED nfsmw.exe, NOT NFS_Most_Wanted.exe
+        //  ======================================================
+        //  In the portable folder, "NFS_Most_Wanted.exe" IS THIS LAUNCHER. The
+        //  real game is called nfsmw.exe, which is also its name in the project
+        //  tree, so both modes look for the same name.
         //
-        //  El motivo es solo ese: que al hacer doble clic en el icono del juego
-        //  salga esta ventana. Es lo mismo que hace cualquier juego con
-        //  lanzador, y el intercambio de nombres es la forma de conseguirlo sin
-        //  tocar el codigo del juego.
+        //  The reason is just that: double-clicking the game icon brings up this
+        //  window. It is what any game with a launcher does, and swapping the
+        //  names is how to achieve it without touching the game code.
         //
-        //  NO es que el juego no sepa arrancar solo: sabe. nfsmw_app.h le pone
-        //  gpu_plugin, mnk_mode y readback_resolve si nadie los pidio, y busca
-        //  una ISO en su propia carpeta. Abrir nfsmw.exe a pelo sigue
-        //  funcionando, y es una salida util si el lanzador diera problemas.
+        //  It is NOT that the game cannot start on its own: it can. nfsmw_app.h
+        //  sets gpu_plugin, mnk_mode and readback_resolve if nobody asked for
+        //  them, and looks for an ISO in its own folder. Opening nfsmw.exe
+        //  directly still works, and it is a useful fallback if the launcher
+        //  caused trouble.
         //
-        //  Un matiz de ese buscador de ISO: prefiere la que se llame IGUAL que
-        //  el ejecutable, y si no, coge la primera por orden alfabetico. Al
-        //  renombrarlo, una NFS_Most_Wanted.iso deja de ser la preferida y pasa
-        //  a entrar por la segunda regla. Con una sola ISO en la carpeta da lo
-        //  mismo; con varias, podria coger otra. Da igual cuando se abre desde
-        //  aqui, porque esta ventana pasa --game_data_root explicito.
+        //  One nuance of that ISO finder: it prefers the one named the SAME as
+        //  the executable, and otherwise takes the first in alphabetical order.
+        //  After the rename, an NFS_Most_Wanted.iso is no longer preferred and
+        //  starts matching the second rule. With a single ISO in the folder it
+        //  makes no difference; with several, it could pick another one. It does
+        //  not matter when opening from here, because this window passes an
+        //  explicit --game_data_root.
         //
-        //  Y no cambia donde guarda sus cosas el juego: el SDK saca esa carpeta
-        //  de GetName(), que va en el codigo -"nfsmw"-, no del nombre del
-        //  fichero. Ver rex_app.cpp:  user_dir = GetUserFolder() / GetName().
-        //  Asi que la cache de shaders sigue donde estaba.
+        //  And it does not change where the game keeps its things: the SDK
+        //  derives that folder from GetName(), which is in the code -"nfsmw"-,
+        //  not from the file name. See rex_app.cpp:
+        //  user_dir = GetUserFolder() / GetName(). So the shader cache stays
+        //  where it was.
         // ---------------------------------------------------------------------
         private void LocalizarTodo()
         {
             string mio = Path.GetDirectoryName(Application.ExecutablePath);
 
-            // Puede estar en la raiz del proyecto o dentro de tools\; se mira
-            // tambien un nivel mas arriba antes de darse por vencido.
+            // It may be in the project root or inside tools\; one level up is
+            // also checked before giving up.
             string[] candidatos = { mio, Path.GetFullPath(Path.Combine(mio, "..")) };
 
             foreach (string c in candidatos)
@@ -598,9 +606,9 @@ namespace NfsmwRecomp
                 }
             }
 
-            // Ni una cosa ni la otra. Se asume proyecto y ya avisara al arrancar
-            // de que no encuentra el ejecutable; es mejor abrir la ventana con un
-            // aviso que no abrir nada.
+            // Neither one nor the other. Project is assumed and it will warn on
+            // startup that it cannot find the executable; it is better to open
+            // the window with a warning than to open nothing.
             distribuida = false;
             raiz = mio;
             exeJuego = Path.Combine(mio, @"app\out\build\win-amd64-release\nfsmw.exe");
@@ -622,35 +630,35 @@ namespace NfsmwRecomp
             }
             catch
             {
-                // Sin portada la ventana se ve rara, pero se ve. No es motivo
-                // para no dejar jugar.
+                // Without the cover the window looks odd, but it shows. Not a
+                // reason to prevent playing.
                 return null;
             }
         }
 
         // ---------------------------------------------------------------------
-        //  La ventana
+        //  The window
         // ---------------------------------------------------------------------
         private const int AnchoBanda = 380;
-        // Dos columnas de ajustes lado a lado en vez de una sola apilada: casi
-        // la mitad de alto -menos scroll vertical- y usa de verdad el ancho
-        // que sobra en una pantalla normal, no solo lo centra con un hueco al
-        // lado. AltoUtil, X1 y AnchoTotalColumnas se recalculan mas abajo a
-        // partir de donde queda cada seccion; los numeros de aqui son el
-        // resultado final, anotado para no tener que releer todo Construir()
-        // cada vez que se toque el orden de las secciones.
+        // Two columns of settings side by side instead of a single stacked one:
+        // almost half the height -less vertical scroll- and it actually uses
+        // the width left over on a normal screen, not just centering it with a
+        // gap beside it. AltoUtil, X1 and AnchoTotalColumnas are recalculated
+        // further down from where each section lands; the numbers here are the
+        // final result, noted down so there is no need to reread all of
+        // Construir() every time the section order is touched.
         private const int AltoUtil = 810;
-        private const int X0 = 20;   // columna izquierda
+        private const int X0 = 20;   // left column
         private const int AnchoCol = 580;
         private const int GapCol = 24;
-        private const int X1 = X0 + AnchoCol + GapCol;   // columna derecha
-        private const int AnchoTotalColumnas = AnchoCol * 2 + GapCol;   // ancho de lo que va a todo lo ancho
+        private const int X1 = X0 + AnchoCol + GapCol;   // right column
+        private const int AnchoTotalColumnas = AnchoCol * 2 + GapCol;   // width of what spans the full width
 
         private static string[,] Monitores()
         {
             Screen[] pantallas = Screen.AllScreens;
             string[,] m = new string[pantallas.Length + 1, 2];
-            m[0, 0] = "Automatico (predeterminado)";
+            m[0, 0] = "Automatic (default)";
             m[0, 1] = "0";
             for (int i = 0; i < pantallas.Length; i++)
             {
@@ -663,22 +671,23 @@ namespace NfsmwRecomp
 
         private void Construir()
         {
-            Text = "Need for Speed: Most Wanted - Recompilacion";
+            Text = "Need for Speed: Most Wanted - Recompilation";
 
             // ------------------------------------------------------------------
-            //  Tamano de la ventana: se ajusta a la pantalla, y se puede escalar
+            //  Window size: it fits the screen, and can be scaled
             //
-            //  AltoUtil (1066) es la altura NATURAL de todos los controles, pero
-            //  en un portatil de 1366x768 no cabe entera. La ventana se ABRE mas
-            //  baja/estrecha cuando hace falta, y el contenido de la derecha
-            //  -todo menos la portada- vive en un panel con scroll (mas abajo).
+            //  AltoUtil (1066) is the NATURAL height of all the controls, but
+            //  it does not fit whole on a 1366x768 laptop. The window OPENS
+            //  shorter/narrower when needed, and the right-hand content
+            //  -everything except the cover- lives in a scrollable panel
+            //  (further down).
             //
-            //  Ademas la ventana es REDIMENSIONABLE (Sizable, con boton de
-            //  maximizar): banda y panelContenido llevan Anchor puesto, asi que
-            //  al agrandar la ventana la portada se estira a lo alto y el
-            //  panel de ajustes gana ancho y alto de verdad -no es solo mas
-            //  scroll-, y si se agranda lo bastante el scroll desaparece solo
-            //  porque el contenido ya cabe entero.
+            //  Also the window is RESIZABLE (Sizable, with a maximize button):
+            //  the banner and panelContenido are anchored, so enlarging the
+            //  window stretches the cover vertically and the settings panel
+            //  genuinely gains width and height -not just more scroll-, and if
+            //  enlarged enough the scroll disappears on its own because the
+            //  content already fits entirely.
             // ------------------------------------------------------------------
             int anchoTotal = AnchoBanda + AnchoTotalColumnas + 40;
             Rectangle area = Screen.PrimaryScreen.WorkingArea;
@@ -699,55 +708,55 @@ namespace NfsmwRecomp
             }
             catch
             {
-                // Da igual: el icono del exe ya lo pone el compilador.
+                // It does not matter: the compiler already sets the exe icon.
             }
 
             banda = new PanelPortada(CargarRecurso("portada.jpg"));
             banda.Location = new Point(0, 0);
             banda.Size = new Size(AnchoBanda, altoForm);
-            // SIN Anchor. Ancho, alto y posicion los recalcula AjustarLayout
-            // en cada resize (mas abajo) -es el UNICO que los toca-, tanto
-            // para la banda como para panelContenido. Mezclar Anchor con
-            // asignaciones manuales de Size en el mismo control es la receta
-            // clasica para que uno pise al otro en momentos distintos del
-            // ciclo de layout: eso fue lo que dejaba la banda mas alta que su
-            // contenido real y la portada se repetia para rellenar ese sobra.
+            // WITHOUT Anchor. Width, height and position are recalculated by
+            // AjustarLayout on every resize (further down) -it is the ONLY one
+            // that touches them-, for both the banner and panelContenido.
+            // Mixing Anchor with manual Size assignments on the same control
+            // is the classic recipe for one stepping on the other at different
+            // points of the layout cycle: that was what left the banner taller
+            // than its real content and the cover repeated to fill that excess.
             Controls.Add(banda);
 
-            // Todo lo demas -los grupos de ajustes, el comando y los botones-
-            // vive aqui dentro. AutoScroll le pone barra vertical sola en cuanto
-            // el contenido (AltoUtil) no cabe en altoForm: es lo que deja usar
-            // el lanzador en pantallas pequenas sin tocar el resto del layout.
+            // Everything else -the settings groups, the command and the
+            // buttons- lives in here. AutoScroll adds a vertical bar on its own
+            // as soon as the content (AltoUtil) does not fit in altoForm: that
+            // is what makes the launcher usable on small screens without
+            // touching the rest of the layout.
             panelContenido = new Panel();
             panelContenido.Location = new Point(AnchoBanda, 0);
             panelContenido.Size = new Size(anchoForm - AnchoBanda, altoForm);
-            // Tambien sin Anchor, mismo motivo que la banda.
+            // Also without Anchor, same reason as the banner.
             panelContenido.AutoScroll = true;
             panelContenido.BackColor = BackColor;
             Controls.Add(panelContenido);
 
-            // panelColumna es el ancho NATURAL del contenido -el mismo de
-            // siempre, AnchoCol+40- metido dentro de panelContenido. En una
-            // ventana ancha, panelContenido tiene mas sitio del que hace
-            // falta; AjustarLayout centra panelColumna en ese sobrante en vez
-            // de dejarlo todo pegado a la izquierda con un hueco enorme a la
-            // derecha. Los grupos, botones y demas se cuelgan de AQUI, no de
-            // panelContenido directamente.
+            // panelColumna is the NATURAL width of the content -the same as
+            // always, AnchoCol+40- placed inside panelContenido. In a wide
+            // window, panelContenido has more room than needed; AjustarLayout
+            // centers panelColumna in that excess instead of leaving everything
+            // stuck to the left with a huge gap on the right. The groups,
+            // buttons and so on hang off HERE, not off panelContenido directly.
             panelColumna = new Panel();
             panelColumna.Size = new Size(AnchoTotalColumnas + 40, AltoUtil);
             panelColumna.BackColor = BackColor;
             panelContenido.Controls.Add(panelColumna);
             panelContenido.AutoScrollMinSize = new Size(panelColumna.Width, AltoUtil);
 
-            // ---- Copia del juego: ISO o carpeta ya extraida --------------------
+            // ---- Game copy: ISO or already extracted folder --------------------
             //
-            // El SDK (rex_app.cpp) exige que --game_data_root sea una CARPETA:
-            // no sabe montar un .iso directamente. Asi que aqui se aceptan las
-            // dos cosas y, si se elige un .iso, se extrae una copia a
-            // game_root_cache\ la primera vez (ver ExtractorXdvdfs mas abajo);
-            // las siguientes veces con la misma ISO arranca directo, sin volver
-            // a extraer.
-            PanelSeccion gIso = Grupo("Copia del juego (ISO o carpeta extraida)", X0, 14, 110,
+            // The SDK (rex_app.cpp) requires --game_data_root to be a FOLDER:
+            // it does not know how to mount a .iso directly. So both things are
+            // accepted here and, if a .iso is chosen, a copy is extracted to
+            // game_root_cache\ the first time (see ExtractorXdvdfs further
+            // down); subsequent times with the same ISO start directly, without
+            // extracting again.
+            PanelSeccion gIso = Grupo("Game copy (ISO or extracted folder)", X0, 14, 110,
                                       AnchoTotalColumnas);
 
             txtIso = new TextBox();
@@ -764,42 +773,43 @@ namespace NfsmwRecomp
             gIso.Controls.Add(btnIso);
 
             Button btnCarpeta = new Button();
-            btnCarpeta.Text = "Carpeta...";
+            btnCarpeta.Text = "Folder...";
             btnCarpeta.Location = new Point(AnchoTotalColumnas - 98, 25);
             btnCarpeta.Size = new Size(94, 25);
             btnCarpeta.Click += ElegirCarpeta;
             gIso.Controls.Add(btnCarpeta);
 
             gIso.Controls.Add(Nota(14, 58, AnchoTotalColumnas - 40, 44,
-                "Puedes elegir un .iso o una carpeta ya extraida (con default.xex dentro, " +
-                "como la que arma EXTRAER_XEX.bat). La primera vez con una ISO se extrae una " +
-                "copia en game_root_cache\\; las siguientes veces arranca directo con esa copia."));
+                "You can choose a .iso or an already extracted folder (with default.xex " +
+                "inside, like the one EXTRAER_XEX.bat builds). The first time with an ISO a " +
+                "copy is extracted into game_root_cache\\; subsequent times it starts directly " +
+                "with that copy."));
 
-            // ---- Pantalla y resolucion ---------------------------------------
+            // ---- Display and resolution --------------------------------------
             //
-            // LOS DOS AJUSTES DE AQUI NO SON EL MISMO, Y SE CONFUNDEN
-            // =======================================================
-            // Es LA confusion de esta ventana, asi que los nombres van elegidos
-            // para que no pase:
+            // THE TWO SETTINGS HERE ARE NOT THE SAME, AND THEY GET CONFUSED
+            // ==============================================================
+            // It is THE confusion of this window, so the names are chosen so it
+            // does not happen:
             //
-            //   "Tamano de la ventana"  -> --resolution. Cambia el modo de
-            //       video que el juego cree tener y el tamano de la ventana.
-            //       NO le pide al juego que dibuje mas fino: Most Wanted, como
-            //       casi todo juego de 360, dibuja en sus propios render
-            //       targets de tamano fijo y deja que el escalador estire el
-            //       resultado. Subir esto agranda la imagen, no la mejora.
+            //   "Window size"        -> --resolution. Changes the video mode
+            //       the game believes it has and the window size. It does NOT
+            //       ask the game to draw more finely: Most Wanted, like almost
+            //       every 360 game, draws into its own fixed-size render targets
+            //       and lets the scaler stretch the result. Raising this
+            //       enlarges the image, it does not improve it.
             //
-            //   "Resolucion interna"    -> --resolution_scale. ESTE es el que
-            //       la gente busca: el mismo "x2" de cualquier emulador.
-            //       Multiplica el tamano de los render targets y de la EDRAM
-            //       emulada, asi que el juego dibuja de verdad mas pixeles.
+            //   "Internal resolution" -> --resolution_scale. THIS is the one
+            //       people look for: the same "x2" as any emulator. It
+            //       multiplies the size of the render targets and the emulated
+            //       EDRAM, so the game genuinely draws more pixels.
             //
-            // Se llamaban "Resolucion de salida" y "Escala de renderizado", y
-            // con esos nombres es facil tocar el primero esperando lo segundo,
-            // ver que no cambia nada y darlo por roto.
-            PanelSeccion gPant = Grupo("Pantalla y resolucion", 132, 252);
+            // They used to be called "Output resolution" and "Render scale",
+            // and with those names it is easy to touch the first expecting the
+            // second, see that nothing changes and call it broken.
+            PanelSeccion gPant = Grupo("Display and resolution", 132, 252);
 
-            gPant.Controls.Add(Etiqueta("Tamano de la ventana", 14, 26, 150));
+            gPant.Controls.Add(Etiqueta("Window size", 14, 26, 150));
             cboRes = new ComboBox();
             cboRes.DropDownStyle = ComboBoxStyle.DropDownList;
             cboRes.Location = new Point(168, 23);
@@ -811,12 +821,12 @@ namespace NfsmwRecomp
 
             numAncho = Numero(168, 52, 70, 320, 7680);
             numAlto = Numero(250, 52, 70, 240, 4320);
-            gPant.Controls.Add(Etiqueta("Personalizada", 14, 55, 150));
+            gPant.Controls.Add(Etiqueta("Custom", 14, 55, 150));
             gPant.Controls.Add(numAncho);
             gPant.Controls.Add(Etiqueta("x", 240, 55, 12));
             gPant.Controls.Add(numAlto);
 
-            gPant.Controls.Add(Etiqueta("Resolucion interna", 14, 87, 150));
+            gPant.Controls.Add(Etiqueta("Internal resolution", 14, 87, 150));
             cboEsc = new ComboBox();
             cboEsc.DropDownStyle = ComboBoxStyle.DropDownList;
             cboEsc.Location = new Point(168, 84);
@@ -826,19 +836,20 @@ namespace NfsmwRecomp
             cboEsc.SelectedIndexChanged += delegate { Refrescar(); };
             gPant.Controls.Add(cboEsc);
 
-            // Lo que hace de verdad la escala elegida, escrito en cada cambio.
-            // Sin esto, elegir x2 y elegir x1 se ven igual hasta que arrancas.
+            // What the chosen scale actually does, written on every change.
+            // Without this, choosing x2 and choosing x1 look the same until you
+            // start the game.
             lblEscala = new Label();
             lblEscala.Location = new Point(168, 110);
             lblEscala.Size = new Size(AnchoCol - 190, 32);
             gPant.Controls.Add(lblEscala);
 
-            rbCompleta = Radio("Pantalla completa", 14, 146, 150);
-            rbVentana = Radio("En ventana", 168, 146, 150);
+            rbCompleta = Radio("Fullscreen", 14, 146, 150);
+            rbVentana = Radio("Windowed", 168, 146, 150);
             gPant.Controls.Add(rbCompleta);
             gPant.Controls.Add(rbVentana);
 
-            gPant.Controls.Add(Etiqueta("Monitor de salida", 14, 180, 150));
+            gPant.Controls.Add(Etiqueta("Output monitor", 14, 180, 150));
             cboMon = new ComboBox();
             cboMon.DropDownStyle = ComboBoxStyle.DropDownList;
             cboMon.Location = new Point(168, 177);
@@ -850,15 +861,15 @@ namespace NfsmwRecomp
             gPant.Controls.Add(cboMon);
 
             gPant.Controls.Add(Nota(14, 214, AnchoCol - 40, 36,
-                "No son lo mismo: el tamano de la ventana solo AGRANDA la imagen. La que la " +
-                "hace mas fina es la resolucion interna, que es el mismo \"x2\" de los " +
-                "emuladores, y cuesta cara: x2 son cuatro veces los pixeles a dibujar."));
+                "They are not the same: window size only ENLARGES the image. The one that " +
+                "makes it finer is the internal resolution, which is the same \"x2\" as the " +
+                "emulators, and it is expensive: x2 is four times the pixels to draw."));
 
-            // ---- Calidad de imagen ---------------------------------------------
+            // ---- Image quality -------------------------------------------------
             //
-            // Todo son cvars del SDK de ReXGlue que el recomp lee por linea de
-            // comandos; aqui no se toca el juego ni el runtime.
-            PanelSeccion gCal = Grupo("Calidad de imagen", 388, 196);
+            // These are all ReXGlue SDK cvars that the recomp reads from the
+            // command line; neither the game nor the runtime is touched here.
+            PanelSeccion gCal = Grupo("Image quality", 388, 196);
 
             gCal.Controls.Add(Etiqueta("Antialiasing", 14, 26, 150));
             cboAA = new ComboBox();
@@ -870,7 +881,7 @@ namespace NfsmwRecomp
             cboAA.SelectedIndexChanged += delegate { Refrescar(); };
             gCal.Controls.Add(cboAA);
 
-            gCal.Controls.Add(Etiqueta("Filtrado anisotropico", 14, 58, 150));
+            gCal.Controls.Add(Etiqueta("Anisotropic filtering", 14, 58, 150));
             cboAniso = new ComboBox();
             cboAniso.DropDownStyle = ComboBoxStyle.DropDownList;
             cboAniso.Location = new Point(168, 55);
@@ -880,7 +891,7 @@ namespace NfsmwRecomp
             cboAniso.SelectedIndexChanged += delegate { Refrescar(); };
             gCal.Controls.Add(cboAniso);
 
-            gCal.Controls.Add(Etiqueta("Efecto de acabado", 14, 90, 150));
+            gCal.Controls.Add(Etiqueta("Presentation effect", 14, 90, 150));
             cboEfecto = new ComboBox();
             cboEfecto.DropDownStyle = ComboBoxStyle.DropDownList;
             cboEfecto.Location = new Point(168, 87);
@@ -890,75 +901,76 @@ namespace NfsmwRecomp
             cboEfecto.SelectedIndexChanged += delegate { Refrescar(); };
             gCal.Controls.Add(cboEfecto);
 
-            gCal.Controls.Add(Etiqueta("Nitidez (CAS)", 14, 122, 150));
+            gCal.Controls.Add(Etiqueta("Sharpness (CAS)", 14, 122, 150));
             numNitidez = Numero(168, 119, 90, 0, 100);
             gCal.Controls.Add(numNitidez);
             gCal.Controls.Add(Etiqueta("%", 264, 122, 20));
 
             gCal.Controls.Add(Nota(14, 156, AnchoCol - 40, 34,
-                "El anisotropico afina las texturas y el acabado remata la imagen al pasarla " +
-                "a la ventana. Se aplican al reiniciar el juego."));
+                "Anisotropic filtering sharpens textures and the presentation effect polishes " +
+                "the image as it is passed to the window. They are applied when the game " +
+                "restarts."));
 
-            // ---- Fotogramas ---------------------------------------------------
-            PanelSeccion gFps = Grupo("Fotogramas", X1, 132, 124);
+            // ---- Frames -------------------------------------------------------
+            PanelSeccion gFps = Grupo("Frames", X1, 132, 124);
 
-            chkVsync = Marca("Sincronizacion vertical (vsync)", 14, 24, 250);
+            chkVsync = Marca("Vertical sync (vsync)", 14, 24, 250);
             gFps.Controls.Add(chkVsync);
 
-            chkLimite = Marca("Limitar a", 14, 52, 90);
+            chkLimite = Marca("Limit to", 14, 52, 90);
             gFps.Controls.Add(chkLimite);
             numFps = Numero(108, 50, 70, 20, 300);
             gFps.Controls.Add(numFps);
             gFps.Controls.Add(Etiqueta("fps", 184, 53, 40));
 
             gFps.Controls.Add(Nota(14, 82, AnchoCol - 40, 34,
-                "Los dos necesitan parche_presentador.py. La velocidad del juego no depende " +
-                "de esto: se ajusta desde el menu de F4."));
+                "Both require parche_presentador.py. The game speed does not depend on " +
+                "this: it is adjusted from the F4 menu."));
 
-            // ---- Motor de video ------------------------------------------------
-            PanelSeccion gVideo = Grupo("Motor de video (emulacion de la EDRAM)", X1, 264, 92);
+            // ---- Video engine --------------------------------------------------
+            PanelSeccion gVideo = Grupo("Video engine (EDRAM emulation)", X1, 264, 92);
 
-            rbVidAuto = Radio("Automatico", 14, 24, 110);
-            rbVidRtv = Radio("Rapido (rtv)", 134, 24, 120);
-            rbVidRov = Radio("Exacto (rov)", 264, 24, 120);
+            rbVidAuto = Radio("Automatic", 14, 24, 110);
+            rbVidRtv = Radio("Fast (rtv)", 134, 24, 120);
+            rbVidRov = Radio("Accurate (rov)", 264, 24, 120);
             gVideo.Controls.Add(rbVidAuto);
             gVideo.Controls.Add(rbVidRtv);
             gVideo.Controls.Add(rbVidRov);
 
             gVideo.Controls.Add(Nota(14, 50, AnchoCol - 40, 34,
-                "Automatico usa lo que diga nfsmw.toml. Rapido puede duplicar los fps en " +
-                "graficas integradas. Exacto se ve bien siempre y va mas lento."));
+                "Automatic uses whatever nfsmw.toml says. Fast can double the fps on " +
+                "integrated graphics. Accurate always looks right and runs slower."));
 
-            // ---- API grafica ----------------------------------------------------
+            // ---- Graphics API ---------------------------------------------------
             //
-            // ESTE GRUPO ES UNA SALIDA DE EMERGENCIA, Y POR ESO NO TIENE
-            // 'AUTOMATICO'. Ver el comentario largo de ConstruirArgumentos.
-            PanelSeccion gApi = Grupo("API grafica", X1, 364, 92);
+            // THIS GROUP IS AN EMERGENCY EXIT, AND THAT IS WHY IT HAS NO
+            // 'AUTOMATIC'. See the long comment in ConstruirArgumentos.
+            PanelSeccion gApi = Grupo("Graphics API", X1, 364, 92);
 
-            rbApiDx = Radio("DirectX 12 (recomendada)", 14, 24, 190);
+            rbApiDx = Radio("DirectX 12 (recommended)", 14, 24, 190);
             rbApiVk = Radio("Vulkan (experimental)", 214, 24, 190);
             gApi.Controls.Add(rbApiDx);
             gApi.Controls.Add(rbApiVk);
 
             gApi.Controls.Add(Nota(14, 50, AnchoCol - 40, 34,
-                "Esta ventana manda sobre nfsmw.toml, asi que elegir mal aqui nunca deja el " +
-                "juego sin poder abrirse: vuelves y cambias."));
+                "This window overrides nfsmw.toml, so choosing wrong here never leaves the " +
+                "game unable to open: you come back and change it."));
 
-            // A partir de aqui todo va a TODO EL ANCHO, debajo de las dos
-            // columnas (la izquierda -Pantalla+Calidad- es la mas alta, hasta
-            // y=584; ver los comentarios de gPant/gCal y gFps/gVideo/gApi mas
-            // arriba si se cambia el orden de las secciones).
+            // From here on everything spans the FULL WIDTH, below the two
+            // columns (the left one -Display+Quality- is the tallest, down to
+            // y=584; see the comments on gPant/gCal and gFps/gVideo/gApi above
+            // if the section order is changed).
             const int yDebajoColumnas = 600;
 
-            // ---- Aviso del parche -------------------------------------------
+            // ---- Patch warning ----------------------------------------------
             lblParche = new Label();
             lblParche.Location = new Point(X0, yDebajoColumnas);
             lblParche.Size = new Size(AnchoTotalColumnas, 32);
             lblParche.ForeColor = Tema.Aviso;
             panelColumna.Controls.Add(lblParche);
 
-            // ---- Lo que se va a ejecutar -------------------------------------
-            PanelSeccion gCmd = Grupo("Lo que se va a ejecutar", X0, yDebajoColumnas + 40, 100,
+            // ---- What is going to run ----------------------------------------
+            PanelSeccion gCmd = Grupo("What is going to run", X0, yDebajoColumnas + 40, 100,
                                       AnchoTotalColumnas);
             txtCmd = new TextBox();
             txtCmd.Location = new Point(12, 20);
@@ -971,10 +983,10 @@ namespace NfsmwRecomp
             txtCmd.Font = new Font("Consolas", 7.5f);
             gCmd.Controls.Add(txtCmd);
 
-            // ---- Botones ------------------------------------------------------
+            // ---- Buttons ------------------------------------------------------
             int yBotones = yDebajoColumnas + 40 + 100 + 10;
             btnJugar = new Button();
-            btnJugar.Text = "JUGAR";
+            btnJugar.Text = "PLAY";
             btnJugar.Location = new Point(X1 + AnchoCol - 230, yBotones);
             btnJugar.Size = new Size(120, 30);
             btnJugar.Font = new Font("Segoe UI", 9.75f, FontStyle.Bold);
@@ -983,7 +995,7 @@ namespace NfsmwRecomp
             AcceptButton = btnJugar;
 
             btnSalir = new Button();
-            btnSalir.Text = "Salir";
+            btnSalir.Text = "Exit";
             btnSalir.Location = new Point(X1 + AnchoCol - 100, yBotones);
             btnSalir.Size = new Size(100, 30);
             btnSalir.Click += delegate { Close(); };
@@ -995,7 +1007,7 @@ namespace NfsmwRecomp
             lblEstado.ForeColor = Tema.TextoNota;
             panelColumna.Controls.Add(lblEstado);
 
-            // Todo lo que cambia la linea de comandos, a refrescarla.
+            // Everything that changes the command line gets refreshed.
             EventHandler r = delegate { Refrescar(); };
             chkVsync.CheckedChanged += r;
             chkLimite.CheckedChanged += r;
@@ -1017,50 +1029,51 @@ namespace NfsmwRecomp
         }
 
         // ---------------------------------------------------------------------
-        //  Banda y panel de ajustes se reparten el ancho de la ventana
+        //  Banner and settings panel share the window width
         //
-        //  La banda quiere sus AnchoBanda (380) px de toda la vida, pero en una
-        //  ventana estrecha eso deja al panel de ajustes con menos de AnchoCol
-        //  y aparece un scroll horizontal ademas del vertical -incomodo, y es
-        //  justo lo que "que funcione en todo tipo de pantallas" pide evitar.
+        //  The banner wants its traditional AnchoBanda (380) px, but in a
+        //  narrow window that leaves the settings panel with less than AnchoCol
+        //  and a horizontal scroll appears in addition to the vertical one
+        //  -uncomfortable, and exactly what "work on all kinds of screens" asks
+        //  to avoid.
         //
-        //  Asi que la banda cede: se calcula cuanto le sobra a la ventana
-        //  despues de darle al panel su ancho minimo (AnchoCol + 24, lo mismo
-        //  que AutoScrollMinSize) y la banda se queda con eso, entre 0 y
-        //  AnchoBanda. Se sigue viendo -"conserva el banner del lado"- en
-        //  cualquier tamano igual o mayor que MinimumSize; solo se estrecha.
+        //  So the banner gives way: the window's leftover width is calculated
+        //  after giving the panel its minimum width (AnchoCol + 24, the same as
+        //  AutoScrollMinSize) and the banner keeps that, between 0 and
+        //  AnchoBanda. It is still visible -"keeps the side banner"- at any
+        //  size equal to or greater than MinimumSize; it just narrows.
         //
-        //  Y AL REVES -ventana MAS ancha de lo que el contenido necesita-
-        //  panelColumna (el ancho natural, AnchoCol+40) se CENTRA en el
-        //  sobrante en vez de quedarse pegado a la izquierda con un hueco
-        //  enorme a la derecha: es la otra mitad de "distribuye mejor el
-        //  espacio". La banda no se ensancha mas alla de AnchoBanda -no hay
-        //  mas portada que mostrar-, asi que ese sobrante es todo para
-        //  centrar la columna.
+        //  AND THE OTHER WAY AROUND -window WIDER than the content needs-
+        //  panelColumna (the natural width, AnchoCol+40) is CENTERED in the
+        //  excess instead of staying stuck to the left with a huge gap on the
+        //  right: it is the other half of "distribute the space better". The
+        //  banner does not widen beyond AnchoBanda -there is no more cover to
+        //  show-, so that excess is all for centering the column.
         //
-        //  Se llama una vez al construir y en cada Resize: por eso banda y
-        //  panelContenido NO llevan Anchor de ancho (Left+Right compitiendo
-        //  con esto daria tirones), solo Top+Bottom para el alto.
+        //  It is called once at build time and on every Resize: that is why
+        //  the banner and panelContenido do NOT have a width Anchor (Left+Right
+        //  competing with this would cause stutter), only Top+Bottom for
+        //  height.
         // ---------------------------------------------------------------------
         private void AjustarLayout()
         {
             if (banda == null || panelContenido == null || panelColumna == null)
                 return;
 
-            // + el ancho de la barra de scroll vertical: con AltoUtil (1066)
-            // casi siempre hay scroll vertical, y esa barra le come ancho de
-            // verdad al panel. Sin este margen, el calculo cuadraba justo SIN
-            // la barra, la barra aparecia, y esos ~17px que le robaba
-            // empujaban tambien un scroll horizontal -exactamente el problema
-            // que este metodo existe para evitar.
+            // + the width of the vertical scrollbar: with AltoUtil (1066) there
+            // is almost always vertical scroll, and that bar really eats into
+            // the panel's width. Without this margin, the calculation fit
+            // exactly WITHOUT the bar, the bar appeared, and those ~17px it
+            // stole also pushed a horizontal scroll -exactly the problem this
+            // method exists to avoid.
             int contenidoMinimo = panelColumna.Width + SystemInformation.VerticalScrollBarWidth;
             int anchoBandaReal = Math.Max(0, Math.Min(AnchoBanda, ClientSize.Width - contenidoMinimo));
 
-            // Alto explicito para las dos, siempre el de la ventana actual:
-            // es lo que evita que la banda se quede mas alta que el panel de
-            // ajustes -y la portada tuviera que rellenar ese sobrante
-            // repitiendose- si algo deja el alto desincronizado entre una y
-            // otra.
+            // Explicit height for both, always the current window height:
+            // that is what prevents the banner from staying taller than the
+            // settings panel -and the cover having to fill that excess by
+            // repeating itself- if something leaves the height out of sync
+            // between the two.
             banda.Size = new Size(anchoBandaReal, ClientSize.Height);
             panelContenido.Location = new Point(anchoBandaReal, 0);
             panelContenido.Size = new Size(ClientSize.Width - anchoBandaReal, ClientSize.Height);
@@ -1070,16 +1083,16 @@ namespace NfsmwRecomp
         }
 
         // ---------------------------------------------------------------------
-        //  Reparte el tema oscuro por todo el arbol de controles
+        //  Spreads the dark theme across the whole control tree
         //
-        //  Mas simple y mas dificil de olvidar que colorear cada control en el
-        //  sitio donde se crea: un control nuevo que se anada a Construir()
-        //  queda tematizado sin tener que acordarse.
+        //  Simpler and harder to forget than coloring each control where it is
+        //  created: a new control added to Construir() gets themed without
+        //  having to remember.
         //
-        //  Los controles con color DINAMICO -lblParche, lblEstado, lblEscala,
-        //  que cambian de color en Refrescar/EstadoInicial/AlTerminar segun el
-        //  estado- usan directamente los tonos de Tema en esos sitios, no este
-        //  paso: este solo corre una vez, al construir la ventana.
+        //  Controls with DYNAMIC color -lblParche, lblEstado, lblEscala, which
+        //  change color in Refrescar/EstadoInicial/AlTerminar depending on the
+        //  state- use the Tema tones directly in those places, not this step:
+        //  this one only runs once, when building the window.
         // ---------------------------------------------------------------------
         private static void AplicarTema(Control raiz)
         {
@@ -1087,11 +1100,11 @@ namespace NfsmwRecomp
             {
                 if (c is PanelSeccion)
                 {
-                    // Ya se pinta solo en su propio OnPaint.
+                    // It already paints itself in its own OnPaint.
                 }
                 else if (c is PanelPortada)
                 {
-                    // La portada se queda con su negro de toda la vida.
+                    // The cover keeps its traditional black.
                 }
                 else if (c is Panel)
                 {
@@ -1131,10 +1144,10 @@ namespace NfsmwRecomp
             }
         }
 
-        // ---- Fabriquitas de controles, para no repetir seis lineas cada vez ----
-        // Tres formas, todas caen en la de cuatro argumentos: X0 y AnchoCol
-        // (columna izquierda, ancho de una columna) por defecto, para no
-        // tener que tocar las llamadas que ya estaban.
+        // ---- Control factories, to avoid repeating six lines each time --------
+        // Three forms, all fall into the four-argument one: X0 and AnchoCol
+        // (left column, one column wide) by default, so the calls that already
+        // existed do not have to be touched.
         private PanelSeccion Grupo(string texto, int y, int alto)
         {
             return Grupo(texto, X0, y, alto, AnchoCol);
@@ -1213,7 +1226,7 @@ namespace NfsmwRecomp
         }
 
         // ---------------------------------------------------------------------
-        //  Ajustes: el mismo fichero y los mismos nombres que lanzador.ps1
+        //  Settings: the same file and the same names as lanzador.ps1
         // ---------------------------------------------------------------------
         private void CargarAjustes()
         {
@@ -1225,37 +1238,37 @@ namespace NfsmwRecomp
             }
             catch
             {
-                // Un json roto no puede impedir abrir el lanzador.
+                // A broken json cannot prevent the launcher from opening.
             }
 
             txtIso.Text = Cadena(a, "iso", "");
 
-            // Por defecto 1080p + x2, no 720p + x1: es lo mismo que ya trae
-            // nfsmw.toml de fabrica (video_mode 1920x1080, resolution_scale
-            // 2 -"recomendado" segun su propio comentario-), asi que alguien
-            // que abre el lanzador por primera vez, sin lanzador.json todavia,
-            // ve la MISMA calidad que tendria arrancando nfsmw.exe a pelo. Sin
-            // esto el lanzador rebajaba la resolucion real de 1080p a 720p sin
-            // que nadie lo pidiera, solo por no coincidir con el toml.
+            // Default 1080p + x2, not 720p + x1: it is the same as nfsmw.toml
+            // already ships (video_mode 1920x1080, resolution_scale 2
+            // -"recommended" according to its own comment-), so someone opening
+            // the launcher for the first time, without a lanzador.json yet, sees
+            // the SAME quality they would get starting nfsmw.exe directly.
+            // Without this the launcher dropped the real resolution from 1080p
+            // to 720p without anyone asking, just for not matching the toml.
             int i = IndiceDe(cboRes, Cadena(a, "preset", "1080p - 1920 x 1080"));
             cboRes.SelectedIndex = i >= 0 ? i : 4;
 
             numAncho.Value = Acotar(numAncho, Entero(a, "ancho", 1920));
             numAlto.Value = Acotar(numAlto, Entero(a, "alto", 1080));
 
-            int e = IndiceDe(cboEsc, Cadena(a, "escala", "x2  - 4 veces los pixeles"));
+            int e = IndiceDe(cboEsc, Cadena(a, "escala", "x2  - 4 times the pixels"));
             cboEsc.SelectedIndex = e >= 0 ? e : 1;
 
-            int mo = IndiceDe(cboMon, Cadena(a, "monitor", "Automatico (predeterminado)"));
+            int mo = IndiceDe(cboMon, Cadena(a, "monitor", "Automatic (default)"));
             cboMon.SelectedIndex = mo >= 0 ? mo : 0;
 
-            int aa = IndiceDe(cboAA, Cadena(a, "antialiasing", "Desactivado"));
+            int aa = IndiceDe(cboAA, Cadena(a, "antialiasing", "Off"));
             cboAA.SelectedIndex = aa >= 0 ? aa : 0;
 
             int an = IndiceDe(cboAniso, Cadena(a, "anisotropico", "8x"));
             cboAniso.SelectedIndex = an >= 0 ? an : 4;
 
-            int ef = IndiceDe(cboEfecto, Cadena(a, "efecto", "Ninguno (bilinear)"));
+            int ef = IndiceDe(cboEfecto, Cadena(a, "efecto", "None (bilinear)"));
             cboEfecto.SelectedIndex = ef >= 0 ? ef : 0;
 
             numNitidez.Value = Acotar(numNitidez, Entero(a, "nitidez", 50));
@@ -1309,7 +1322,7 @@ namespace NfsmwRecomp
             }
             catch
             {
-                // Guardar preferencias es un lujo, no una condicion para jugar.
+                // Saving preferences is a luxury, not a condition for playing.
             }
         }
 
@@ -1363,7 +1376,7 @@ namespace NfsmwRecomp
         }
 
         // ---------------------------------------------------------------------
-        //  La linea de comandos
+        //  The command line
         // ---------------------------------------------------------------------
         private string SalidaElegida()
         {
@@ -1434,11 +1447,11 @@ namespace NfsmwRecomp
             return i;
         }
 
-        // rutaJuego es la CARPETA que se pasa como --game_data_root: o bien la
-        // que el usuario eligio directamente (formato .xex ya extraido), o la
-        // cache donde ResolverRutaJuego dejo la ISO extraida. Nunca un .iso
-        // suelto: el SDK exige un directorio (rex_app.cpp valida con
-        // std::filesystem::is_directory) y no sabe montar imagenes.
+        // rutaJuego is the FOLDER passed as --game_data_root: either the one
+        // the user chose directly (already extracted .xex format), or the
+        // cache where ResolverRutaJuego left the extracted ISO. Never a bare
+        // .iso: the SDK requires a directory (rex_app.cpp validates with
+        // std::filesystem::is_directory) and does not know how to mount images.
         private string ConstruirArgumentos(string rutaJuego)
         {
             List<string> a = new List<string>();
@@ -1448,27 +1461,27 @@ namespace NfsmwRecomp
             a.Add("--gpu_plugin xenos");
             a.Add("--mnk_mode");
 
-            // Fijo, y no es una preferencia: sin esto la imagen sale lavada y el
-            // sol reventado.
+            // Fixed, and not a preference: without this the image comes out
+            // washed out and the sun blown out.
             a.Add("--readback_resolve=fast");
 
-            // SIEMPRE, aunque coincida con lo que ya diga nfsmw.toml.
+            // ALWAYS, even if it matches what nfsmw.toml already says.
             //
-            // En el orden de prioridad de los cvars del SDK la linea de comandos
-            // manda sobre el fichero de configuracion:
+            // In the SDK's cvar priority order the command line overrides the
+            // config file:
             //
             //     kDefault < kConfig < kEnvironment < kCommandLine < kRuntime
             //
-            // gpu_backend tambien se puede cambiar desde el menu de F4, y ahi
-            // esta el peligro: si eliges una API que en tu equipo da pantalla
-            // negra, guardas y reinicias, el valor se queda escrito en el toml y
-            // ya no hay forma de volver -para cambiarlo necesitas el menu, y
-            // para llegar al menu necesitas ver algo-. Paso de verdad.
+            // gpu_backend can also be changed from the F4 menu, and that is
+            // where the danger is: if you pick an API that gives a black screen
+            // on your machine, save and restart, the value stays written in the
+            // toml and there is no way back -to change it you need the menu, and
+            // to reach the menu you need to see something-. It really happened.
             //
-            // Pasandolo desde aqui siempre, esta ventana gana al toml y eso no
-            // puede ocurrir. Por eso tampoco hay opcion "automatico" en el grupo
-            // de la API: un automatico que no pasara nada devolveria el mando al
-            // toml, que es justo el agujero.
+            // By always passing it from here, this window beats the toml and
+            // that cannot happen. That is also why there is no "automatic"
+            // option in the API group: an automatic that passed nothing would
+            // hand control back to the toml, which is exactly the hole.
             a.Add("--gpu_backend=" + ApiElegida());
 
             a.Add("--resolution " + SalidaElegida());
@@ -1477,13 +1490,13 @@ namespace NfsmwRecomp
             if (esc > 1)
                 a.Add("--resolution_scale " + esc);
 
-            // Antialiasing: SIEMPRE se pasa, como la API. Asi elegir
-            // "Desactivado" aqui gana a lo que diga nfsmw.toml, en vez de
-            // devolverle el mando al fichero.
+            // Antialiasing: ALWAYS passed, like the API. So choosing "Off"
+            // here beats whatever nfsmw.toml says, instead of handing control
+            // back to the file.
             a.Add("--swap_post_effect=" + AAElegida());
 
-            // Calidad de imagen: aniso y nitidez siempre (manda esta ventana);
-            // el efecto de acabado solo cuando no es el de siempre.
+            // Image quality: aniso and sharpness always (this window rules);
+            // the presentation effect only when it is not the default one.
             a.Add("--anisotropic_override " + AnisotropicoElegido());
             if (EfectoElegido() != "bilinear")
                 a.Add("--present_effect=" + EfectoElegido());
@@ -1496,10 +1509,10 @@ namespace NfsmwRecomp
             if (chkLimite.Checked)
                 a.Add("--max_fps " + ((int)numFps.Value));
 
-            // Estos dos solo si se han elegido a mano. En automatico no se pasa
-            // nada y manda el toml, que trae "rtv". Al reves que la API: aqui
-            // elegir mal no deja el juego invisible, solo mas lento o con una
-            // franja rara, asi que dejar mandar al fichero no tiene peligro.
+            // These two only if chosen by hand. In automatic nothing is passed
+            // and the toml rules, which ships "rtv". Opposite to the API: here
+            // choosing wrong does not make the game invisible, only slower or
+            // with an odd stripe, so letting the file rule is not dangerous.
             if (rbVidRtv.Checked) a.Add("--render_target_path_d3d12=rtv");
             if (rbVidRov.Checked) a.Add("--render_target_path_d3d12=rov");
 
@@ -1517,43 +1530,43 @@ namespace NfsmwRecomp
             numAlto.Enabled = esCustom;
             numFps.Enabled = chkLimite.Checked;
 
-            // Que se vea, ANTES de arrancar, que la escala hace algo. Sin esto
-            // el unico sitio donde x1 y x2 se distinguen es la linea de
-            // comandos de ahi abajo, que casi nadie lee.
+            // Make it visible, BEFORE starting, that the scale does something.
+            // Without this the only place where x1 and x2 differ is the command
+            // line below, which almost nobody reads.
             //
-            // No se pone la resolucion en pixeles a proposito: la escala NO
-            // multiplica el tamano de la ventana, multiplica los render targets
-            // del juego, que son de un tamano suyo que desde aqui no se conoce.
-            // Poner "2560 x 1440" seria inventarselo.
+            // The resolution in pixels is deliberately not shown: the scale does
+            // NOT multiply the window size, it multiplies the game's render
+            // targets, which have a size of their own that is not known from
+            // here. Writing "2560 x 1440" would be making it up.
             int esc = EscalaElegida();
             if (esc <= 1)
             {
                 lblEscala.ForeColor = Tema.TextoNota;
-                lblEscala.Text = "El juego dibuja a su resolucion original de Xbox 360.";
+                lblEscala.Text = "The game draws at its original Xbox 360 resolution.";
             }
             else
             {
                 lblEscala.ForeColor = Tema.Acento;
                 lblEscala.Text = string.Format(
-                    "El juego dibuja {0} veces mas ancho y mas alto: {1} veces los pixeles.\n" +
-                    "Se ve mas fino, y la GPU trabaja {1} veces mas.", esc, esc * esc);
+                    "The game draws {0} times wider and taller: {1} times the pixels.\n" +
+                    "It looks finer, and the GPU works {1} times harder.", esc, esc * esc);
             }
 
-            // Vista previa: usa tal cual lo que hay escrito en el cuadro de ISO,
-            // aunque sea un .iso. La extraccion de verdad (si hace falta) solo
-            // ocurre al pulsar JUGAR, en ResolverRutaJuego -hacerlo aqui, en
-            // cada tecla, seria carisimo.
-            string vista = txtIso.Text.Length > 0 ? txtIso.Text : "(sin elegir)";
+            // Preview: uses exactly what is written in the ISO box, even if it
+            // is a .iso. The real extraction (if needed) only happens when
+            // pressing PLAY, in ResolverRutaJuego -doing it here, on every
+            // keystroke, would be extremely expensive.
+            string vista = txtIso.Text.Length > 0 ? txtIso.Text : "(none selected)";
             txtCmd.Text = Path.GetFileName(exeJuego) + " " + ConstruirArgumentos(vista);
             if (vista.Length > 0 && vista.EndsWith(".iso", StringComparison.OrdinalIgnoreCase))
             {
-                txtCmd.Text += "\r\n(la ISO se extrae a game_root_cache\\ la primera vez que se " +
-                               "pulsa JUGAR; luego se usa esa copia)";
+                txtCmd.Text += "\r\n(the ISO is extracted to game_root_cache\\ the first time PLAY " +
+                               "is pressed; after that the copy is used)";
             }
         }
 
         // ---------------------------------------------------------------------
-        //  Estado inicial: ISO encontrada sola y aviso del parche
+        //  Initial state: auto-found ISO and patch warning
         // ---------------------------------------------------------------------
         private void EstadoInicial()
         {
@@ -1568,9 +1581,9 @@ namespace NfsmwRecomp
                     }
                     else
                     {
-                        // Sin ISO al lado: una carpeta "game_root" ya extraida
-                        // tambien vale (mismo criterio que OnConfigurePaths en
-                        // nfsmw_app.h).
+                        // No ISO beside it: an already extracted "game_root"
+                        // folder also works (same criterion as OnConfigurePaths
+                        // in nfsmw_app.h).
                         string carpetaGr = Path.Combine(raiz, "game_root");
                         if (Directory.Exists(carpetaGr) &&
                             File.Exists(Path.Combine(carpetaGr, "default.xex")))
@@ -1584,11 +1597,12 @@ namespace NfsmwRecomp
                 }
             }
 
-            // Se mira el FUENTE del SDK, no la DLL: es donde vive la verdad y es
-            // barato de comprobar.
+            // The SDK SOURCE is checked, not the DLL: that is where the truth
+            // lives and it is cheap to check.
             //
-            // En la carpeta repartible no hay fuente que mirar, pero tampoco
-            // duda: esa carpeta se arma desde un arbol ya parcheado.
+            // In the distribution folder there is no source to check, but it
+            // does not doubt either: that folder is built from an already
+            // patched tree.
             bool? parche = null;
             if (distribuida)
             {
@@ -1608,20 +1622,20 @@ namespace NfsmwRecomp
 
             if (parche == false)
             {
-                lblParche.Text = "AVISO: vsync y el limite de fps NO haran nada todavia. De fabrica " +
-                                 "el SDK no sincroniza y no trae limitador. Aplica " +
-                                 "tools\\parche_presentador.py y recompila el SDK.";
+                lblParche.Text = "WARNING: vsync and the fps limit will NOT do anything yet. Out of " +
+                                 "the box the SDK does not sync and does not ship a limiter. Apply " +
+                                 "tools\\parche_presentador.py and rebuild the SDK.";
             }
             else if (parche == null)
             {
                 lblParche.ForeColor = Tema.TextoNota;
-                lblParche.Text = "No encuentro el fuente del SDK, asi que no se si el parche de " +
-                                 "vsync esta puesto.";
+                lblParche.Text = "I cannot find the SDK source, so I do not know whether the " +
+                                 "vsync patch is applied.";
             }
 
             if (!File.Exists(exeJuego))
             {
-                lblEstado.Text = "Aviso: no hay ejecutable compilado todavia.";
+                lblEstado.Text = "Warning: there is no compiled executable yet.";
                 lblEstado.ForeColor = Tema.Aviso;
             }
         }
@@ -1630,8 +1644,8 @@ namespace NfsmwRecomp
         {
             using (OpenFileDialog d = new OpenFileDialog())
             {
-                d.Filter = "Imagen de disco (*.iso)|*.iso|Todos los archivos (*.*)|*.*";
-                d.Title = "Elige la ISO de Need for Speed: Most Wanted";
+                d.Filter = "Disk image (*.iso)|*.iso|All files (*.*)|*.*";
+                d.Title = "Choose the Need for Speed: Most Wanted ISO";
                 try
                 {
                     if (txtIso.Text.Length > 0 && File.Exists(txtIso.Text))
@@ -1655,7 +1669,7 @@ namespace NfsmwRecomp
             using (FolderBrowserDialog d = new FolderBrowserDialog())
             {
                 d.Description =
-                    "Elige la carpeta con el juego ya extraido (debe contener default.xex)";
+                    "Choose the folder with the already extracted game (it must contain default.xex)";
                 try
                 {
                     if (txtIso.Text.Length > 0 && Directory.Exists(txtIso.Text))
@@ -1676,18 +1690,18 @@ namespace NfsmwRecomp
         }
 
         // ---------------------------------------------------------------------
-        //  De lo que eligio el usuario a la carpeta que necesita el SDK
+        //  From what the user chose to the folder the SDK needs
         //
-        //  Si ya es una carpeta (formato .xex extraido), se usa tal cual. Si es
-        //  un .iso, hace falta extraerlo primero: rex_app.cpp exige que
-        //  --game_data_root sea un directorio de verdad y en todo rexglue-sdk
-        //  no hay ningun lector de .iso (se comprobo a mano: cero referencias a
-        //  XDVDFS o a montar imagenes). Sin este paso, pasar la ISO tal cual
-        //  produce exactamente "--game_data_root does not exist: ...iso".
+        //  If it is already a folder (extracted .xex format), it is used as-is.
+        //  If it is a .iso, it must be extracted first: rex_app.cpp requires
+        //  --game_data_root to be a real directory and in all of rexglue-sdk
+        //  there is no .iso reader (checked by hand: zero references to XDVDFS
+        //  or to mounting images). Without this step, passing the ISO as-is
+        //  produces exactly "--game_data_root does not exist: ...iso".
         //
-        //  La extraccion completa son varios GB y tarda minutos, asi que solo
-        //  se repite si la ISO cambio: CacheValida compara ruta y tamano contra
-        //  el marcador que deja EscribirMarcador la vez anterior.
+        //  The full extraction is several GB and takes minutes, so it is only
+        //  repeated if the ISO changed: CacheValida compares path and size
+        //  against the marker EscribirMarcador leaves from the previous time.
         // ---------------------------------------------------------------------
         private string ResolverRutaJuego(string entrada, bool esCarpeta)
         {
@@ -1708,8 +1722,8 @@ namespace NfsmwRecomp
                     if (ve.Error != null)
                     {
                         MessageBox.Show(this,
-                            "No se pudo extraer el ISO:\n\n" + ve.Error.Message,
-                            "Error al extraer", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            "The ISO could not be extracted:\n\n" + ve.Error.Message,
+                            "Extraction error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                     return null;
                 }
@@ -1718,21 +1732,21 @@ namespace NfsmwRecomp
         }
 
         // ---------------------------------------------------------------------
-        //  Jugar
+        //  Play
         //
-        //  El juego se espera EN OTRO HILO. El lanzador de PowerShell hacia
-        //  WaitForExit en el hilo de la ventana, y mientras jugabas la ventana
-        //  se quedaba colgada -Windows la pintaba en blanco y la marcaba como
-        //  "no responde"-. Aqui se lanza aparte y se vuelve a la ventana con
-        //  Invoke cuando termina.
+        //  The game is waited for ON ANOTHER THREAD. The PowerShell launcher did
+        //  WaitForExit on the window thread, and while you played the window
+        //  hung -Windows painted it white and marked it as "not responding"-.
+        //  Here it is launched separately and control returns to the window with
+        //  Invoke when it finishes.
         // ---------------------------------------------------------------------
         private void Jugar(object s, EventArgs e)
         {
             if (!File.Exists(exeJuego))
             {
                 MessageBox.Show(this,
-                    "No encuentro el ejecutable:\n\n" + exeJuego + "\n\nCompila primero.",
-                    "Falta el ejecutable", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "I cannot find the executable:\n\n" + exeJuego + "\n\nBuild it first.",
+                    "Missing executable", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             string entrada = txtIso.Text;
@@ -1742,20 +1756,20 @@ namespace NfsmwRecomp
             if (!esIso && !esCarpeta)
             {
                 MessageBox.Show(this,
-                    "Elige una ISO o una carpeta con el juego ya extraido (formato .xex) que exista.",
-                    "Falta el juego", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "Choose an ISO or a folder with the already extracted game (.xex format) that exists.",
+                    "Missing game", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // Guardar ANTES de lanzar: si el juego revienta, las preferencias se
-            // quedan puestas igualmente.
+            // Save BEFORE launching: if the game crashes, the preferences stay
+            // saved anyway.
             GuardarAjustes();
 
-            // Si es una ISO, ResolverRutaJuego la extrae a game_root_cache\ (o
-            // reusa la extraccion anterior si sigue siendo la misma ISO) y
-            // devuelve esa carpeta. Null significa que el usuario cancelo la
-            // extraccion o que fallo -y ya se aviso-, asi que no se llega a
-            // lanzar nada.
+            // If it is an ISO, ResolverRutaJuego extracts it to
+            // game_root_cache\ (or reuses the previous extraction if it is still
+            // the same ISO) and returns that folder. Null means the user
+            // cancelled the extraction or it failed -and a warning was already
+            // shown-, so nothing gets launched.
             string rutaJuego = ResolverRutaJuego(entrada, esCarpeta);
             if (rutaJuego == null)
                 return;
@@ -1771,7 +1785,7 @@ namespace NfsmwRecomp
 
             btnJugar.Enabled = false;
             lblEstado.ForeColor = Tema.TextoNota;
-            lblEstado.Text = "Jugando... (F3 para ver los fps)";
+            lblEstado.Text = "Playing... (F3 to see fps)";
 
             string argumentos = ConstruirArgumentos(rutaJuego);
             Thread hilo = new Thread(delegate ()
@@ -1786,24 +1800,24 @@ namespace NfsmwRecomp
                     {
                         if (p == null)
                             throw new InvalidOperationException(
-                                "Windows no ha llegado a crear el proceso.");
+                                "Windows did not manage to create the process.");
 
-                        // Prioridad de planificacion mas alta que Normal. El
-                        // hilo de audio y el de comandos de la GPU son los que
-                        // mas sufren si Windows les quita CPU para dar paso a
-                        // otra cosa -es literalmente el sintoma del "quejido"
-                        // de audio que arreglo el desatasco-, y en una maquina
-                        // con el CPU ocupado (Discord, el navegador, un
-                        // antivirus escaneando) planificar antes ayuda sin
-                        // tocar un solo pixel de lo que se dibuja.
+                        // Scheduling priority higher than Normal. The audio
+                        // thread and the GPU command thread suffer the most if
+                        // Windows takes CPU away from them to make room for
+                        // something else -it is literally the audio "whine"
+                        // symptom that unsticking fixed-, and on a machine with
+                        // the CPU busy (Discord, the browser, an antivirus
+                        // scanning) scheduling earlier helps without touching a
+                        // single pixel of what is drawn.
                         //
-                        // High y no RealTime: RealTime puede dejar sin CPU al
-                        // propio Windows -raton y teclado incluidos- si el
-                        // juego se queda en un bucle apretado, que es
-                        // justo el tipo de cuelgue que este proyecto ya vigila
-                        // por otro lado (ver ArrancarVigilante en nfsmw_app.h).
-                        // Si falla -permisos, o el proceso ya termino- no es
-                        // motivo para no jugar: se seguiria en Normal.
+                        // High and not RealTime: RealTime can starve Windows
+                        // itself -mouse and keyboard included- if the game gets
+                        // stuck in a tight loop, which is exactly the kind of
+                        // hang this project already watches for elsewhere (see
+                        // ArrancarVigilante in nfsmw_app.h). If it fails
+                        // -permissions, or the process already ended- it is not
+                        // a reason to refuse to play: it would stay on Normal.
                         try
                         {
                             p.PriorityClass = ProcessPriorityClass.High;
@@ -1821,7 +1835,7 @@ namespace NfsmwRecomp
                     string mensaje = ex.Message;
                     EnLaVentana(delegate
                     {
-                        MessageBox.Show(this, "No se pudo lanzar:\n\n" + mensaje, "Error",
+                        MessageBox.Show(this, "Could not launch:\n\n" + mensaje, "Error",
                                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                         btnJugar.Enabled = true;
                         lblEstado.Text = "";
@@ -1836,13 +1850,13 @@ namespace NfsmwRecomp
             hilo.Start();
         }
 
-        // Volver al hilo de la ventana desde el hilo que espera al juego.
+        // Return to the window thread from the thread waiting for the game.
         //
-        // Con la comprobacion delante a proposito: si cierras el lanzador
-        // mientras juegas, cuando el juego termina ya no hay ventana a la que
-        // volver, e Invoke sobre un formulario destruido revienta con una
-        // excepcion sin capturar y una ventana de error de .NET. Que el lanzador
-        // pete DESPUES de haberlo cerrado tu queda especialmente absurdo.
+        // With the check up front on purpose: if you close the launcher while
+        // playing, when the game ends there is no window to return to anymore,
+        // and Invoke on a destroyed form crashes with an unhandled exception and
+        // a .NET error window. Having the launcher crash AFTER you closed it is
+        // especially absurd.
         private void EnLaVentana(MethodInvoker que)
         {
             try
@@ -1853,11 +1867,11 @@ namespace NfsmwRecomp
             }
             catch (ObjectDisposedException)
             {
-                // Se cerro entre la comprobacion y el Invoke. No hay nada que hacer.
+                // It was closed between the check and the Invoke. Nothing to do.
             }
             catch (InvalidOperationException)
             {
-                // Idem: el handle se destruyo por el camino.
+                // Same: the handle was destroyed along the way.
             }
         }
 
@@ -1866,16 +1880,16 @@ namespace NfsmwRecomp
             btnJugar.Enabled = true;
             lblEstado.Text = "";
 
-            // Si se pidio escala y la grafica no pudo, el SDK la baja sola y lo
-            // deja escrito en el log.
+            // If a scale was requested and the GPU could not handle it, the SDK
+            // lowers it on its own and writes it to the log.
             string bajada = BuscarEnLog(new string[] { "draw resolution scale is not supported" },
                                         true);
             if (bajada != null)
             {
                 MessageBox.Show(this,
-                    "La escala de renderizado que pediste no la admite tu equipo, asi que el SDK " +
-                    "la ha bajado sola:\n\n" + bajada,
-                    "Escala reducida", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    "The render scale you requested is not supported by your machine, so the SDK " +
+                    "lowered it on its own:\n\n" + bajada,
+                    "Reduced scale", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
 
             if (codigo != 0)
@@ -1883,14 +1897,14 @@ namespace NfsmwRecomp
                 string pistas = BuscarEnLog(new string[] { "[critical]", "FATAL", "unregistered" },
                                             false);
                 MessageBox.Show(this,
-                    string.Format("El juego termino con codigo {0}.{1}\n\nLog: {2}",
+                    string.Format("The game exited with code {0}.{1}\n\nLog: {2}",
                                   codigo, pistas == null ? "" : "\n\n" + pistas, logEjecucion),
-                    "Termino con error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "Exited with error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
-        // Devuelve la primera linea que contenga alguna de las agujas, o las
-        // ultimas ocho juntas si soloLaPrimera es false. Null si no hay ninguna.
+        // Returns the first line containing any of the needles, or the last
+        // eight joined if soloLaPrimera is false. Null if there are none.
         private string BuscarEnLog(string[] agujas, bool soloLaPrimera)
         {
             try
@@ -1931,30 +1945,31 @@ namespace NfsmwRecomp
     }
 
     // ===========================================================================
-    //  Extractor XDVDFS: de .iso de Xbox 360 a carpeta, sin dependencias
+    //  XDVDFS extractor: from Xbox 360 .iso to folder, with no dependencies
     //
-    //  Puerto a C# de tools\fase1_extraer.py (opcion "2. Extraer TODO"). Existe
-    //  porque rexglue-sdk no sabe leer imagenes .iso: Runtime/ReXApp exigen que
-    //  --game_data_root sea ya una carpeta (rex_app.cpp, is_directory). Aqui se
-    //  hace ese paso solo, sin tener que instalar Python aparte -la build
-    //  repartible no puede depender de eso.
+    //  C# port of tools\fase1_extraer.py ("2. Extract EVERYTHING" option). It
+    //  exists because rexglue-sdk does not know how to read .iso images:
+    //  Runtime/ReXApp require --game_data_root to already be a folder
+    //  (rex_app.cpp, is_directory). This step is done here on its own, with no
+    //  need to install Python separately -the distribution build cannot depend
+    //  on that.
     //
-    //  Formato (XDVDFS, "MICROSOFT*XBOX*MEDIA"):
-    //    - Descriptor de volumen a 32 sectores desde la base de la particion.
-    //    - La base varia segun el tipo de disco (XGD1/2/3 o imagen ya
-    //      recortada); se prueban los offsets conocidos y, si ninguno cuadra,
-    //      se barre la imagen buscando el magic.
-    //    - El arbol de cada directorio es un arbol binario plano: cada entrada
-    //      trae hijo-izquierdo, hijo-derecho, sector, tamano, atributos y
-    //      nombre. Los indices de hijo son "sector logico / 4", no bytes.
+    //  Format (XDVDFS, "MICROSOFT*XBOX*MEDIA"):
+    //    - Volume descriptor 32 sectors from the partition base.
+    //    - The base varies with the disc type (XGD1/2/3 or an already trimmed
+    //      image); the known offsets are tried and, if none matches, the image
+    //      is swept looking for the magic.
+    //    - Each directory's tree is a flat binary tree: every entry carries
+    //      left child, right child, sector, size, attributes and name. Child
+    //      indexes are "logical sector / 4", not bytes.
     // ===========================================================================
     internal static class ExtractorXdvdfs
     {
         private const int Sector = 2048;
         private static readonly byte[] Magic = Encoding.ASCII.GetBytes("MICROSOFT*XBOX*MEDIA");
 
-        // 0 = particion cruda / imagen ya recortada; los demas son XGD2, XGD3 y
-        // XGD1 (Xbox original), en ese orden de frecuencia real.
+        // 0 = raw partition / already trimmed image; the rest are XGD2, XGD3
+        // and XGD1 (original Xbox), in that real-frequency order.
         private static readonly long[] BasesConocidas =
             { 0x00000000L, 0x0FD90000L, 0x02080000L, 0x18300000L };
 
@@ -2024,9 +2039,9 @@ namespace NfsmwRecomp
                     return BasesConocidas[i];
             }
 
-            // Ninguno de los offsets conocidos cuadra: barrido por fuerza bruta
-            // en trozos de 16 MB, con solape para no perder el magic partido
-            // entre dos trozos.
+            // None of the known offsets matches: brute-force sweep in 16 MB
+            // chunks, with overlap so as not to miss the magic split between
+            // two chunks.
             long tam = fh.Length;
             long tope = Math.Min(tam, 1L << 30);
             const int chunk = 16 << 20;
@@ -2056,8 +2071,8 @@ namespace NfsmwRecomp
             }
 
             throw new InvalidOperationException(
-                "No se encontro un sistema de archivos XDVDFS en la imagen.\n" +
-                "Comprueba que es un ISO de Xbox 360 y no un CCI/GOD/ZAR comprimido.");
+                "No XDVDFS file system was found in the image.\n" +
+                "Check that it is an Xbox 360 ISO and not a compressed CCI/GOD/ZAR.");
         }
 
         private static void LeerDescriptor(FileStream fh, long baseP, out uint sectorRaiz,
@@ -2067,7 +2082,7 @@ namespace NfsmwRecomp
             byte[] vd = new byte[Sector];
             int leido = fh.Read(vd, 0, vd.Length);
             if (leido < Sector || !IgualPrefijo(vd, Magic))
-                throw new InvalidOperationException("Descriptor de volumen invalido.");
+                throw new InvalidOperationException("Invalid volume descriptor.");
 
             sectorRaiz = BitConverter.ToUInt32(vd, 0x14);
             tamRaiz = BitConverter.ToUInt32(vd, 0x18);
@@ -2085,9 +2100,9 @@ namespace NfsmwRecomp
             return true;
         }
 
-        // Nodos crudos del arbol binario de UN directorio (sin recorrer
-        // subdirectorios: eso lo hace Recorrer). offsetInicial es 0, la raiz
-        // del arbol de esta tabla.
+        // Raw nodes of ONE directory's binary tree (without walking
+        // subdirectories: Recorrer does that). offsetInicial is 0, the root of
+        // this table's tree.
         private static List<KeyValuePair<string, Entrada>> Entradas(byte[] tabla)
         {
             List<KeyValuePair<string, Entrada>> resultado = new List<KeyValuePair<string, Entrada>>();
@@ -2111,8 +2126,8 @@ namespace NfsmwRecomp
                 byte attrs = tabla[off + 12];
                 byte largo = tabla[off + 13];
 
-                // 0 y 0xFFFF marcan "sin hijo" (offset 0 solo es valido para la
-                // raiz, que ya se proceso al entrar aqui).
+                // 0 and 0xFFFF mark "no child" (offset 0 is only valid for the
+                // root, which was already processed on entry).
                 if (izq != 0 && izq != 0xFFFF)
                     pila.Push(izq * 4);
                 if (der != 0 && der != 0xFFFF)
@@ -2146,7 +2161,7 @@ namespace NfsmwRecomp
 
             fh.Seek(baseP + (long)sector * Sector, SeekOrigin.Begin);
             byte[] tabla = new byte[tam];
-            fh.Read(tabla, 0, tabla.Length);   // si viene corta, se sigue con lo leido
+            fh.Read(tabla, 0, tabla.Length);   // if it comes up short, it continues with what was read
 
             List<KeyValuePair<string, Entrada>> hijos = Entradas(tabla);
             hijos.Sort(CompararNombres);
@@ -2178,7 +2193,7 @@ namespace NfsmwRecomp
                     if (leido <= 0)
                     {
                         throw new InvalidOperationException(
-                            "Fin de archivo inesperado leyendo " + e.Nombre + ". Imagen incompleta?");
+                            "Unexpected end of file reading " + e.Nombre + ". Incomplete image?");
                     }
                     salida.Write(buf, 0, leido);
                     restante -= leido;
@@ -2186,9 +2201,9 @@ namespace NfsmwRecomp
             }
         }
 
-        // Extrae TODO el contenido de la particion de juego a destino. El juego
-        // necesita el arbol completo en tiempo de ejecucion -no solo el
-        // default.xex-, porque game_data_root se monta como el propio D:\.
+        // Extracts ALL the content of the game partition to destino. The game
+        // needs the full tree at runtime -not just default.xex-, because
+        // game_data_root is mounted as D:\ itself.
         public static void Extraer(string isoPath, string destino, Progreso progreso, Cancelado cancelado)
         {
             using (FileStream fh = new FileStream(isoPath, FileMode.Open, FileAccess.Read, FileShare.Read))
@@ -2203,7 +2218,7 @@ namespace NfsmwRecomp
                 if (entradas.Count == 0)
                 {
                     throw new InvalidOperationException(
-                        "El sistema de archivos esta vacio. Imagen corrupta?");
+                        "The file system is empty. Corrupted image?");
                 }
 
                 int total = 0;
@@ -2233,20 +2248,21 @@ namespace NfsmwRecomp
                 if (!File.Exists(Path.Combine(destino, "default.xex")))
                 {
                     throw new InvalidOperationException(
-                        "Se extrajeron " + hechos + " archivos pero no aparecio default.xex " +
-                        "en la raiz. Puede que la ISO no sea de Xbox 360, o que no sea " +
+                        hechos + " files were extracted but default.xex did not show up " +
+                        "at the root. The ISO may not be an Xbox 360 one, or it may not be " +
                         "Need for Speed: Most Wanted.");
                 }
             }
         }
 
         // -----------------------------------------------------------------
-        //  Cache: no volver a extraer la misma ISO
+        //  Cache: do not extract the same ISO again
         //
-        //  El marcador guarda ruta+tamano de la ISO de origen. Si coinciden y
-        //  default.xex sigue ahi, se da la cache por buena. No hace falta mas
-        //  precision -un hash del archivo entero seria mas fiable pero exige
-        //  leer los mismos GB que se quieren evitar releer.
+        //  The marker stores path+size of the source ISO. If they match and
+        //  default.xex is still there, the cache is considered good. More
+        //  precision is not needed -a hash of the whole file would be more
+        //  reliable but requires reading the same GB that are meant to be
+        //  avoided re-reading.
         // -----------------------------------------------------------------
         private static string RutaMarcador(string carpetaCache)
         {
@@ -2293,8 +2309,8 @@ namespace NfsmwRecomp
             }
             catch
             {
-                // Si no se puede escribir el marcador, la proxima vez se
-                // vuelve a extraer. Lento, pero no rompe nada.
+                // If the marker cannot be written, next time it extracts again.
+                // Slow, but it breaks nothing.
             }
         }
 
@@ -2309,12 +2325,12 @@ namespace NfsmwRecomp
     }
 
     // ===========================================================================
-    //  Ventana modal con el progreso de la extraccion
+    //  Modal window with the extraction progress
     //
-    //  La extraccion corre en un hilo aparte -igual que el juego en Jugar()-
-    //  para que la ventana no se quede "sin responder" mientras se copian
-    //  varios GB. El resultado se lee de DialogResult (OK / Cancel) y, si algo
-    //  fallo, del campo Error.
+    //  The extraction runs on a separate thread -same as the game in Jugar()-
+    //  so the window does not stay "not responding" while several GB are
+    //  copied. The result is read from DialogResult (OK / Cancel) and, if
+    //  something failed, from the Error field.
     // ===========================================================================
     internal sealed class VentanaExtraccion : Form
     {
@@ -2333,7 +2349,7 @@ namespace NfsmwRecomp
             this.iso = iso;
             this.destino = destino;
 
-            Text = "Extrayendo la ISO...";
+            Text = "Extracting the ISO...";
             ClientSize = new Size(460, 122);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition = FormStartPosition.CenterParent;
@@ -2347,8 +2363,8 @@ namespace NfsmwRecomp
             lbl.Location = new Point(16, 14);
             lbl.Size = new Size(428, 44);
             lbl.ForeColor = Tema.Texto;
-            lbl.Text = "Extrayendo " + Path.GetFileName(iso) + "...\n" +
-                      "Solo hace falta la primera vez con esta ISO; puede tardar varios minutos.";
+            lbl.Text = "Extracting " + Path.GetFileName(iso) + "...\n" +
+                      "Only needed the first time with this ISO; it can take several minutes.";
             Controls.Add(lbl);
 
             barra = new ProgressBar();
@@ -2359,7 +2375,7 @@ namespace NfsmwRecomp
             Controls.Add(barra);
 
             btnCancelar = new Button();
-            btnCancelar.Text = "Cancelar";
+            btnCancelar.Text = "Cancel";
             btnCancelar.Location = new Point(360, 92);
             btnCancelar.Size = new Size(84, 24);
             btnCancelar.BackColor = Tema.FondoPanel;
@@ -2370,7 +2386,7 @@ namespace NfsmwRecomp
             {
                 cancelar = true;
                 btnCancelar.Enabled = false;
-                lbl.Text = "Cancelando...";
+                lbl.Text = "Cancelling...";
             };
             Controls.Add(btnCancelar);
 
@@ -2386,7 +2402,7 @@ namespace NfsmwRecomp
                     if (Directory.Exists(destino))
                     {
                         try { Directory.Delete(destino, true); }
-                        catch { /* restos de un intento anterior a medias; se pisan igual */ }
+                        catch { /* leftovers from a half-finished previous attempt; they get overwritten anyway */ }
                     }
                     Directory.CreateDirectory(destino);
 
@@ -2433,7 +2449,7 @@ namespace NfsmwRecomp
                     }
                     if (total > 0)
                         barra.Value = Math.Min(hechos, total);
-                    lbl.Text = string.Format("Extrayendo {0}/{1}: {2}", hechos, total, archivo);
+                    lbl.Text = string.Format("Extracting {0}/{1}: {2}", hechos, total, archivo);
                 });
             }
             catch (ObjectDisposedException) { }

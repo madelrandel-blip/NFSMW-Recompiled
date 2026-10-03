@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-Hace que VSYNC y el LIMITE DE FPS existan de verdad.
+Makes VSYNC and the FPS LIMIT actually exist.
 
-    python tools/parche_presentador.py            aplicar
+    python tools/parche_presentador.py            apply
     python tools/parche_presentador.py --estado
     python tools/parche_presentador.py --revertir
 
-Toca un solo fichero del SDK:  src/ui/d3d12/d3d12_presenter.cpp
-Guarda un .original la primera vez y es idempotente.
+It touches a single SDK file:  src/ui/d3d12/d3d12_presenter.cpp
+It keeps a .original on the first run and is idempotent.
 
 
-POR QUE HACIA FALTA ESTO
-========================
+WHY THIS WAS NEEDED
+===================
 
 VSYNC
 -----
-El cvar "vsync" existe, pero NO es vsync. Se lee en un unico sitio de todo el
-SDK, en command_processor.cpp, dentro de ExecutePacketType3_WAIT_REG_MEM:
+The "vsync" cvar exists, but it is NOT vsync. It is read in a single place in
+the whole SDK, in command_processor.cpp, inside ExecutePacketType3_WAIT_REG_MEM:
 
     if (!REXCVAR_GET(vsync)) {
       // User wants it fast and dangerous.
@@ -25,45 +25,45 @@ SDK, en command_processor.cpp, dentro de ExecutePacketType3_WAIT_REG_MEM:
       rex::thread::Sleep(std::chrono::milliseconds(wait / 0x100));
     }
 
-O sea: decide si el procesador de comandos DUERME cuando el flujo de comandos
-del juego pide esperar, o si se queda girando. Es un "corre a lo loco", no una
-sincronizacion con la pantalla.
+That is: it decides whether the command processor SLEEPS when the game's
+command stream asks to wait, or keeps spinning. It is a "run wild", not a
+synchronization with the screen.
 
-La sincronizacion de verdad esta en el presentador de D3D12, y estaba clavada:
+The real synchronization is in the D3D12 presenter, and it was nailed down:
 
     swap_chain->Present(0, DXGI_PRESENT_RESTART | ...);
 
-Ese primer 0 es el SyncInterval. Con 0 se presenta siempre en cuanto se puede,
-pase lo que pase con el cvar. El comentario del SDK explica por que se eligio
-asi -el monitor puede ir a 144 Hz, que no es multiplo de los 30 o 60 del
-guest-, pero el efecto es que la casilla de vsync no hacia nada visible.
+That first 0 is the SyncInterval. With 0 it always presents as soon as it can,
+no matter what the cvar says. The SDK comment explains why it was chosen that
+way -the monitor may run at 144 Hz, which is not a multiple of the guest's 30
+or 60-, but the effect is that the vsync checkbox did nothing visible.
 
-El parche pasa SyncInterval 1 cuando vsync esta activado.
+The patch passes SyncInterval 1 when vsync is enabled.
 
-  DETALLE QUE IMPORTA: con SyncInterval distinto de 0, DXGI RECHAZA la bandera
-  ALLOW_TEARING y devuelve DXGI_ERROR_INVALID_CALL. Son excluyentes. Y
-  DXGI_PRESENT_RESTART descarta fotogramas encolados, que es justo lo contrario
-  de lo que se quiere con vsync. Por eso con vsync activado no se pasa ninguna
-  de las dos, y sin vsync se deja todo exactamente como estaba.
+  A DETAIL THAT MATTERS: with SyncInterval not equal to 0, DXGI REJECTS the
+  ALLOW_TEARING flag and returns DXGI_ERROR_INVALID_CALL. They are mutually
+  exclusive. And DXGI_PRESENT_RESTART discards queued frames, which is just the
+  opposite of what is wanted with vsync. That is why with vsync enabled neither
+  is passed, and without vsync everything is left exactly as it was.
 
-  El cvar se lee por NOMBRE, con rex::cvar::Query<bool>("vsync"), no con
-  REXCVAR_GET. Es a proposito: "vsync" se define en el plugin de GPU
-  (rexgpu-xenos.dll) y el presentador vive en rexruntime.dll. Enlazar contra un
-  simbolo del plugin no funcionaria; el registro de cvars, en cambio, es comun
-  y la busqueda por nombre lo atraviesa sin problema. Se comprueba antes con
-  GetFlagInfo por si el plugin no estuviera cargado.
+  The cvar is read BY NAME, with rex::cvar::Query<bool>("vsync"), not with
+  REXCVAR_GET. That is on purpose: "vsync" is defined in the GPU plugin
+  (rexgpu-xenos.dll) and the presenter lives in rexruntime.dll. Linking against
+  a symbol from the plugin would not work; the cvar registry, on the other
+  hand, is common and the lookup by name goes through it without a problem. It
+  is checked first with GetFlagInfo in case the plugin were not loaded.
 
-LIMITE DE FPS
--------------
-No existia ninguno. Se busco en todas las cabeceras y en los simbolos de los
-DLL compilados: solo hay "vsync". Asi que se anade un cvar nuevo, max_fps,
-definido aqui mismo en el presentador.
+FPS LIMIT
+---------
+There was none. It was searched for in all the headers and in the symbols of
+the compiled DLLs: only "vsync" is there. So a new cvar is added, max_fps,
+defined right here in the presenter.
 
-  0 = sin limite (el comportamiento de siempre).
+  0 = no limit (the usual behavior).
 
-Duerme hasta que toque el siguiente fotograma. No duerme del todo: deja el
-ultimo tramo girando, porque Sleep en Windows tiene una granularidad de entre
-1 y 15 ms y sin ese remate el limite se queda corto y con tirones.
+It sleeps until the next frame is due. It does not sleep all the way: it
+leaves the last stretch spinning, because Sleep on Windows has a granularity of
+between 1 and 15 ms and without that finish the limit falls short and stutters.
 """
 
 import argparse
@@ -179,8 +179,8 @@ def localizar_sdk():
         f = cand / "src" / "ui" / "d3d12" / "d3d12_presenter.cpp"
         if f.exists():
             return f
-    sys.exit("[ERROR] No encuentro src/ui/d3d12/d3d12_presenter.cpp del SDK.\n"
-             "        Se busca en ..\\rexglue-sdk y en .\\sdk")
+    sys.exit("[ERROR] Cannot find the SDK's src/ui/d3d12/d3d12_presenter.cpp.\n"
+             "        Looked in ..\\rexglue-sdk and .\\sdk")
 
 
 def main():
@@ -196,46 +196,46 @@ def main():
 
     if args.estado:
         print(f"  {f}")
-        print("  Parche:", "APLICADO" if puesto else "sin aplicar")
+        print("  Patch:", "APPLIED" if puesto else "not applied")
         return 0
 
     if args.revertir:
         if original.exists():
             shutil.copy2(original, f)
-            print("[ok] Restaurado desde .original")
+            print("[ok] Restored from .original")
         else:
-            print("[aviso] No hay .original que restaurar.")
+            print("[aviso] There is no .original to restore.")
         return 0
 
     if puesto:
-        print("[ok] Ya estaba aplicado. No toco nada.")
+        print("[ok] It was already applied. I am touching nothing.")
         return 0
 
-    # Comprobar los tres anclajes ANTES de escribir nada. Si el SDK cambia de
-    # version y alguno no cuadra, mejor no dejar el fichero a medias.
+    # Check the three anchors BEFORE writing anything. If the SDK changes
+    # version and one does not fit, better not leave the file half done.
     for nombre, ancla in [("includes", ANCLA_INC),
-                          ("definicion de cvars", ANCLA_CVAR),
-                          ("llamada a Present", ANCLA)]:
+                          ("cvar definitions", ANCLA_CVAR),
+                          ("Present call", ANCLA)]:
         n = txt.count(ancla)
         if n != 1:
-            sys.exit(f"[ERROR] El anclaje '{nombre}' aparece {n} veces, esperaba 1.\n"
-                     f"        El SDK habra cambiado. No he tocado nada.")
+            sys.exit(f"[ERROR] The anchor '{nombre}' appears {n} times, expected 1.\n"
+                     f"        The SDK must have changed. I have not touched anything.")
 
     if not original.exists():
         shutil.copy2(f, original)
-        print(f"[ok] Copia de seguridad: {original.name}")
+        print(f"[ok] Backup: {original.name}")
 
     txt = txt.replace(ANCLA_INC, NUEVO_INC)
     txt = txt.replace(ANCLA_CVAR, NUEVO_CVAR)
     txt = txt.replace(ANCLA, NUEVO)
     f.write_text(txt, encoding="utf-8")
 
-    print("[ok] Parche aplicado.")
+    print("[ok] Patch applied.")
     print()
-    print("  vsync    ahora pasa SyncInterval 1 al Present")
-    print("  max_fps  cvar nuevo, 0 = sin limite")
+    print("  vsync    now passes SyncInterval 1 to Present")
+    print("  max_fps  new cvar, 0 = no limit")
     print()
-    print("  HAY QUE RECOMPILAR EL SDK para que sirva de algo:")
+    print("  THE SDK MUST BE RECOMPILED for this to do anything:")
     print("    cmake --build out/build/win-amd64 --config Release --target install")
     print()
     return 0

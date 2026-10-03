@@ -3,40 +3,40 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 rem ===========================================================================
-rem  COMPARAR LOS DOS MOTORES DE VIDEO
+rem  COMPARE THE TWO VIDEO ENGINES
 rem
-rem  Va en la misma carpeta que el juego. Doble clic y ya.
+rem  Goes in the same folder as the game. Double-click and done.
 rem
-rem  PARA QUE SIRVE
-rem  Estamos persiguiendo un fallo visual y hace falta saber si le pasa a todo
-rem  el mundo o solo a una tarjeta concreta. Este .bat lanza el juego de dos
-rem  formas distintas para poder compararlas.
+rem  WHAT IT IS FOR
+rem  We are chasing a visual glitch and need to know whether everyone gets it
+rem  or only a specific graphics card. This .bat launches the game in two
+rem  different ways so they can be compared.
 rem
-rem  QUE HAY QUE MIRAR
-rem  Una FRANJA HORIZONTAL que cruza la pantalla. Por debajo de ella la
-rem  carretera y el suelo se ven mas iluminados, en amarillo; por encima, mas
-rem  apagados. El borde es recto y se queda siempre a la misma altura de la
-rem  pantalla, no se mueve con el paisaje.
+rem  WHAT TO LOOK FOR
+rem  A HORIZONTAL BAND crossing the screen. Below it the road and the ground
+rem  look brighter, in yellow; above it, more muted. The edge is straight and
+rem  always stays at the same height on screen, it does not move with the
+rem  scenery.
 rem
-rem  Se ve mejor conduciendo por una carretera abierta y de dia.
+rem  It is best seen driving on an open road in daylight.
 rem
-rem  QUE CONTESTAR
-rem  Solo dos cosas por cada opcion:
-rem     1. si esa franja se ve o no
-rem     2. los fps que marca F3
+rem  WHAT TO ANSWER
+rem  Only two things per option:
+rem     1. whether that band is visible or not
+rem     2. the fps shown by F3
 rem
-rem  Eso es todo. Con esos cuatro datos sabemos si el fallo es del juego o de
-rem  una tarjeta grafica concreta.
+rem  That is all. With those four data points we know whether the glitch is in
+rem  the game or in a specific graphics card.
 rem ===========================================================================
 
-rem  El juego es nfsmw.exe: en build\ el nombre NFS_Most_Wanted.exe lo lleva
-rem  EL LANZADOR, para que el icono del juego abra la ventana de opciones. Se
-rem  acepta el nombre viejo detras, para carpetas de antes del cambio.
+rem  The game is nfsmw.exe: in build\ the name NFS_Most_Wanted.exe belongs to
+rem  THE LAUNCHER, so that the game icon opens the options window. The old
+rem  name is accepted as a fallback, for folders from before the change.
 set "JUEGO=%~dp0nfsmw.exe"
 if not exist "%JUEGO%" set "JUEGO=%~dp0NFS_Most_Wanted.exe"
 if not exist "%JUEGO%" (
-    echo [ERROR] No encuentro nfsmw.exe en esta carpeta.
-    echo         Este archivo tiene que estar al lado del juego.
+    echo [ERROR] I cannot find nfsmw.exe in this folder.
+    echo         This file has to be next to the game.
     echo.
     pause
     exit /b 1
@@ -45,8 +45,8 @@ if not exist "%JUEGO%" (
 set "HAYISO="
 for %%f in ("%~dp0*.iso") do set "HAYISO=1"
 if not defined HAYISO (
-    echo [ERROR] No hay ninguna .iso en esta carpeta.
-    echo         Copia aqui tu ISO del juego antes de probar.
+    echo [ERROR] There is no .iso in this folder.
+    echo         Copy your game ISO here before testing.
     echo.
     pause
     exit /b 1
@@ -55,30 +55,30 @@ if not defined HAYISO (
 :menu
 cls
 echo ============================================
-echo   Comparar los dos motores de video
+echo   Compare the two video engines
 echo ============================================
 echo.
-echo   1  Rapido    (rtv)
-echo   2  Exacto    (rov)
-echo   3  Salir
+echo   1  Fast      (rtv)
+echo   2  Accurate  (rov)
+echo   3  Exit
 echo.
-echo   QUE MIRAR EN CADA UNO
+echo   WHAT TO LOOK FOR IN EACH ONE
 echo.
-echo     Una FRANJA HORIZONTAL cruzando la pantalla. Debajo de ella el suelo
-echo     se ve mas iluminado y amarillento, encima mas apagado. El borde es
-echo     recto y NO se mueve con el paisaje: se queda clavado a la misma
-echo     altura de la pantalla aunque gires el coche.
+echo     A HORIZONTAL BAND crossing the screen. Below it the ground
+echo     looks brighter and yellowish, above it more muted. The edge is
+echo     straight and does NOT move with the scenery: it stays fixed at the
+echo     same height on screen even when you turn the car.
 echo.
-echo     Se nota mejor en carretera abierta y de dia.
+echo     It is more noticeable on an open road in daylight.
 echo.
-echo     Apunta dos cosas por opcion:  se ve la franja (si/no)  y  los fps.
-echo     F3 dentro del juego muestra los fps.
+echo     Note two things per option:  is the band visible (yes/no)  and  the fps.
+echo     F3 in-game shows the fps.
 echo.
-echo   Los dos arrancan en ventana y sin vsync, para que los fps sean reales.
-echo   Prueba los dos EN EL MISMO SITIO del mapa.
+echo   Both start windowed and without vsync, so the fps are real.
+echo   Test both IN THE SAME SPOT on the map.
 echo.
 set "OPCION="
-set /p "OPCION=Elige: "
+set /p "OPCION=Choose: "
 
 if "%OPCION%"=="1" set "CAMINO=rtv" & goto :lanzar
 if "%OPCION%"=="2" set "CAMINO=rov" & goto :lanzar
@@ -87,23 +87,23 @@ goto menu
 
 :lanzar
 echo.
-echo Lanzando en modo %CAMINO%. Cierra la ventana del juego cuando termines.
+echo Launching in %CAMINO% mode. Close the game window when you are done.
 echo.
 "%JUEGO%" --render_target_path_d3d12=%CAMINO% --fullscreen=false --vsync=false
 
 echo.
 echo ============================================
-echo   Modo %CAMINO%
+echo   %CAMINO% mode
 echo ============================================
 set "FRANJA="
-set /p "FRANJA=Se veia la franja horizontal? (si/no): "
+set /p "FRANJA=Was the horizontal band visible? (yes/no): "
 set "FPS="
-set /p "FPS=Cuantos fps marcaba F3?: "
+set /p "FPS=How many fps did F3 show?: "
 
 if defined FRANJA (
-    echo %DATE% %TIME%  modo=%CAMINO%  franja=%FRANJA%  fps=%FPS%>>"%~dp0resultado_video.txt"
+    echo %DATE% %TIME%  mode=%CAMINO%  band=%FRANJA%  fps=%FPS%>>"%~dp0resultado_video.txt"
     echo.
-    echo Apuntado.
+    echo Noted.
 )
 echo.
 pause
@@ -113,15 +113,15 @@ goto menu
 echo.
 if exist "%~dp0resultado_video.txt" (
     echo ============================================
-    echo   ESTO ES LO QUE HAY QUE MANDAR
+    echo   THIS IS WHAT YOU NEED TO SEND
     echo ============================================
     echo.
     type "%~dp0resultado_video.txt"
     echo.
-    echo Esta guardado en:
+    echo It is saved in:
     echo   %~dp0resultado_video.txt
 ) else (
-    echo No has apuntado ningun resultado todavia.
+    echo You have not noted any result yet.
 )
 echo.
 pause

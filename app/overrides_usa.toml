@@ -1,0 +1,136 @@
+# ============================================================================
+#  NFSMW Recomp - codegen overrides for the USA (NTSC) version
+#
+#  Included from nfsmw_manifest.toml via includes = ["overrides_usa.toml"].
+#  Included files use the FLAT schema (sections at the root).
+#
+#  Based on overrides.toml (PAL Spain). The addresses in THAT file are from
+#  the PAL version and do NOT work here: in the USA XEX (entry point
+#  0x8262E768) declaring a wrong address splits healthy functions and the
+#  runtime blows up in strange ways (see the note on 0x8262E768 in
+#  overrides.toml).
+#
+#  Method: INDIRECT call targets are not seen by static analysis. They appear
+#  at runtime, one by one, in the log:
+#     [FATAL] Call to invalid or unregistered function at guest address 0x...
+#  Every address that appears is added to [functions] and it is recompiled.
+# ============================================================================
+
+# Valid address range: 0x82000000 - 0x82CD0000
+# (image base 0x82000000 + 13,434,880 bytes of image)
+
+# Performance option validated on PAL; it does not depend on the region.
+cr_as_local = true
+
+[functions]
+
+# First USA codegen pass (2026-10-03): 2 UnresolvedCall and 2 unresolved
+# conditional branches. They are the same structural problems the PAL XEX
+# solved in overrides.toml, with shifted addresses:
+#
+#   PAL 0x8285CE80 (tail calls from 0x8286931C and 0x82866664)
+#   USA 0x8285CC90 (tail calls from 0x8286912C and 0x82866474)   delta -0x1F0
+"0x8285CC90" = { }
+
+#   PAL 0x824EDEB0 (gap after sub_824EDE88; branches to 0x824EDED4/0x824EDECC)
+#   USA 0x824EDCF8 (branches to 0x824EDD1C from 0x824EDCF8 and to 0x824EDD14
+#       from 0x824EDD08)                                        delta -0x1B8
+# Declaring the start makes Discover claim the block and the branches become
+# internal.
+"0x824EDCF8" = { }
+
+#   PAL 0x8285CB90 (indirect target, thunk area 0x8285xxxx-0x8286xxxx)
+#   USA 0x8285C9A0 (confirmed: [FATAL] ... at guest address 0x8285C9A0)
+"0x8285C9A0" = { }
+
+#   PAL 0x823EB808 (prologue cinematic; on PAL it came out with the Debug build)
+#   USA 0x823EB6A0 (confirmed: [FATAL] ... at guest address 0x823EB6A0)
+#   delta -0x168 in this area, NOT the -0x1F0 of the thunks.
+"0x823EB6A0" = { }
+
+# The same gap (0x823EB688, 56 bytes) has MORE entries: the game already
+# crashed at 0x823EB690. It is the identical case to the PAL gap at
+# 0x823EB7F0, which had to be subdivided into 8-byte chunks (its note
+# documents it):
+#   0x823EB7F0 -> USA 0x823EB688 (already listed as a gap)
+#   0x823EB7F8 -> USA 0x823EB690   <- confirmed by crash
+#   0x823EB800 -> USA 0x823EB698
+#   0x823EB808 -> USA 0x823EB6A0   <- confirmed by crash
+#   0x823EB810 -> USA 0x823EB6A8
+#   0x823EB818 -> USA 0x823EB6B0
+#   0x823EB820 -> USA 0x823EB6B8
+"0x823EB690" = { }
+"0x823EB698" = { }
+"0x823EB6A8" = { }
+"0x823EB6B0" = { }
+"0x823EB6B8" = { }
+
+#   PAL 0x8212F670 (in-game prologue cinematic)
+#   USA 0x8212F670 (confirmed: SAME address as PAL in this area)
+"0x8212F670" = { }
+
+# USA gap 0x8212F610 (176 bytes), PROVEN multi-entry: crash at
+# 0x8212F630. Same address and same subdivision as PAL, one entry every
+# 8 bytes (the base is already listed as a gap and 0x8212F670 is above).
+"0x8212F618" = { }
+"0x8212F620" = { }
+"0x8212F628" = { }
+"0x8212F630" = { }
+"0x8212F638" = { }
+"0x8212F640" = { }
+"0x8212F648" = { }
+"0x8212F650" = { }
+"0x8212F658" = { }
+"0x8212F660" = { }
+"0x8212F668" = { }
+"0x8212F678" = { }
+"0x8212F680" = { }
+"0x8212F688" = { }
+"0x8212F690" = { }
+"0x8212F698" = { }
+"0x8212F6A0" = { }
+"0x8212F6A8" = { }
+"0x8212F6B0" = { }
+"0x8212F6B8" = { }
+
+# USA gap 0x824B1498 (200 bytes), equivalent to PAL 0x824B1600
+# (delta -0x168, the same prologue area as 0x823EB6xx). PAL subdivided it
+# after a crash at 0x824B1640; here the same is done in one go:
+#   0x824B1640 -> USA 0x824B14D8
+"0x824B14D8" = { }
+"0x824B14A0" = { }
+"0x824B14A8" = { }
+"0x824B14B0" = { }
+"0x824B14B8" = { }
+"0x824B14C0" = { }
+"0x824B14C8" = { }
+"0x824B14D0" = { }
+"0x824B14E0" = { }
+"0x824B14E8" = { }
+"0x824B14F0" = { }
+"0x824B14F8" = { }
+"0x824B1500" = { }
+"0x824B1508" = { }
+"0x824B1510" = { }
+"0x824B1518" = { }
+"0x824B1520" = { }
+"0x824B1528" = { }
+"0x824B1530" = { }
+"0x824B1538" = { }
+"0x824B1540" = { }
+"0x824B1548" = { }
+"0x824B1550" = { }
+"0x824B1558" = { }
+
+# The other indirect call targets of the PAL XEX (0x826BE258, 0x8215FEA8,
+# 0x8220C090, 0x82869668, 0x824B1640) are
+# invisible to static analysis: they will appear here as the game walks them,
+# with the message [FATAL] Call to invalid or unregistered function.
+
+# ----------------------------------------------------------------------------
+#  ReXCRT - guest memcpy replaced by the host one.
+#  On PAL it is at 0x826BE1B0. On USA it must be identified again by reading
+#  the generated C++. Do not enable until the game starts.
+# ----------------------------------------------------------------------------
+# [rexcrt]
+# memcpy = 0x00000000

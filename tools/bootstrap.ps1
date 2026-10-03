@@ -1,6 +1,6 @@
 # NFSMW Recomp - bootstrap (Windows)
-# Verifica prerequisitos, clona el ReXGlue SDK y lo compila e instala.
-# Uso:  .\tools\bootstrap.ps1
+# Checks prerequisites, clones the ReXGlue SDK and builds and installs it.
+# Usage:  .\tools\bootstrap.ps1
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -9,7 +9,7 @@ function Test-Cmd($name) {
     return [bool](Get-Command $name -ErrorAction SilentlyContinue)
 }
 
-Write-Host "== Verificando prerequisitos ==" -ForegroundColor Cyan
+Write-Host "== Checking prerequisites ==" -ForegroundColor Cyan
 
 $missing = @()
 foreach ($t in @("git", "cmake", "ninja", "clang", "python")) {
@@ -17,26 +17,26 @@ foreach ($t in @("git", "cmake", "ninja", "clang", "python")) {
         $v = (& $t --version 2>&1 | Select-Object -First 1)
         Write-Host ("  [ok] {0,-8} {1}" -f $t, $v)
     } else {
-        Write-Host ("  [--] {0,-8} NO ENCONTRADO" -f $t) -ForegroundColor Red
+        Write-Host ("  [--] {0,-8} NOT FOUND" -f $t) -ForegroundColor Red
         $missing += $t
     }
 }
 
 if ($missing.Count -gt 0) {
     Write-Host ""
-    Write-Host "Faltan: $($missing -join ', ')" -ForegroundColor Red
-    Write-Host "Instala Visual Studio 2022 con el workload 'Desktop development with C++'"
-    Write-Host "y los componentes individuales:"
-    Write-Host "  - C++ Clang Compiler for Windows (20.x o superior)"
+    Write-Host "Missing: $($missing -join ', ')" -ForegroundColor Red
+    Write-Host "Install Visual Studio 2022 with the 'Desktop development with C++' workload"
+    Write-Host "and the individual components:"
+    Write-Host "  - C++ Clang Compiler for Windows (20.x or higher)"
     Write-Host "  - MSBuild support for LLVM (clang-cl) toolset"
     exit 1
 }
 
-# Clang debe ser 20+
+# Clang must be 20+
 $clangVer = (clang --version | Select-String -Pattern '(\d+)\.\d+\.\d+' | ForEach-Object { $_.Matches[0].Groups[1].Value })
 if ([int]$clangVer -lt 20) {
-    Write-Host "Clang $clangVer detectado; ReXGlue necesita 20 o superior." -ForegroundColor Red
-    Write-Host "MSVC y GCC no estan soportados: el codigo generado depende de intrinsics de Clang."
+    Write-Host "Clang $clangVer detected; ReXGlue needs 20 or higher." -ForegroundColor Red
+    Write-Host "MSVC and GCC are not supported: the generated code depends on Clang intrinsics."
     exit 1
 }
 
@@ -46,26 +46,26 @@ Write-Host "== ReXGlue SDK ==" -ForegroundColor Cyan
 $sdk = Join-Path (Split-Path -Parent $root) "rexglue-sdk"
 
 if (Test-Path $sdk) {
-    Write-Host "  Ya existe en $sdk - actualizando"
+    Write-Host "  Already exists at $sdk - updating"
     Push-Location $sdk
     git pull --ff-only
     git submodule update --init --recursive
     Pop-Location
 } else {
-    Write-Host "  Clonando en $sdk"
+    Write-Host "  Cloning into $sdk"
     git clone --recursive https://github.com/rexglue/rexglue-sdk.git $sdk
 }
 
 Push-Location $sdk
 Write-Host ""
-Write-Host "== Compilando (win-amd64) ==" -ForegroundColor Cyan
+Write-Host "== Building (win-amd64) ==" -ForegroundColor Cyan
 cmake --preset win-amd64
 cmake --build out/build/win-amd64 --target install
 Pop-Location
 
 Write-Host ""
-Write-Host "Listo." -ForegroundColor Green
-Write-Host "Comprueba que el CLI esta accesible:  rexglue --help"
-Write-Host "Si no lo encuentra, anade al PATH:  $sdk\out\install\win-amd64\bin"
+Write-Host "Done." -ForegroundColor Green
+Write-Host "Check that the CLI is accessible:  rexglue --help"
+Write-Host "If it is not found, add to PATH:  $sdk\out\install\win-amd64\bin"
 Write-Host ""
-Write-Host "Siguiente paso: docs\01-extraccion-xex.md"
+Write-Host "Next step: docs\01-extraccion-xex.md"

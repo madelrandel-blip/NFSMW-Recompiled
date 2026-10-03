@@ -1,21 +1,22 @@
-# El multijugador: hasta dónde llega y dónde se para
+# Multiplayer: how far it gets and where it stops
 
-Estado corto: **no funciona.** La puerta está abierta; detrás falta media capa de red.
+Short status: **it doesn't work.** The door is open; behind it, half a network layer is
+missing.
 
-Esta entrada documenta qué se probó y qué se midió, para que quien quiera intentarlo no
-repita el camino.
+This entry documents what was tried and what was measured, so that whoever wants to
+attempt it doesn't repeat the path.
 
-## Muro 1: los privilegios — resuelto
+## Wall 1: privileges — solved
 
-**Síntoma:** al entrar al multijugador, el juego saca un cartel y no deja pasar.
+**Symptom:** on entering multiplayer, the game puts up a message and won't let you through.
 
-> ATENCIÓN
-> Los privilegios que tienes en Xbox Live no te permiten acceder a esta función.
+> ATTENTION
+> Your Xbox Live privileges do not allow you to access this feature.
 
-No es un fallo ni un cuelgue: es un **no** limpio, y llega mucho antes de que se toque la
-red.
+It's not a bug or a hang: it's a clean **no**, and it comes long before the network is
+touched.
 
-Está en `src/kernel/xam/xam_user.cpp`, y el comentario original no deja dudas:
+It's in `src/kernel/xam/xam_user.cpp`, and the original comment leaves no doubt:
 
 ```cpp
 u32 XamUserCheckPrivilege_entry(u32 user_index, u32 mask, mapped_u32 out_value) {
@@ -26,79 +27,79 @@ u32 XamUserCheckPrivilege_entry(u32 user_index, u32 mask, mapped_u32 out_value) 
 }
 ```
 
-Deniega **todos** los privilegios, siempre, sea cual sea el que pregunten. Viene de Xenia
-y para un emulador sin Xbox Live tiene su lógica: si el juego se cree sin permisos, ni
-lo intenta, y no se cuelga contra servidores apagados.
+It denies **all** privileges, always, no matter which one is asked about. It comes from
+Xenia and for an emulator without Xbox Live it makes sense: if the game believes it has
+no permissions, it won't even try, and it won't hang on dead servers.
 
-Lo llamativo es que el resto del SDK dice lo contrario:
+The striking thing is that the rest of the SDK says otherwise:
 
-| Función | Devuelve |
+| Function | Returns |
 |---|---|
-| `XamUserIsOnlineEnabled` | 1 — hay conexión |
-| `XamUserGetMembershipTier` | 6 — que es Gold |
-| `user_profile.signin_state` | 1 — sesión iniciada |
-| `user_profile.type` | 1 \| 2 — perfil local y online |
+| `XamUserIsOnlineEnabled` | 1 — there is a connection |
+| `XamUserGetMembershipTier` | 6 — which is Gold |
+| `user_profile.signin_state` | 1 — session signed in |
+| `user_profile.type` | 1 \| 2 — local and online profile |
 
-O sea: perfil montado, sesión iniciada, membresía Gold, y cero permisos. La única pieza
-que decía que no era esa.
+In other words: profile set up, session signed in, Gold membership, and zero permissions.
+The only piece that said no was that one.
 
-`parche_privilegios.py` añade `grant_user_privileges`, apagado por defecto. Encendido, se
-pasa el cartel. **Confirmado funcionando.**
+`parche_privilegios.py` adds `grant_user_privileges`, off by default. Turned on, it gets
+past the message. **Confirmed working.**
 
-## Muro 2: los servidores de EA — insalvable
+## Wall 2: EA's servers — insurmountable
 
-Pasado el cartel, el juego se pone a buscar las partidas en los servidores oficiales de
-EA y se queda en bucle.
+Once past the message, the game starts searching for matches on EA's official servers
+and gets stuck in a loop.
 
-Esto no tiene arreglo y no merece esfuerzo: esos servidores llevan años apagados. No hay
-parche que los devuelva. **La única vía posible es System Link**, que no usa
-infraestructura de EA para nada — dos máquinas hablando directamente.
+This has no fix and doesn't deserve effort: those servers have been down for years. No
+patch can bring them back. **The only possible route is System Link**, which doesn't use
+EA infrastructure at all — two machines talking directly.
 
-Un descarte útil: **no se atasca resolviendo el nombre.** `XNetDnsLookup` en este SDK ya
-falla rápido a propósito:
+A useful thing ruled out: **it doesn't get stuck resolving the name.** `XNetDnsLookup` in
+this SDK already fails fast on purpose:
 
 ```cpp
 dns->status = 1;  // non-zero = error
 if (event_handle) ev->Set(0, false);
 ```
 
-Devuelve error y despierta el evento en el acto. El bucle está más arriba, probablemente
-en que el juego reintenta la búsqueda de sesiones indefinidamente (ver abajo).
+It returns an error and wakes the event immediately. The loop is further up, probably
+in the game retrying the session search indefinitely (see below).
 
-## Muro 3: la capa XNet — el trabajo de verdad
+## Wall 3: the XNet layer — the real work
 
-Aquí está el fondo del asunto. Cruzando la tabla de ordinales del SDK
-(`src/kernel/xam/export_table.inc`) con lo que `xam_net.cpp` implementa de verdad:
+Here is the heart of the matter. Cross-referencing the SDK ordinal table
+(`src/kernel/xam/export_table.inc`) with what `xam_net.cpp` actually implements:
 
-- **158** funciones de red declaradas
-- **44** implementadas
-- **114** sin implementar
+- **158** network functions declared
+- **44** implemented
+- **114** unimplemented
 
-Lo que hay funciona y no es poco: sockets de verdad (`socket`, `bind`, `connect`,
-`send`/`recv`, `sendto`/`recvfrom`, `select`), `XNetGetTitleXnAddr` devolviendo la IP
-local, `XNetSetSystemLinkPort`.
+What's there works and it's not little: real sockets (`socket`, `bind`, `connect`,
+`send`/`recv`, `sendto`/`recvfrom`, `select`), `XNetGetTitleXnAddr` returning the local
+IP, `XNetSetSystemLinkPort`.
 
-Lo que falta es justo el System Link:
+What's missing is precisely System Link:
 
-| Ordinal | Función | Para qué |
+| Ordinal | Function | What for |
 |---|---|---|
-| 0x36 | `XNetCreateKey` | crear la XNKID/XNKEY de la partida |
-| 0x37 | `XNetRegisterKey` | asociarla en el otro extremo |
+| 0x36 | `XNetCreateKey` | create the match's XNKID/XNKEY |
+| 0x37 | `XNetRegisterKey` | associate it on the other end |
 | 0x38 | `XNetUnregisterKey` | |
 | 0x3F | `XNetUnregisterInAddr` | |
-| 0x41 | `XNetConnect` | levantar el enlace con el par |
-| 0x42 | `XNetGetConnectStatus` | saber si se levantó |
-| 0x53 | `XNetGetSystemLinkPort` | solo existe el *setter* |
-| 0x09 | `getsockname` | básico, y tampoco está |
+| 0x41 | `XNetConnect` | bring up the link with the peer |
+| 0x42 | `XNetGetConnectStatus` | know whether it came up |
+| 0x53 | `XNetGetSystemLinkPort` | only the *setter* exists |
+| 0x09 | `getsockname` | basic, and it's missing too |
 
-Ese trío `CreateKey`/`RegisterKey`/`UnregisterKey` es el que asocia la clave de sesión.
-Sin él el juego no llega ni a intentar hablar.
+That trio `CreateKey`/`RegisterKey`/`UnregisterKey` is what associates the session key.
+Without it, the game doesn't even get to try to talk.
 
-## Muro 4: las sesiones son de adorno
+## Wall 4: the sessions are just for show
 
-Y hay una segunda capa igual de vacía. Los manejadores de sesión de
-`src/kernel/xam/apps/xgi_app.cpp` leen los parámetros, los escriben en el log y
-devuelven `X_E_SUCCESS` **sin hacer nada**. Por ejemplo `XSessionSearch` (mensaje
+And there's a second layer just as empty. The session handlers in
+`src/kernel/xam/apps/xgi_app.cpp` read the parameters, write them to the log and
+return `X_E_SUCCESS` **without doing anything**. For example `XSessionSearch` (message
 `0x000B0016`):
 
 ```cpp
@@ -106,39 +107,40 @@ REXKRNL_DEBUG("XSessionSearch({}, {}, {}, ...)", ...);
 return X_E_SUCCESS;
 ```
 
-Ni siquiera toca el buffer de resultados. Un cliente buscando partidas siempre encontrará
-cero — y como le contestan "correcto", no tiene motivo para rendirse. **Un stub que
-miente es peor que uno que falla.** Es la explicación más probable del bucle del muro 2.
+It doesn't even touch the results buffer. A client searching for matches will always
+find zero — and since it's told "success", it has no reason to give up. **A stub that
+lies is worse than one that fails.** It's the most likely explanation for the loop in
+wall 2.
 
-Igual con `XSessionCreate`, `XSessionJoinRemote`, `XSessionModify` y el resto.
+Same with `XSessionCreate`, `XSessionJoinRemote`, `XSessionModify` and the rest.
 
-## Qué haría falta
+## What it would take
 
-Por orden, y sin engañarse con el tamaño:
+In order, and without fooling yourself about the scale:
 
-1. **Los stubs de XNet que faltan**, mapeando XNADDR ↔ IP directamente en vez de
-   emular la asociación segura real. Es lo que hacen los forks de red de Xenia.
-2. **Descubrimiento de partidas de verdad**: que `XSessionCreate` registre una sesión
-   local y que `XSessionSearch` la anuncie y la encuentre por broadcast UDP.
-3. Solo entonces, la interfaz.
+1. **The missing XNet stubs**, mapping XNADDR ↔ IP directly instead of emulating the
+   real secure association. That's what Xenia's network forks do.
+2. **Real match discovery**: for `XSessionCreate` to register a local session and for
+   `XSessionSearch` to announce it and find it via UDP broadcast.
+3. Only then, the UI.
 
-## Un aviso de diseño sobre "pásame tu IP"
+## A design note on "send me your IP"
 
-La idea natural —un panel con tu IP y tu puerto para que un amigo los pegue como
-"Host"— **no es como funciona el System Link.** La 360 descubre partidas por *broadcast*
-en la red local, y un broadcast no cruza internet.
+The natural idea —a panel with your IP and port so a friend can paste them as
+"Host"— **is not how System Link works.** The 360 discovers matches via *broadcast* on
+the local network, and a broadcast doesn't cross the internet.
 
-Para jugar con alguien de fuera harían falta, o bien una VPN que os ponga en la misma LAN
-virtual (ZeroTier, Radmin, Hamachi), o bien una capa de conexión directa que sustituya el
-broadcast por una IP concreta. Eso último es lo que hacen XLink Kai y las builds de red de
-Xenia, y es diseño nuevo, no un ajuste.
+To play with someone outside you'd need either a VPN that puts you both on the same
+virtual LAN (ZeroTier, Radmin, Hamachi), or a direct-connection layer that replaces
+broadcast with a specific IP. The latter is what XLink Kai and Xenia's network builds
+do, and it's new design, not a tweak.
 
-## El siguiente paso, si alguien lo retoma
+## The next step, if someone picks it up
 
-`LOG_DETALLADO.bat` arranca con `--log_level=debug --log_noisy=true`, y los manejadores de
-sesión ya escriben cada llamada. Así que entrar al multijugador con eso puesto y dejarlo
-dar vueltas 30 segundos da la secuencia exacta —qué pide el juego, en qué orden y dónde se
-repite— sin escribir una línea de código.
+`LOG_DETALLADO.bat` starts with `--log_level=debug --log_noisy=true`, and the session
+handlers already write every call. So entering multiplayer with that on and letting it
+spin for 30 seconds gives the exact sequence —what the game asks for, in what order and
+where it repeats— without writing a line of code.
 
-Ese log es lo primero que hay que mirar. Puede que Most Wanted use bastante menos de lo
-que falta en total.
+That log is the first thing to look at. Most Wanted may use quite a bit less than the
+total that's missing.

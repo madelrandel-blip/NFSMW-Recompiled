@@ -3,31 +3,31 @@ setlocal
 cd /d "%~dp0"
 
 rem ===========================================================================
-rem  LANZADOR - la forma normal de jugar.
+rem  LAUNCHER - the normal way to play.
 rem
-rem  Abre una ventana donde elegir resolucion, pantalla completa o ventana,
-rem  la ISO, vsync y limite de fps. Recuerda lo que elijas para la proxima vez.
+rem  Opens a window to choose resolution, fullscreen or windowed,
+rem  the ISO, vsync and fps limit. It remembers what you choose for next time.
 rem
-rem  Si prefieres jugar sin mas, tambien puedes abrir nfsmw.exe
-rem  directamente: cogera la ISO que encuentre en esta carpeta y los ajustes
-rem  de nfsmw.toml.
+rem  If you prefer to just play, you can also open nfsmw.exe
+rem  directly: it will take the ISO it finds in this folder and the settings
+rem  from nfsmw.toml.
 rem ===========================================================================
 
 if not exist "%~dp0lanzador.ps1" (
-    echo [ERROR] Falta lanzador.ps1 en esta carpeta.
-    echo         Tiene que estar al lado del juego
+    echo [ERROR] lanzador.ps1 is missing from this folder.
+    echo         It has to be next to the game
     echo.
     pause
     exit /b 1
 )
 
-rem  El juego es nfsmw.exe: en build\ el nombre NFS_Most_Wanted.exe lo lleva
-rem  EL LANZADOR, para que el icono del juego abra la ventana de opciones. Se
-rem  acepta el nombre viejo detras, para carpetas de antes del cambio.
+rem  The game is nfsmw.exe: in build\ the name NFS_Most_Wanted.exe belongs to
+rem  THE LAUNCHER, so that the game icon opens the options window. The old
+rem  name is accepted as a fallback, for folders from before the change.
 set "JUEGO=%~dp0nfsmw.exe"
 if not exist "%JUEGO%" set "JUEGO=%~dp0NFS_Most_Wanted.exe"
 if not exist "%JUEGO%" (
-    echo [ERROR] No encuentro nfsmw.exe en esta carpeta.
+    echo [ERROR] I cannot find nfsmw.exe in this folder.
     echo.
     pause
     exit /b 1
@@ -35,8 +35,8 @@ if not exist "%JUEGO%" (
 
 where powershell >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] No encuentro Windows PowerShell.
-    echo         Abre nfsmw.exe directamente.
+    echo [ERROR] I cannot find Windows PowerShell.
+    echo         Open nfsmw.exe directly.
     echo.
     pause
     exit /b 1

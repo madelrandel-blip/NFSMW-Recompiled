@@ -1,165 +1,167 @@
-# Compilar desde cero
+# Building from scratch
 
-De un clon limpio a una carpeta jugable.
+From a clean clone to a playable folder.
 
-## Lo que hace falta
+## What you need
 
-| Cosa | Por qué |
+| Thing | Why |
 |---|---|
-| Windows 10 u 11 x64 | El backend gráfico es Direct3D 12 |
-| Visual Studio 2022 Build Tools | MSVC y el SDK de Windows. No hace falta el IDE |
-| CMake 3.28+ y Ninja | El SDK y la aplicación usan presets |
-| Clang 20+ | El C++ generado no compila con MSVC |
-| Python 3.10+ | Los parches y las herramientas |
-| El SDK ReXGlue | Se clona al lado, en `..\rexglue-sdk` |
-| Tu propia ISO o dump GOD | El juego. No está aquí ni lo va a estar |
+| Windows 10 or 11 x64 | The graphics backend is Direct3D 12 |
+| Visual Studio 2022 Build Tools | MSVC and the Windows SDK. The IDE isn't needed |
+| CMake 3.28+ and Ninja | The SDK and the application use presets |
+| Clang 20+ | The generated C++ doesn't compile with MSVC |
+| Python 3.10+ | The patches and the tools |
+| The ReXGlue SDK | Cloned next to it, in `..\rexglue-sdk` |
+| Your own ISO or GOD dump | The game. It isn't here and it won't be |
 
-Detalle de la instalación del entorno en [00-entorno.md](00-entorno.md).
+Environment setup details in [00-entorno.md](00-entorno.md).
 
-## La estructura que se espera
+## The expected structure
 
-Los scripts buscan el SDK **al lado** del proyecto, no dentro:
+The scripts look for the SDK **next to** the project, not inside it:
 
 ```
 Documents\
-├── NFSMW Recompiled\     ← este repositorio
-└── rexglue-sdk\          ← el SDK, clonado aparte
+├── NFSMW Recompiled\     ← this repository
+└── rexglue-sdk\          ← the SDK, cloned separately
 ```
 
-Si lo tienes en otro sitio, los parches también miran en `.\sdk`.
+If you have it elsewhere, the patches also look in `.\sdk`.
 
-## Los pasos
+## The steps
 
-### 1. El SDK
+### 1. The SDK
 
 ```powershell
 .\tools\bootstrap.ps1
 ```
 
-Comprueba los prerrequisitos, clona el SDK en `..\rexglue-sdk` y lo compila e instala.
+It checks the prerequisites, clones the SDK into `..\rexglue-sdk` and builds and
+installs it.
 
-### 2. Tu `default.xex`
+### 2. Your `default.xex`
 
 ```bat
 EXTRAER_XEX.bat
 ```
 
-Saca el `default.xex` de tu ISO y lo deja en `assets\`. Esa carpeta está en
-`.gitignore` y ahí se queda.
+It extracts `default.xex` from your ISO and leaves it in `assets\`. That folder is in
+`.gitignore` and that's where it stays.
 
-Detalle y alternativas (GOD, XContent) en
+Details and alternatives (GOD, XContent) in
 [01-extraccion-xex.md](01-extraccion-xex.md).
 
-### 3. Compilar
+### 3. Build
 
 ```bat
 CONSTRUIR.bat
 ```
 
-Esto es todo. Por dentro hace cinco fases:
+That's all. Internally it runs five phases:
 
-1. **Parches del SDK.** Aplica los nueve parches del proyecto sobre `..\rexglue-sdk`.
-   El orden importa: `parche_anillo` va antes que `parche_desatasco`.
-2. **Recompilar el SDK.** Aquí es donde acaban los arreglos, dentro de
-   `rexruntime.dll`. Se configura con Vulkan encendido para que el selector de API
-   tenga dos opciones de verdad.
-3. **Generar y compilar el juego.** Dos pasadas de ninja, y no es capricho: ver abajo.
-4. **Armar `build\`.** Copia el ejecutable, las DLL y los ficheros de apoyo, y borra
-   los restos de ejecuciones anteriores. Después construye el lanzador y le cambia el
-   nombre al juego.
-5. **Comprobar que la carpeta es autónoma.** Lee la tabla de importaciones PE de cada
-   binario y sigue las dependencias en cadena, para asegurarse de que no falta ninguna
-   DLL.
+1. **SDK patches.** Applies the project's nine patches to `..\rexglue-sdk`.
+   Order matters: `parche_anillo` goes before `parche_desatasco`.
+2. **Rebuild the SDK.** This is where the fixes end up, inside
+   `rexruntime.dll`. It's configured with Vulkan enabled so the API selector
+   has two real options.
+3. **Generate and build the game.** Two ninja passes, and it's not a whim: see below.
+4. **Assemble `build\`.** Copies the executable, the DLLs and the support files, and
+   deletes leftovers from previous runs. Then it builds the launcher and renames the
+   game.
+5. **Check the folder is self-contained.** Reads the PE import table of every binary
+   and follows the dependencies in a chain, to make sure no DLL is missing.
 
-Y al terminar arma las carpetas de reparto en `..\build release\`, para que no haya
-que acordarse de un paso a mano. Antes esto era "comprime `build\` sin la ISO", y ese
-paso tenía una trampa: la ISO son varios GB y es fácil mandarla sin querer.
+And when it finishes it assembles the distribution folders in `..\build release\`, so
+there's no need to remember a manual step. This used to be "zip `build\` without the
+ISO", and that step had a trap: the ISO is several GB and it's easy to send it by
+mistake.
 
-- `NFSMW Windows x64\` — jugable, con el ejecutable dentro. Se comprime y se manda a
-  alguien que tenga su propia copia. **No se publica.**
-- `NFSMW Windows x64 - Portable\` — todo menos el juego. Esta sí.
+- `NFSMW Windows x64\` — playable, with the executable inside. Zip it and send it to
+  someone who has their own copy. **Not published.**
+- `NFSMW Windows x64 - Portable\` — everything except the game. This one is.
 
-Tarda bastante la primera vez: son 131 ficheros de C++ generado, más de un millón de
-líneas.
+It takes a long while the first time: that's 131 generated C++ files, over a million
+lines.
 
-### 4. Jugar
+### 4. Play
 
-Copia tu ISO dentro de `build\` y abre `build\NFS_Most_Wanted.exe`.
+Copy your ISO into `build\` and open `build\NFS_Most_Wanted.exe`.
 
-Ese es **el lanzador**, con el icono del juego. El juego de verdad es `nfsmw.exe`.
-El intercambio de nombres es para que al hacer doble clic en el icono salga la ventana
-de opciones; ver [lanzador.md](lanzador.md).
+That's **the launcher**, with the game's icon. The actual game is `nfsmw.exe`.
+The name swap is so that double-clicking the icon brings up the options window;
+see [lanzador.md](lanzador.md).
 
-Si llamas a tu ISO `nfsmw.iso` será la preferida cuando haya varias.
+If you name your ISO `nfsmw.iso` it'll be the preferred one when there are several.
 
-## Por qué dos pasadas de compilación
+## Why two build passes
 
-El generador reescribe `generated\default\nfsmw_pch.h`, y de esa cabecera sale la
-precompilada que usan los 131 ficheros generados.
+The generator rewrites `generated\default\nfsmw_pch.h`, and the precompiled header
+used by the 131 generated files comes from that header.
 
-En una sola pasada, ninja decide al arrancar qué ficheros están sucios. En ese momento
-`nfsmw_pch.h` todavía no ha cambiado, así que da la precompilada por buena. Luego, ya
-dentro de la misma pasada, el generador la cambia. Cuando le toca el turno a los `.cpp`,
-clang compara y aborta:
+In a single pass, ninja decides at startup which files are dirty. At that moment
+`nfsmw_pch.h` hasn't changed yet, so it takes the precompiled header as good. Then,
+already within the same pass, the generator changes it. When the `.cpp` files' turn
+comes, clang compares and aborts:
 
 ```
 fatal error: file 'nfsmw_pch.h' has been modified since the precompiled header was
 built: size changed (was 18553, now 18522)
 ```
 
-Lanzando el generador primero y por separado, la segunda pasada arranca con las
-cabeceras ya definitivas.
+By launching the generator first and separately, the second pass starts with the final
+headers.
 
-## Cuando algo falla
+## When something fails
 
-### El SDK no enlaza
+### The SDK doesn't link
 
-Lo más probable es que un parche esté a medias. Mira el estado:
+Most likely a patch is half-applied. Check the state:
 
 ```bat
 for %f in (tools\parche_*.py) do python %f --estado
 ```
 
-Y si hace falta, revierte todos y vuelve a empezar:
+And if needed, revert them all and start over:
 
 ```bat
 for %f in (tools\parche_*.py) do python %f --revertir
 ```
 
-### Un parche dice que el anclaje no aparece una sola vez
+### A patch says the anchor doesn't appear exactly once
 
-El SDK ha cambiado respecto a lo que el parche espera. El script no ha tocado nada. Hay
-que mirar el bloque a mano y actualizar el parche; ver [parches.md](parches.md).
+The SDK has changed from what the patch expects. The script hasn't touched anything.
+You have to look at the block by hand and update the patch; see [parches.md](parches.md).
 
-### `RC` y `vcvars64`
+### `RC` and `vcvars64`
 
-En los `.bat` de este proyecto los códigos de retorno van siempre en una variable
-llamada `SALIDA`, **nunca** `RC`. `vcvars64` pone `RC` con la ruta del compilador de
-recursos y CMake la lee al detectar el toolchain. Usar `RC` para otra cosa rompe la
-configuración de forma difícil de ver.
+In this project's `.bat` files, return codes always go in a variable called `SALIDA`,
+**never** `RC`. `vcvars64` sets `RC` to the resource compiler path and CMake reads it
+when detecting the toolchain. Using `RC` for anything else breaks the configuration in
+a hard-to-see way.
 
-### El juego arranca pero se ve mal
+### The game boots but looks wrong
 
-Antes de sospechar del código, mira `build\nfsmw.toml`. Los ajustes que se guardan desde
-el menú de F4 acaban ahí, y hay dos de depuración que destrozan el render sin dar
-errores. Ver [problemas-conocidos.md](problemas-conocidos.md).
+Before suspecting the code, look at `build\nfsmw.toml`. Settings saved from the F4 menu
+end up there, and there are two debug ones that wreck the render without throwing
+errors. See [problemas-conocidos.md](problemas-conocidos.md).
 
-### Sin espacio o sin paciencia
+### Out of space or out of patience
 
-El árbol generado ocupa varios GB. `app\generated\` se puede borrar entero: se rehace.
+The generated tree takes several GB. `app\generated\` can be deleted entirely: it gets
+regenerated.
 
-## Compilar solo el lanzador
+## Building only the launcher
 
 ```bat
 CONSTRUIR_LANZADOR.bat
 ```
 
-Usa el `csc.exe` que ya trae Windows dentro de `C:\Windows\Microsoft.NET\`. No hace
-falta instalar nada. Ver [lanzador.md](lanzador.md).
+It uses the `csc.exe` Windows already ships inside `C:\Windows\Microsoft.NET\`. Nothing
+needs to be installed. See [lanzador.md](lanzador.md).
 
-## Recompilar tras tocar un parche
+## Rebuilding after touching a patch
 
-No hace falta rehacer el juego: los parches solo tocan el SDK.
+No need to rebuild the game: the patches only touch the SDK.
 
 ```bat
 python tools\parche_loquesea.py
@@ -167,5 +169,5 @@ cd ..\rexglue-sdk
 cmake --build out/build/win-amd64 --config Release --target install
 ```
 
-Y copiar la `rexruntime.dll` nueva a `build\`. `CONSTRUIR.bat` hace todo eso, pero si
-solo cambiaste un parche, esto es mucho más rápido.
+And copy the new `rexruntime.dll` to `build\`. `CONSTRUIR.bat` does all that, but if you
+only changed a patch, this is much faster.

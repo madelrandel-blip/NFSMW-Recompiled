@@ -1,38 +1,40 @@
 # =============================================================================
-#  Matriz de arranque: lanza el juego muchas veces, en distintas condiciones,
-#  y dice en cuales murio.
+#  Boot matrix: launches the game many times, under different conditions,
+#  and reports in which ones it died.
 #
-#  PARA QUE SIRVE
-#  El fallo que perseguimos es una CARRERA: el mismo binario arranca en una
-#  maquina y muere en otra, y a veces en la misma maquina depende del dia. Un
-#  arranque suelto no prueba nada -ni que funcione ni que no-. Lo que hace
-#  falta es una tabla: "esta combinacion murio 4 de 5 veces".
+#  WHAT IT IS FOR
+#  The failure we are chasing is a RACE: the same binary starts on one machine
+#  and dies on another, and sometimes on the same machine it depends on the
+#  day. A single launch proves nothing -neither that it works nor that it
+#  does not-. What is needed is a table: "this combination died 4 out of 5
+#  times".
 #
-#  DOS COSAS QUE ESTE SCRIPT HACE Y QUE UN DOBLE CLIC NO
+#  TWO THINGS THIS SCRIPT DOES THAT A DOUBLE CLICK DOES NOT
 #
-#  1. Vacia la cache de shaders en cada intento.
-#     Es lo que mas timing cambia. Con la cache poblada, la inicializacion se
-#     para dos segundos y medio justo donde arranca el hilo problematico, y esa
-#     pausa TAPA la carrera. Con la cache vacia son 3 milisegundos. Por eso una
-#     maquina lenta con cache "funciona" y una rapida sin cache no: no es el
-#     hardware, es la tregua.
+#  1. It empties the shader cache on every attempt.
+#     It is what changes timing the most. With the cache populated, startup
+#     pauses for two and a half seconds right where the problematic thread
+#     starts, and that pause COVERS UP the race. With an empty cache it is
+#     3 milliseconds. That is why a slow machine with a cache "works" and a
+#     fast one without a cache does not: it is not the hardware, it is the
+#     truce.
 #
-#     Se consigue con --user_data_root a una carpeta nueva cada vez.
+#     It is achieved with --user_data_root to a new folder each time.
 #
-#  2. Repite. Una carrera no falla siempre; falla a menudo. Sin repeticiones,
-#     un "ha funcionado" es ruido.
+#  2. It repeats. A race does not fail every time; it fails often. Without
+#     repetitions, an "it worked" is noise.
 #
-#  POR QUE EL NIVEL DE LOG ES "info" Y NO "debug"
-#  Porque escribir el log cuesta tiempo, y ese tiempo puede tapar justo la
-#  carrera que buscamos. Con -Detallado se puede subir, pero entonces un "no
-#  falla" vale menos: puede ser que el propio log lo este escondiendo.
+#  WHY THE LOG LEVEL IS "info" AND NOT "debug"
+#  Because writing the log costs time, and that time can cover up exactly the
+#  race we are looking for. With -Detallado it can be raised, but then a "it
+#  does not fail" is worth less: it may be that the log itself is hiding it.
 #
 #      powershell -ExecutionPolicy Bypass -File tools\matriz.ps1
 #      powershell -ExecutionPolicy Bypass -File tools\matriz.ps1 -Repeticiones 10
 #      powershell -ExecutionPolicy Bypass -File tools\matriz.ps1 -Segundos 45 -Detallado
 #
-#  Funciona igual desde tools\ del proyecto que copiado dentro de build\, asi
-#  que se le puede pasar a quien tenga la carpeta portable.
+#  It works the same from the project's tools\ as copied inside build\, so it
+#  can be passed on to whoever has the portable folder.
 # =============================================================================
 
 param(
@@ -45,11 +47,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# ---- Localizar el ejecutable ------------------------------------------------
+# ---- Locate the executable --------------------------------------------------
 if (-not $Exe) {
-    # nfsmw.exe PRIMERO: desde que el lanzador ocupa el nombre
-    # NFS_Most_Wanted.exe, el juego en build\ se llama asi. Los nombres
-    # viejos se siguen mirando detras, para carpetas de antes del cambio.
+    # nfsmw.exe FIRST: since the launcher takes the name NFS_Most_Wanted.exe,
+    # the game in build\ is called that. The old names are still looked at
+    # behind it, for folders from before the change.
     $candidatos = @(
         (Join-Path $PSScriptRoot 'nfsmw.exe')                                 # dentro de build\
         (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\nfsmw.exe')
@@ -62,33 +64,33 @@ if (-not $Exe) {
     }
 }
 if (-not $Exe -or -not (Test-Path -LiteralPath $Exe)) {
-    Write-Host 'No encuentro el ejecutable.' -ForegroundColor Red
-    Write-Host 'Pasalo a mano:  -Exe "C:\ruta\nfsmw.exe"'
+    Write-Host 'Cannot find the executable.' -ForegroundColor Red
+    Write-Host 'Pass it manually:  -Exe "C:\path\nfsmw.exe"'
     exit 1
 }
 $Exe    = (Resolve-Path -LiteralPath $Exe).Path
 $CarpEx = Split-Path -Parent $Exe
 
-# ---- Comprobar que hay ISO --------------------------------------------------
+# ---- Check that there is an ISO ---------------------------------------------
 $isos = @(Get-ChildItem -LiteralPath $CarpEx -File -Filter '*.iso' -ErrorAction SilentlyContinue)
 if ($isos.Count -eq 0) {
-    Write-Host "No hay ninguna .iso junto al ejecutable:" -ForegroundColor Red
+    Write-Host "There is no .iso next to the executable:" -ForegroundColor Red
     Write-Host "  $CarpEx"
     exit 1
 }
 
-# ---- Las combinaciones ------------------------------------------------------
+# ---- The combinations -------------------------------------------------------
 #
-# Se prueban solo cosas de PLANIFICACION DE HILOS, que es donde vive la
-# sospecha. Los dos cvars vienen a true de fabrica: el SDK ignora tanto las
-# prioridades como las afinidades que pide el juego. Ponerlos a false devuelve
-# al juego el orden que el mismo pidio, y eso vale para cualquier maquina, que
-# es de lo que se trata.
+# Only THREAD SCHEDULING things are tested, which is where the suspicion
+# lives. Both cvars come as true from the factory: the SDK ignores both the
+# priorities and the affinities the game asks for. Setting them to false gives
+# the game back the order it itself asked for, and that holds for any machine,
+# which is what this is about.
 $combos = @(
-    @{ Nombre = 'base (como esta ahora)';        Args = @() }
-    @{ Nombre = 'respetar prioridades';          Args = @('--ignore_thread_priorities=false') }
-    @{ Nombre = 'respetar afinidades';           Args = @('--ignore_thread_affinities=false') }
-    @{ Nombre = 'respetar las dos';              Args = @('--ignore_thread_priorities=false',
+    @{ Nombre = 'base (as-is now)';              Args = @() }
+    @{ Nombre = 'respect priorities';            Args = @('--ignore_thread_priorities=false') }
+    @{ Nombre = 'respect affinities';            Args = @('--ignore_thread_affinities=false') }
+    @{ Nombre = 'respect both';                  Args = @('--ignore_thread_priorities=false',
                                                           '--ignore_thread_affinities=false') }
 )
 
@@ -99,27 +101,27 @@ New-Item -ItemType Directory -Path $salida -Force | Out-Null
 
 Write-Host ''
 Write-Host '============================================'
-Write-Host '  Matriz de arranque'
+Write-Host '  Boot matrix'
 Write-Host '============================================'
 Write-Host ''
-Write-Host "  Ejecutable : $Exe"
+Write-Host "  Executable : $Exe"
 Write-Host "  ISO        : $($isos[0].Name)"
-Write-Host "  Intentos   : $Repeticiones por combinacion"
-Write-Host "  Espera     : $Segundos s antes de dar un arranque por bueno"
-Write-Host "  Nivel log  : $nivel"
+Write-Host "  Attempts   : $Repeticiones per combination"
+Write-Host "  Wait       : $Segundos s before considering a boot good"
+Write-Host "  Log level  : $nivel"
 if ($Detallado) {
-    Write-Host '  AVISO: con debug el log cuesta tiempo y puede TAPAR la carrera.' -ForegroundColor DarkYellow
-    Write-Host '         Un "no falla" con debug vale menos que uno con info.' -ForegroundColor DarkYellow
+    Write-Host '  WARNING: with debug the log costs time and can COVER UP the race.' -ForegroundColor DarkYellow
+    Write-Host '         A "does not fail" with debug is worth less than one with info.' -ForegroundColor DarkYellow
 }
 Write-Host ''
-Write-Host "  Peor caso: unos $([Math]::Round($combos.Count * $Repeticiones * $Segundos / 60.0, 1)) min."
-Write-Host '  Los arranques que fallan mueren en un segundo, asi que sera menos.'
+Write-Host "  Worst case: about $([Math]::Round($combos.Count * $Repeticiones * $Segundos / 60.0, 1)) min."
+Write-Host '  Failing boots die within a second, so it will be less.'
 Write-Host ''
 
-# ---- Clasificar un log ------------------------------------------------------
+# ---- Classify a log ---------------------------------------------------------
 #
-# Devuelve una etiqueta corta. Interesa distinguir QUE fallo, no solo que
-# fallo: si una combinacion cambia el error, eso ya es informacion.
+# Returns a short label. It is worth telling apart WHAT failed, not just that
+# it failed: if a combination changes the error, that is already information.
 function Clasificar([string]$log) {
     if (-not (Test-Path -LiteralPath $log)) { return 'sin log' }
     $t = Get-Content -LiteralPath $log -Raw -ErrorAction SilentlyContinue
@@ -135,23 +137,24 @@ function Clasificar([string]$log) {
     return 'murio sin decir nada'
 }
 
-# ---- Un intento -------------------------------------------------------------
+# ---- One attempt ------------------------------------------------------------
 function UnIntento($combo, [int]$n) {
-    # Carpeta de datos NUEVA: esto es lo que vacia la cache de shaders y quita
-    # la pausa de 2,5 s que tapa la carrera.
+    # NEW data folder: this is what empties the shader cache and removes the
+    # 2.5 s pause that covers up the race.
     $datos = Join-Path $raizTmp ("run_{0}" -f [Guid]::NewGuid().ToString('N').Substring(0,6))
     $log   = Join-Path $salida  ("{0}_{1}.log" -f ($combo.Nombre -replace '[^\w]','_'), $n)
     if (Test-Path -LiteralPath $log) { Remove-Item -LiteralPath $log -Force }
 
-    # OJO: la variable NO se llama $args. En PowerShell $args es automatica
-    # -dentro de una funcion contiene los argumentos no enlazados- y pisarla
-    # es de los errores que no dan la cara hasta que dan un problema raro.
+    # WATCH OUT: the variable is NOT called $args. In PowerShell $args is
+    # automatic -inside a function it contains the unbound arguments- and
+    # overwriting it is one of those mistakes that do not show until they
+    # cause a strange problem.
     $argumentos = @(
         '--log_level', $nivel
         '--log_file', ('"{0}"' -f $log)
         '--user_data_root', ('"{0}"' -f $datos)
-        '--fullscreen=false'          # sin pantalla completa: se puede matar sin drama
-        '--readback_resolve=fast'     # el de siempre, si no la imagen sale lavada
+        '--fullscreen=false'          # not fullscreen: it can be killed without drama
+        '--readback_resolve=fast'     # the usual one, otherwise the image comes out washed out
     ) + $combo.Args
 
     $p = $null
@@ -165,26 +168,26 @@ function UnIntento($combo, [int]$n) {
     $vivo = -not $p.WaitForExit($Segundos * 1000)
 
     if ($vivo) {
-        # Sobrevivio la espera. Para lo que buscamos, eso es un arranque bueno.
+        # It survived the wait. For what we are after, that is a good boot.
         #
-        # EL [void] NO SOBRA. WaitForExit(int) devuelve un bool, y en PowerShell
-        # todo valor que no se captura se va al flujo de SALIDA de la funcion y
-        # se mezcla con el return. Sin esto, UnIntento no devolvia la tabla de
-        # resultados sino @($true, @{Estado=...}), y quien la llamaba recibia un
-        # array donde esperaba un objeto.
+        # THE [void] IS NOT REDUNDANT. WaitForExit(int) returns a bool, and in
+        # PowerShell every value that is not captured goes to the function's
+        # OUTPUT stream and mixes with the return. Without this, UnIntento
+        # returned not the results table but @($true, @{Estado=...}), and the
+        # caller received an array where it expected an object.
         try { $p.Kill(); [void]$p.WaitForExit(5000) } catch { }
-        # Aun asi se mira el log: puede haber sobrevivido escupiendo errores.
+        # The log is still checked: it may have survived while spewing errors.
         $c = Clasificar $log
         if ($c -in @('murio sin decir nada','salio solo')) {
             return @{ Estado = 'OK'; Detalle = '' }
         }
-        return @{ Estado = 'OK'; Detalle = "pero el log dice: $c" }
+        return @{ Estado = 'OK'; Detalle = "but the log says: $c" }
     }
 
     return @{ Estado = 'FALLO'; Detalle = (Clasificar $log) }
 }
 
-# ---- Recorrer la matriz -----------------------------------------------------
+# ---- Walk the matrix --------------------------------------------------------
 $tabla = @()
 foreach ($combo in $combos) {
     Write-Host ("-- {0}" -f $combo.Nombre)
@@ -193,14 +196,14 @@ foreach ($combo in $combos) {
     for ($i = 1; $i -le $Repeticiones; $i++) {
         $r = UnIntento $combo $i
 
-        # RED DE SEGURIDAD, no parche. Si alguna llamada vuelve a escribir al
-        # flujo de salida sin capturar, aqui llegaria un array en vez de un
-        # objeto. En vez de morir con "no se encuentra la propiedad Estado", se
-        # coge el ultimo -que es el return de verdad- y SE AVISA, para que el
-        # fallo se arregle en lugar de quedarse escondido.
+        # SAFETY NET, not a patch. If some call writes to the output stream
+        # again without capturing, an array would arrive here instead of an
+        # object. Instead of dying with "the Estado property cannot be found",
+        # the last one -which is the real return- is taken and A WARNING IS
+        # ISSUED, so that the bug gets fixed instead of staying hidden.
         if ($r -is [System.Array]) {
             Write-Host ''
-            Write-Host ("   [aviso interno] UnIntento devolvio {0} valores; algo escribe al flujo de salida." -f $r.Count) -ForegroundColor DarkYellow
+            Write-Host ("   [internal warning] UnIntento returned {0} values; something writes to the output stream." -f $r.Count) -ForegroundColor DarkYellow
             $r = $r[-1]
         }
 
@@ -216,7 +219,7 @@ foreach ($combo in $combos) {
     }
     Write-Host ''
     $det = ($motivos.Keys | Sort-Object) -join '; '
-    Write-Host ("   {0}/{1} arrancaron{2}" -f $ok, $Repeticiones,
+    Write-Host ("   {0}/{1} booted{2}" -f $ok, $Repeticiones,
                 $(if ($det) { "   ->  $det" } else { '' }))
     Write-Host ''
 
@@ -228,13 +231,13 @@ foreach ($combo in $combos) {
     }
 }
 
-# ---- Limpieza y resumen -----------------------------------------------------
+# ---- Cleanup and summary ----------------------------------------------------
 if (Test-Path -LiteralPath $raizTmp) {
     Remove-Item -LiteralPath $raizTmp -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host '============================================'
-Write-Host '  RESUMEN'
+Write-Host '  SUMMARY'
 Write-Host '============================================'
 $tabla | Format-Table -AutoSize | Out-String | Write-Host
 
@@ -242,35 +245,35 @@ $buenas = @($tabla | Where-Object { $_.Fallos -eq 0 })
 $malas  = @($tabla | Where-Object { $_.Fallos -eq $Repeticiones })
 
 if ($buenas.Count -eq $tabla.Count) {
-    Write-Host '  Todas arrancaron siempre.' -ForegroundColor Green
+    Write-Host '  All of them booted every time.' -ForegroundColor Green
     Write-Host ''
-    Write-Host '  Ojo con lo que esto significa y lo que no. En ESTA maquina, con'
-    Write-Host '  la cache vacia, no se reproduce. No prueba que este arreglado:'
-    Write-Host '  una carrera puede necesitar mas nucleos o mas velocidad. Que lo'
-    Write-Host '  lance tambien quien SI lo ve fallar.'
+    Write-Host '  Mind what this means and what it does not. On THIS machine, with'
+    Write-Host '  the cache empty, it does not reproduce. It does not prove it is'
+    Write-Host '  fixed: a race may need more cores or more speed. Have whoever'
+    Write-Host '  DOES see it fail run it too.'
 } elseif ($buenas.Count -gt 0) {
-    Write-Host '  HAY COMBINACIONES QUE NO FALLAN NUNCA:' -ForegroundColor Green
+    Write-Host '  THERE ARE COMBINATIONS THAT NEVER FAIL:' -ForegroundColor Green
     foreach ($b in $buenas) { Write-Host ("    - {0}" -f $b.Combinacion) }
     Write-Host ''
-    Write-Host '  Eso es una pista de verdad, no un parche por maquina: si respetar'
-    Write-Host '  las prioridades arregla el arranque, es que el juego CONTABA con'
-    Write-Host '  ese orden y el SDK lo estaba tirando.'
+    Write-Host '  That is a real clue, not a per-machine patch: if respecting the'
+    Write-Host '  priorities fixes the boot, it means the game COUNTED ON that order'
+    Write-Host '  and the SDK was throwing it away.'
 } else {
-    Write-Host '  Fallaron todas.' -ForegroundColor Red
-    Write-Host '  La planificacion de hilos no es la causa, o no es la unica.'
-    Write-Host '  Los logs de cada intento estan en:  matriz\'
+    Write-Host '  All of them failed.' -ForegroundColor Red
+    Write-Host '  Thread scheduling is not the cause, or not the only one.'
+    Write-Host '  The logs for each attempt are in:  matriz\'
 }
 
 if ($malas.Count -eq $tabla.Count -and $Repeticiones -gt 1) {
     Write-Host ''
-    Write-Host '  Falla el 100% de las veces, asi que probablemente NO sea una'
-    Write-Host '  carrera sino un fallo determinista. Eso es mejor: se depura'
-    Write-Host '  mucho mas facil.' -ForegroundColor DarkYellow
+    Write-Host '  It fails 100% of the time, so it is probably NOT a race but a'
+    Write-Host '  deterministic failure. That is better: it is much easier to'
+    Write-Host '  debug.' -ForegroundColor DarkYellow
 }
 
 $csv = Join-Path $salida 'resumen.csv'
 $tabla | Export-Csv -LiteralPath $csv -NoTypeInformation -Encoding UTF8
 Write-Host ''
-Write-Host "  Tabla:  $csv"
+Write-Host "  Table:  $csv"
 Write-Host "  Logs :  $salida"
 Write-Host ''

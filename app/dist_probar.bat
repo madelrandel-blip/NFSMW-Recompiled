@@ -3,35 +3,36 @@ setlocal
 cd /d "%~dp0"
 
 rem ===========================================================================
-rem  PRUEBA DE ARRANQUE - para quien ve que el juego no le arranca.
+rem  STARTUP TEST - for anyone who sees the game fail to start.
 rem
-rem  Va en la misma carpeta que el juego. Doble clic y ya.
+rem  Goes in the same folder as the game. Double-click and done.
 rem
-rem  QUE HACE
-rem  Lanza el juego 20 veces: 5 por cada una de 4 configuraciones distintas de
-rem  planificacion de hilos. Cada intento arranca con la cache de shaders
-rem  VACIA, que es lo que destapa el fallo.
+rem  WHAT IT DOES
+rem  Launches the game 20 times: 5 for each of 4 different thread scheduling
+rem  configurations. Each attempt starts with an EMPTY shader cache, which is
+rem  what exposes the failure.
 rem
-rem  Se abriran y cerraran ventanas solas. Es normal. Tarda unos 8 minutos.
+rem  Windows will open and close on their own. That is normal. It takes about
+rem  8 minutes.
 rem
-rem  Al final imprime una tabla. ESA TABLA ES LO QUE HAY QUE MANDAR.
+rem  At the end it prints a table. THAT TABLE IS WHAT YOU NEED TO SEND.
 rem ===========================================================================
 
 if not exist "%~dp0matriz.ps1" (
-    echo [ERROR] Falta matriz.ps1 en esta carpeta.
-    echo         Tiene que estar al lado del juego
+    echo [ERROR] matriz.ps1 is missing from this folder.
+    echo         It has to be next to the game
     echo.
     pause
     exit /b 1
 )
 
-rem  El juego es nfsmw.exe: en build\ el nombre NFS_Most_Wanted.exe lo lleva
-rem  EL LANZADOR, para que el icono del juego abra la ventana de opciones. Se
-rem  acepta el nombre viejo detras, para carpetas de antes del cambio.
+rem  The game is nfsmw.exe: in build\ the name NFS_Most_Wanted.exe belongs to
+rem  THE LAUNCHER, so that the game icon opens the options window. The old
+rem  name is accepted as a fallback, for folders from before the change.
 set "JUEGO=%~dp0nfsmw.exe"
 if not exist "%JUEGO%" set "JUEGO=%~dp0NFS_Most_Wanted.exe"
 if not exist "%JUEGO%" (
-    echo [ERROR] No encuentro nfsmw.exe en esta carpeta.
+    echo [ERROR] I cannot find nfsmw.exe in this folder.
     echo.
     pause
     exit /b 1
@@ -40,24 +41,24 @@ if not exist "%JUEGO%" (
 set "HAYISO="
 for %%f in ("%~dp0*.iso") do set "HAYISO=1"
 if not defined HAYISO (
-    echo [ERROR] No hay ninguna .iso en esta carpeta.
-    echo         Copia aqui tu ISO del juego antes de probar.
+    echo [ERROR] There is no .iso in this folder.
+    echo         Copy your game ISO here before testing.
     echo.
     pause
     exit /b 1
 )
 
 echo ============================================
-echo   Prueba de arranque
+echo   Startup test
 echo ============================================
 echo.
-echo Voy a lanzar el juego 20 veces seguidas, con distintas opciones,
-echo para averiguar cual de ellas lo hace arrancar.
+echo I am going to launch the game 20 times in a row, with different options,
+echo to find out which of them makes it start.
 echo.
-echo Se abriran y cerraran ventanas solas. Es normal, no toques nada.
-echo Tarda unos 8 minutos.
+echo Windows will open and close on their own. That is normal, do not touch
+echo anything. It takes about 8 minutes.
 echo.
-echo Al terminar sale una TABLA. Esa tabla es lo que hay que mandar.
+echo When it finishes a TABLE comes out. That table is what needs to be sent.
 echo.
 pause
 echo.
@@ -66,10 +67,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0matriz.ps1"
 
 echo.
 echo ============================================
-echo   Manda la tabla de arriba
+echo   Send the table above
 echo ============================================
 echo.
-echo Si tambien quieres mandar los detalles, estan en la carpeta:
+echo If you also want to send the details, they are in the folder:
 echo   %~dp0matriz
 echo.
 pause

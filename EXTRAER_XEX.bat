@@ -1,49 +1,49 @@
 @echo off
-title NFSMW Recomp - Fase 1: extraer el ISO
+title NFSMW Recomp - Phase 1: extract the ISO
 cd /d "%~dp0"
 
 echo ============================================
-echo   NFSMW Recomp - Fase 1
-echo   Extraer el ISO y leer la cabecera del XEX
+echo   NFSMW Recomp - Phase 1
+echo   Extract the ISO and read the XEX header
 echo ============================================
 echo.
 
-rem --- localizar Python -----------------------------------------------------
+rem --- locate Python --------------------------------------------------------
 set "PY="
 py -3 --version >nul 2>nul && set "PY=py -3"
 if not defined PY (
     python --version >nul 2>nul && set "PY=python"
 )
 if not defined PY (
-    echo [ERROR] No se encontro Python en el PATH.
+    echo [ERROR] Python was not found in the PATH.
     echo.
-    echo Instalalo desde https://www.python.org/downloads/
-    echo IMPORTANTE: marca la casilla "Add Python to PATH" durante la instalacion.
+    echo Install it from https://www.python.org/downloads/
+    echo IMPORTANT: check the "Add Python to PATH" box during installation.
     echo.
     pause
     exit /b 1
 )
 
 for /f "delims=" %%v in ('%PY% --version 2^>^&1') do set "PYVER=%%v"
-echo Python detectado: %PYVER%
+echo Python found: %PYVER%
 echo.
 
 rem --- menu -----------------------------------------------------------------
-echo Que quieres hacer?
+echo What do you want to do?
 echo.
-echo   1. Solo listar el contenido del ISO  (rapido, no escribe nada)
-echo   2. Extraer TODO                      (~7 GB, varios minutos)
-echo   3. Extraer solo el default.xex       (rapido, unos MB)
-echo   4. Ver la cabecera de assets\default.xex
+echo   1. Only list the ISO contents          (quick, writes nothing)
+echo   2. Extract EVERYTHING                  (~7 GB, several minutes)
+echo   3. Extract only default.xex            (quick, a few MB)
+echo   4. View the header of assets\default.xex
 echo.
-set /p OPCION="Elige 1-4 y pulsa Enter: "
+set /p OPCION="Choose 1-4 and press Enter: "
 echo.
 
 if "%OPCION%"=="1" goto listar
 if "%OPCION%"=="2" goto extraer_todo
 if "%OPCION%"=="3" goto extraer_xex
 if "%OPCION%"=="4" goto info
-echo Opcion no valida.
+echo Invalid option.
 goto fin
 
 :listar
@@ -66,22 +66,22 @@ goto fin
 if exist "assets\game_root\default.xex" (
     copy /y "assets\game_root\default.xex" "assets\default.xex" >nul
     echo.
-    echo default.xex copiado a assets\default.xex
+    echo default.xex copied to assets\default.xex
     if not exist "docs" mkdir "docs"
     %PY% tools\fase1_extraer.py "assets\default.xex" --info > "docs\xex_info.txt"
-    echo Cabecera guardada en docs\xex_info.txt
+    echo Header saved to docs\xex_info.txt
     echo.
     type "docs\xex_info.txt"
 ) else (
     echo.
-    echo [AVISO] No aparecio un default.xex en la raiz del ISO.
-    echo Lanza la opcion 1 para ver donde esta el ejecutable.
+    echo [WARNING] No default.xex appeared at the root of the ISO.
+    echo Run option 1 to see where the executable is.
 )
 exit /b 0
 
 :info
 if not exist "assets\default.xex" (
-    echo No existe assets\default.xex todavia. Usa la opcion 2 o 3 primero.
+    echo assets\default.xex does not exist yet. Use option 2 or 3 first.
     goto fin
 )
 %PY% tools\fase1_extraer.py "assets\default.xex" --info

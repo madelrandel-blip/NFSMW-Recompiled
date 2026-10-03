@@ -1,9 +1,9 @@
-# Direcciones que NO deben declararse como funcion, aunque sean huecos.
-# tools/huecos.py las omite al generar app/huecos.toml.
+# Addresses that must NOT be declared as functions, even though they are gaps.
+# tools/huecos.py skips them when generating app/huecos.toml.
 #
 # "not in any code region" -> "has no blocks - generating stub"
-#   Son bloques de datos incrustados en .text. Declararlos produce funciones
-#   vacias que, si alguien las llama, devuelven en silencio en vez de avisar.
+#   They are data blocks embedded in .text. Declaring them produces empty
+#   functions that, if someone calls them, return silently instead of warning.
 0x8262E954
 0x82633AC4
 0x826B88E4
@@ -53,6 +53,10 @@
 0x828C6A98
 
 # "outranked by import" -> lld-link: undefined symbol: sub_XXXXXXXX
-#   Es un thunk de import. El codegen lo registra en la tabla pero no emite
-#   cuerpo, y el enlazado se rompe.
+#   It is an import thunk. The codegen registers it in the table but does not
+#   emit a body, and linking breaks.
 0x828A9BFC
+
+# --- XEX USA (NTSC, entry 0x8262E768) - added 2026-10-03 ---
+# Equivalent to PAL's 0x828A9BFC (delta -0x1F0): import thunk.
+0x828A9A0C

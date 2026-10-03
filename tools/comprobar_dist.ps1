@@ -1,18 +1,19 @@
 # =============================================================================
-#  Comprueba que build\ -la carpeta portable- sea REALMENTE autonoma.
+#  Checks that build\ -the portable folder- is REALLY self-contained.
 #
-#  No adivina: lee la tabla de importaciones PE de cada .exe y .dll de la
-#  carpeta, sigue las dependencias en cadena, y para cada DLL decide si
+#  It does not guess: it reads the PE import table of every .exe and .dll in
+#  the folder, follows the dependencies in a chain, and for each DLL decides
+#  whether it is
 #
-#    - esta en la propia carpeta            -> bien, viaja con el juego
-#    - es una DLL de Windows                -> bien, esta en cualquier equipo
-#    - no es ni una cosa ni la otra         -> FALTA, y lo dice por su nombre
+#    - in the folder itself                    -> good, it travels with the game
+#    - a Windows DLL                           -> good, it is on any machine
+#    - neither one thing nor the other        -> MISSING, and it names it
 #
-#  Es la unica forma honesta de responder "funcionara en un PC limpio" sin
-#  tener delante un PC limpio.
+#  It is the only honest way to answer "will it work on a clean PC" without
+#  having a clean PC in front of you.
 #
 #      powershell -ExecutionPolicy Bypass -File tools\comprobar_dist.ps1
-#      powershell -ExecutionPolicy Bypass -File tools\comprobar_dist.ps1 -Dist "D:\otra\carpeta"
+#      powershell -ExecutionPolicy Bypass -File tools\comprobar_dist.ps1 -Dist "D:\other\folder"
 # =============================================================================
 
 param(
@@ -27,17 +28,17 @@ if (-not $Dist) {
 }
 
 if (-not (Test-Path -LiteralPath $Dist)) {
-    Write-Host "No encuentro la carpeta: $Dist" -ForegroundColor Red
-    Write-Host "Genera la build portable primero:  DIST.bat"
+    Write-Host "Cannot find the folder: $Dist" -ForegroundColor Red
+    Write-Host "Generate the portable build first:  DIST.bat"
     exit 1
 }
 
 # -----------------------------------------------------------------------------
-#  Lector de la tabla de importaciones PE.
+#  PE import table reader.
 #
-#  Se hace a mano y no con dumpbin a proposito: dumpbin viene con Visual
-#  Studio, y todo el sentido de este script es comprobar cosas SIN suponer que
-#  hay herramientas de desarrollo instaladas.
+#  It is done by hand and not with dumpbin on purpose: dumpbin comes with
+#  Visual Studio, and the whole point of this script is to check things
+#  WITHOUT assuming development tools are installed.
 # -----------------------------------------------------------------------------
 function Get-PeImports([string]$Ruta) {
     $b = [System.IO.File]::ReadAllBytes($Ruta)
@@ -55,7 +56,7 @@ function Get-PeImports([string]$Ruta) {
     $impRva = [BitConverter]::ToUInt32($b, $dd + 8)
     if ($impRva -eq 0) { return @() }
 
-    # Secciones, para traducir RVA a desplazamiento en el archivo.
+    # Sections, to translate RVA to file offset.
     $secs = @()
     $so = $opt + $optsz
     for ($i = 0; $i -lt $nsec; $i++) {
@@ -92,10 +93,10 @@ function Get-PeImports([string]$Ruta) {
 }
 
 # -----------------------------------------------------------------------------
-#  Que cuenta como "ya viene con Windows".
+#  What counts as "already comes with Windows".
 #
-#  Los api-ms-win-* son el UCRT y las API sets, parte de Windows 10 y 11. El
-#  resto es la lista de DLL del sistema que estos binarios tocan.
+#  The api-ms-win-* are the UCRT and the API sets, part of Windows 10 and 11.
+#  The rest is the list of system DLLs these binaries touch.
 # -----------------------------------------------------------------------------
 $deWindows = @(
     'kernel32.dll','user32.dll','gdi32.dll','advapi32.dll','shell32.dll','ole32.dll',
@@ -105,10 +106,10 @@ $deWindows = @(
     'cfgmgr32.dll','ntdll.dll','rpcrt4.dll','secur32.dll','userenv.dll',
     'msvcrt.dll','dbghelp.dll','wintrust.dll','iphlpapi.dll','psapi.dll',
     'xinput1_4.dll','xinput9_1_0.dll','avrt.dll','mmdevapi.dll','propsys.dll',
-    # El lanzador es un ejecutable de .NET y lo unico que importa de verdad es
-    # mscoree.dll, el arranque del Common Language Runtime. Viene con Windows
-    # desde el XP SP3. Sin esto en la lista, la comprobacion daba la carpeta por
-    # rota justo despues de armarla bien.
+    # The launcher is a .NET executable and the only thing it really imports
+    # is mscoree.dll, the Common Language Runtime startup. It comes with
+    # Windows since XP SP3. Without this in the list, the check declared the
+    # folder broken right after assembling it properly.
     'mscoree.dll','mscoreei.dll'
 )
 
@@ -118,22 +119,22 @@ Get-ChildItem -LiteralPath $Dist -File | Where-Object { $_.Extension -in '.dll',
 
 Write-Host ''
 Write-Host '============================================'
-Write-Host '  Comprobacion de la carpeta portable'
+Write-Host '  Portable folder check'
 Write-Host '============================================'
 Write-Host ''
 Write-Host "  $Dist"
 Write-Host ''
 
-# ---- Contenido --------------------------------------------------------------
-# @() NO ES DECORATIVO. Get-ChildItem devuelve un objeto SUELTO cuando hay un
-# solo resultado, no un array de uno. Con Set-StrictMode, pedirle .Count a ese
-# objeto suelto lanza PropertyNotFoundStrict y el script muere. Envolver en @()
-# fuerza array siempre, tenga 0, 1 o 20 elementos.
+# ---- Contents ---------------------------------------------------------------
+# @() IS NOT DECORATIVE. Get-ChildItem returns a LOOSE object when there is a
+# single result, not an array of one. With Set-StrictMode, asking that loose
+# object for .Count throws PropertyNotFoundStrict and the script dies. Wrapping
+# in @() always forces an array, whether it has 0, 1 or 20 elements.
 $exes = @(Get-ChildItem -LiteralPath $Dist -File -Filter '*.exe')
 $isos = @(Get-ChildItem -LiteralPath $Dist -File -Filter '*.iso')
 $dlls = @(Get-ChildItem -LiteralPath $Dist -File -Filter '*.dll')
 
-Write-Host 'CONTENIDO'
+Write-Host 'CONTENTS'
 foreach ($f in (Get-ChildItem -LiteralPath $Dist -File | Sort-Object Name)) {
     $mb = [Math]::Round($f.Length / 1MB, 1)
     Write-Host ("   {0,-32} {1,8} MB" -f $f.Name, $mb)
@@ -143,14 +144,14 @@ Write-Host ''
 $problemas = @()
 
 if ($exes.Count -eq 0) {
-    $problemas += 'No hay ningun .exe en la carpeta.'
+    $problemas += 'There is no .exe in the folder.'
 } elseif ($exes.Count -gt 1) {
-    Write-Host ('AVISO: hay {0} ejecutables. Se comprobaran todos.' -f $exes.Count) -ForegroundColor DarkYellow
+    Write-Host ('WARNING: there are {0} executables. All of them will be checked.' -f $exes.Count) -ForegroundColor DarkYellow
     Write-Host ''
 }
 
-# ---- Dependencias en cadena -------------------------------------------------
-Write-Host 'DEPENDENCIAS'
+# ---- Chained dependencies ---------------------------------------------------
+Write-Host 'DEPENDENCIES'
 
 $pendientes = New-Object System.Collections.Generic.Queue[string]
 $vistos     = @{}
@@ -167,7 +168,7 @@ while ($pendientes.Count -gt 0) {
 
     $imps = @()
     try { $imps = @(Get-PeImports $ruta) } catch {
-        $problemas += ("No pude leer la tabla de importaciones de {0}: {1}" -f
+        $problemas += ("Could not read the import table of {0}: {1}" -f
                        (Split-Path -Leaf $ruta), $_.Exception.Message)
         continue
     }
@@ -188,15 +189,15 @@ while ($pendientes.Count -gt 0) {
 }
 
 if ($faltan.Count -eq 0) {
-    Write-Host '   [ok] Todo lo que importa esta en la carpeta o viene con Windows.' -ForegroundColor DarkGreen
+    Write-Host '   [ok] Everything that matters is in the folder or comes with Windows.' -ForegroundColor DarkGreen
 } else {
     foreach ($d in ($faltan.Keys | Sort-Object)) {
         $quien = ($faltan[$d] | Sort-Object -Unique) -join ', '
-        Write-Host ("   [!!] FALTA  {0}   (la pide: {1})" -f $d, $quien) -ForegroundColor Red
-        $problemas += ("Falta {0}, que necesita {1}." -f $d, $quien)
+        Write-Host ("   [!!] MISSING  {0}   (needed by: {1})" -f $d, $quien) -ForegroundColor Red
+        $problemas += ("Missing {0}, needed by {1}." -f $d, $quien)
     }
     Write-Host ''
-    Write-Host '   Si son MSVCP140 o VCRUNTIME140, copialas desde tu Visual Studio:'
+    Write-Host '   If they are MSVCP140 or VCRUNTIME140, copy them from your Visual Studio:'
     Write-Host '     VC\Redist\MSVC\<version>\x64\Microsoft.VC143.CRT\'
 }
 Write-Host ''
@@ -204,7 +205,7 @@ Write-Host ''
 # ---- ISO --------------------------------------------------------------------
 Write-Host 'ISO'
 if ($isos.Count -eq 0) {
-    Write-Host '   [  ] No hay ninguna. Hay que copiarla aqui antes de jugar.' -ForegroundColor DarkYellow
+    Write-Host '   [  ] There is none. It must be copied here before playing.' -ForegroundColor DarkYellow
 } else {
     foreach ($i in $isos) {
         Write-Host ("   [ok] {0}  ({1} GB)" -f $i.Name, [Math]::Round($i.Length/1GB,1))
@@ -212,12 +213,12 @@ if ($isos.Count -eq 0) {
 }
 Write-Host ''
 
-# ---- Rutas absolutas dentro del ejecutable ----------------------------------
+# ---- Absolute paths inside the executable -----------------------------------
 #
-# Busca cadenas tipo "C:\Users\..." incrustadas en los binarios. Los caminos de
-# depuracion del compilador salen aqui y son inofensivos, pero si alguna ruta
-# de datos quedo fija, este es el sitio donde se ve.
-Write-Host 'RUTAS ABSOLUTAS INCRUSTADAS'
+# Looks for strings like "C:\Users\..." embedded in the binaries. Compiler
+# debug paths show up here and are harmless, but if any data path got fixed,
+# this is where it shows.
+Write-Host 'EMBEDDED ABSOLUTE PATHS'
 $sospechosas = @()
 foreach ($f in $exes) {
     $txt = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($f.FullName))
@@ -227,28 +228,28 @@ foreach ($f in $exes) {
 }
 $sospechosas = @($sospechosas | Sort-Object -Unique | Select-Object -First 6)
 if ($sospechosas.Count -eq 0) {
-    Write-Host '   [ok] Ninguna ruta de usuario.' -ForegroundColor DarkGreen
+    Write-Host '   [ok] No user paths.' -ForegroundColor DarkGreen
 } else {
-    Write-Host '   [  ] Aparecen estas. Casi siempre son rutas de depuracion del'
-    Write-Host '        compilador y no se usan al ejecutar, pero conviene mirarlas:'
+    Write-Host '   [  ] These appear. They are almost always compiler debug paths'
+    Write-Host '        and are not used at runtime, but they are worth a look:'
     foreach ($s in $sospechosas) { Write-Host "        $s" }
 }
 Write-Host ''
 
-# ---- Veredicto --------------------------------------------------------------
+# ---- Verdict ----------------------------------------------------------------
 Write-Host '============================================'
 if ($problemas.Count -eq 0) {
-    Write-Host '  LA CARPETA ES AUTONOMA' -ForegroundColor Green
+    Write-Host '  THE FOLDER IS SELF-CONTAINED' -ForegroundColor Green
     Write-Host '============================================'
     Write-Host ''
-    Write-Host '  Se puede copiar a un equipo sin Visual Studio, CMake, Ninja'
-    Write-Host '  ni SDK y deberia arrancar con doble clic.'
+    Write-Host '  It can be copied to a machine without Visual Studio, CMake, Ninja'
+    Write-Host '  or SDK and it should start on double click.'
     if ($isos.Count -eq 0) {
         Write-Host ''
-        Write-Host '  Acuerdate de copiar tambien la ISO.'
+        Write-Host '  Remember to copy the ISO as well.'
     }
 } else {
-    Write-Host '  HAY PROBLEMAS' -ForegroundColor Red
+    Write-Host '  THERE ARE PROBLEMS' -ForegroundColor Red
     Write-Host '============================================'
     Write-Host ''
     foreach ($p in $problemas) { Write-Host "   - $p" }

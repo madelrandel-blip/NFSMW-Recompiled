@@ -1,90 +1,93 @@
 #!/usr/bin/env python3
 """
-Instrumenta la cadena de audio entera.  (version 3)
+Instruments the entire audio chain.  (version 3)
 
-    python tools/parche_xma.py            aplicar
+    python tools/parche_xma.py            apply
     python tools/parche_xma.py --estado
     python tools/parche_xma.py --revertir
 
-Toca tres ficheros del SDK:
+It touches three SDK files:
 
-    src/audio/xma_context.cpp        el descodificador
-    src/audio/audio_system.cpp       el hilo que llama al juego
-    src/audio/sdl/sdl_audio_driver.cpp   la salida a la tarjeta
+    src/audio/xma_context.cpp        the decoder
+    src/audio/audio_system.cpp       the thread that calls the game
+    src/audio/sdl/sdl_audio_driver.cpp   the output to the card
 
-Guarda un .original de cada uno la primera vez y es idempotente. Si detecta
-una version anterior del parche, restaura desde el .original antes de aplicar
-esta, para que los anclajes encajen sobre el codigo limpio.
-
-
-LO QUE YA SABEMOS, Y POR QUE HACE FALTA UNA v3
-==============================================
-
-El cuelgue esta localizado: el hilo 0xD del juego gira entre
-XMAGetOutputBufferWriteOffset y XMAGetOutputBufferReadOffset esperando audio
-descodificado que no llega. La muerte del audio y el cuelgue al volver al menu
-son EL MISMO FALLO, no dos.
-
-La v2 ya midio lo importante: 6739 kicks, 7160 pases de Work, y 1232 salidas
-tempranas TODAS por output_buffer_valid == 0. La rama de "no cabe" -que era mi
-sospechosa- no se disparo ni una vez. Y luego el XMA se para en seco.
-
-Pero la v2 dejo dos huecos, los dos mios:
-
-  1. El log del estado de Work lo puse ANTES de PrepareOutputRingBuffer. Y
-     resulta que PrepareOutputRingBuffer es justo quien recalcula
-     remaining_subframe_blocks_in_output_buffer_ a partir de los offsets. O
-     sea que el "hueco" que salia era el valor SOBRANTE del pase anterior.
-     Salia 0 siempre y no significaba nada. En la v3 va despues.
-
-  2. No se veia el otro lado de la cadena. Y ahi esta el resto de la historia.
+It keeps a .original of each on the first run and is idempotent. If it detects
+a previous version of the patch, it restores from the .original before applying
+this one, so the anchors fit on the clean code.
 
 
-LA CADENA COMPLETA, Y DONDE SE ROMPE
-====================================
+WHAT WE ALREADY KNOW, AND WHY A v3 IS NEEDED
+============================================
 
-El audio de la 360 pasa por tres piezas, y cada una espera a la anterior:
+The hang is located: the game's thread 0xD spins between
+XMAGetOutputBufferWriteOffset and XMAGetOutputBufferReadOffset waiting for
+decoded audio that never arrives. The audio dying and the hang on returning to
+the menu are THE SAME FAILURE, not two.
 
-    juego  ->  XmaContext::Work()  ->  frames_queued_  ->  SDLCallback
+v2 already measured what matters: 6739 kicks, 7160 Work passes, and 1232 early
+exits ALL because of output_buffer_valid == 0. The "does not fit" branch -which
+was my suspect- did not trigger even once. And then the XMA stops dead.
+
+But v2 left two gaps, both mine:
+
+  1. I put the Work state log BEFORE PrepareOutputRingBuffer. And it turns out
+     PrepareOutputRingBuffer is precisely the one that recomputes
+     remaining_subframe_blocks_in_output_buffer_ from the offsets. So the
+     "gap" that came out was the LEFTOVER value from the previous pass. It
+     always came out 0 and meant nothing. In v3 it goes after.
+
+  2. The other side of the chain was not visible. And that is where the rest
+     of the story is.
+
+
+THE COMPLETE CHAIN, AND WHERE IT BREAKS
+=======================================
+
+The 360's audio goes through three pieces, and each one waits for the previous
+one:
+
+    game  ->  XmaContext::Work()  ->  frames_queued_  ->  SDLCallback
       ^                                                        |
-      |                    semaforo, una suelta por frame       |
+      |                    semaphore, one release per frame     |
       +--------------------------------------------------------+
 
-SDLCallback suelta el semaforo SOLO cuando consume un frame de verdad. Si la
-cola se vacia, no suelta nada; entonces el WaitAny del AudioWorker se agota a
-los 500 ms y NO llama al callback del juego; y si no se llama al juego, el
-juego no entrega mas audio. Es un anillo, y con que se pare un eslabon se
-paran los tres.
+SDLCallback releases the semaphore ONLY when it consumes a frame for real. If
+the queue empties, it releases nothing; then the AudioWorker's WaitAny times
+out at 500 ms and does NOT call the game callback; and if the game is not
+called, the game does not deliver more audio. It is a ring, and if one link
+stops, all three stop.
 
-El log de la v2 encaja con eso al detalle: queued_count=8 a las 22:31:25,
-nada mas despues, y "no frames queued (silence)" desde las 22:31:52. Los 8
-frames se gastaron y no llego ninguno mas.
+The v2 log fits that to the detail: queued_count=8 at 22:31:25, nothing after
+that, and "no frames queued (silence)" from 22:31:52. The 8 frames were used up
+and not one more arrived.
 
-Lo que NO se puede saber con la v2 es si el AudioWorker siguio llamando al
-juego despues del cuelgue, porque el SDK tiene esos dos contadores topados:
+What CANNOT be known with v2 is whether the AudioWorker kept calling the game
+after the hang, because the SDK has those two counters capped:
 
-    if (diag_pump_count < 10)      en audio_system.cpp
-    if (sdl_callback_count < 10)   en sdl_audio_driver.cpp
+    if (diag_pump_count < 10)      in audio_system.cpp
+    if (sdl_callback_count < 10)   in sdl_audio_driver.cpp
 
-A las diez lineas se callan para siempre. Justo antes del fallo. Por eso la
-v3 los cambia por un latido de una linea por segundo: no inunda el log y no
-se calla nunca, que es exactamente lo que hace falta aqui.
+At ten lines they go silent forever. Right before the failure. That is why v3
+replaces them with a heartbeat of one line per second: it does not flood the
+log and never goes silent, which is exactly what is needed here.
 
 
-QUE VA A CONTESTAR
-==================
+WHAT IT WILL ANSWER
+===================
 
-Con las tres piezas instrumentadas, la ultima linea de cada una antes del
-silencio dice quien se paro primero:
+With the three pieces instrumented, the last line of each before the silence
+says who stopped first:
 
-  - si dejan de salir kicks     -> el juego dejo de pedir audio
-  - si siguen los kicks pero Work se sale -> el descodificador se atasca
-  - si el latido del worker sigue vivo pero con envios=0 congelado -> el
-    semaforo no se suelta, y el eslabon roto es la salida
-  - si el latido para del todo -> el propio hilo de audio esta bloqueado
+  - if the kicks stop coming     -> the game stopped asking for audio
+  - if the kicks continue but Work exits -> the decoder is stuck
+  - if the worker heartbeat stays alive but with envios=0 frozen -> the
+    semaphore is not released, and the broken link is the output
+  - if the heartbeat stops entirely -> the audio thread itself is blocked
 
-Todo detras de log_noisy salvo el latido, que va a DEBUG porque es una linea
-por segundo y es la que importa. LOG_DETALLADO.bat ya enciende las dos cosas.
+All behind log_noisy except the heartbeat, which goes to DEBUG because it is
+one line per second and it is the one that matters. LOG_DETALLADO.bat already
+turns both on.
 """
 
 import argparse
@@ -94,9 +97,9 @@ import sys
 
 MARCA = "PARCHE LOCAL - instrumentacion de audio v4"
 
-# Marcas de versiones anteriores. Si aparece alguna, se restaura el fichero
-# desde su .original antes de aplicar, porque los anclajes de abajo estan
-# escritos contra el codigo LIMPIO del SDK y no encajarian sobre el parcheado.
+# Marks of previous versions. If any appears, the file is restored from its
+# .original before applying, because the anchors below are written against the
+# CLEAN SDK code and would not fit on the patched one.
 MARCAS_VIEJAS = [
     "PARCHE LOCAL - instrumentacion de audio v3",
     "PARCHE LOCAL - el anillo de salida no se llena del todo",
@@ -106,7 +109,7 @@ MARCAS_VIEJAS = [
 ]
 
 # ---------------------------------------------------------------------------
-#  1) src/audio/xma_context.cpp   -  el descodificador
+#  1) src/audio/xma_context.cpp   -  the decoder
 # ---------------------------------------------------------------------------
 
 ENABLE_ANCLA = """void XmaContext::Enable() {
@@ -163,9 +166,9 @@ WORK_NUEVO = """  if (!data.output_buffer_valid) {
       uint32_t(data.output_buffer_padding));
 """
 
-# La linea original de PrepareOutputRingBuffer se movio dentro del bloque de
-# arriba, asi que hay que quitar la que quedaba suelta unas lineas mas abajo.
-# Si no, se llamaria dos veces y la segunda pisaria los offsets del ring.
+# The original PrepareOutputRingBuffer line was moved inside the block above,
+# so the one left loose a few lines below must be removed. Otherwise it would
+# be called twice and the second one would overwrite the ring's offsets.
 DUPLICADO_ANCLA = """  memory::RingBuffer output_rb = PrepareOutputRingBuffer(&data);
 
   // Consume-only context: no input, just drain remaining subframes.
@@ -237,7 +240,7 @@ XMA_ANCLAS = [
 ]
 
 # ---------------------------------------------------------------------------
-#  2) src/audio/audio_system.cpp  -  el hilo que llama al juego
+#  2) src/audio/audio_system.cpp  -  the thread that calls the game
 # ---------------------------------------------------------------------------
 
 LATIDO_ANCLA = """  // Main run loop.
@@ -356,7 +359,7 @@ SISTEMA_ANCLAS = [
 ]
 
 # ---------------------------------------------------------------------------
-#  3) src/audio/sdl/sdl_audio_driver.cpp  -  la salida a la tarjeta
+#  3) src/audio/sdl/sdl_audio_driver.cpp  -  the output to the card
 # ---------------------------------------------------------------------------
 
 SILENCIO_ANCLA = """    static uint32_t sdl_callback_count = 0;
@@ -458,8 +461,8 @@ def localizar_sdk():
     for cand in [raiz.parent / "rexglue-sdk", raiz / "sdk"]:
         if (cand / "src" / "audio" / "xma_context.cpp").exists():
             return cand
-    sys.exit("[ERROR] No encuentro src/audio/xma_context.cpp del SDK.\n"
-             "        Se busca en ..\\rexglue-sdk y en .\\sdk")
+    sys.exit("[ERROR] Cannot find the SDK's src/audio/xma_context.cpp.\n"
+             "        Looked in ..\\rexglue-sdk and .\\sdk")
 
 
 def original_de(f):
@@ -467,11 +470,11 @@ def original_de(f):
 
 
 def restaurar_si_hay_version_vieja(f):
-    """Deja el fichero como estaba en el SDK si lleva un parche anterior.
+    """Leaves the file as it was in the SDK if it carries a previous patch.
 
-    Sin esto, los anclajes -escritos contra el codigo limpio- no encajarian
-    sobre un fichero ya parcheado, y el script abortaria diciendo que el SDK
-    ha cambiado, que seria una pista falsa.
+    Without this, the anchors -written against the clean code- would not fit on
+    an already patched file, and the script would abort saying the SDK has
+    changed, which would be a false lead.
     """
     if not f.exists():
         return
@@ -480,35 +483,35 @@ def restaurar_si_hay_version_vieja(f):
         return
     orig = original_de(f)
     if not orig.exists():
-        sys.exit(f"[ERROR] {f.name} tiene un parche anterior pero no hay\n"
-                 f"        {orig.name} para deshacerlo. Restauralo desde el\n"
-                 f"        repositorio del SDK y vuelve a intentarlo.")
+        sys.exit(f"[ERROR] {f.name} has a previous patch but there is no\n"
+                 f"        {orig.name} to undo it. Restore it from the\n"
+                 f"        SDK repository and try again.")
     shutil.copy2(orig, f)
-    print(f"[ok] {f.name}: quitada la version anterior del parche")
+    print(f"[ok] {f.name}: previous version of the patch removed")
 
 
 def aplicar(f, anclas):
     txt = f.read_text(encoding="utf-8")
 
     if MARCA in txt:
-        print(f"[ok] {f.name}: ya estaba al dia, no lo toco")
+        print(f"[ok] {f.name}: already up to date, leaving it alone")
         return
 
     for nombre, ancla, _ in anclas:
         n = txt.count(ancla)
         if n != 1:
-            sys.exit(f"[ERROR] En {f.name}, el anclaje '{nombre}' aparece {n} veces,\n"
-                     f"        esperaba 1. El SDK habra cambiado. No he tocado nada.")
+            sys.exit(f"[ERROR] In {f.name}, the anchor '{nombre}' appears {n} times,\n"
+                     f"        expected 1. The SDK must have changed. I have not touched anything.")
 
     orig = original_de(f)
     if not orig.exists():
         shutil.copy2(f, orig)
-        print(f"[ok] Copia de seguridad: {orig.name}")
+        print(f"[ok] Backup: {orig.name}")
 
     for _, ancla, nuevo in anclas:
         txt = txt.replace(ancla, nuevo)
     f.write_text(txt, encoding="utf-8")
-    print(f"[ok] Parcheado {f.name}")
+    print(f"[ok] Patched {f.name}")
 
 
 def main():
@@ -524,27 +527,27 @@ def main():
         (audio / "audio_system.cpp", SISTEMA_ANCLAS),
         (audio / "sdl" / "sdl_audio_driver.cpp", SDL_ANCLAS),
     ]
-    # La v1 tocaba xma_decoder.cpp -le ponia un plazo de 4 ms al Wait del
-    # worker-. Se demostro inutil: cada contexto se apaga solo tras un pase,
-    # asi que barrer mas a menudo encuentra los 320 apagados. Y en un equipo
-    # de dos nucleos era CPU gastada de balde. Se deshace si sigue puesta.
+    # v1 touched xma_decoder.cpp -it gave the worker's Wait a 4 ms deadline-.
+    # It proved useless: each context turns itself off after one pass, so
+    # sweeping more often finds the 320 turned off. And on a two-core machine
+    # it was wasted CPU. It is undone if still installed.
     f_dec = audio / "xma_decoder.cpp"
 
     if args.estado:
         for f, _ in trabajo:
             if not f.exists():
-                print(f"  {f.name:24s} NO EXISTE")
+                print(f"  {f.name:24s} DOES NOT EXIST")
                 continue
             t = f.read_text(encoding="utf-8")
             if MARCA in t:
-                estado = "v3 aplicado"
+                estado = "v3 applied"
             elif any(m in t for m in MARCAS_VIEJAS):
-                estado = "version ANTERIOR puesta (se cambiara al aplicar)"
+                estado = "OLDER version installed (will be changed on apply)"
             else:
-                estado = "sin aplicar"
+                estado = "not applied"
             print(f"  {f.name:24s} {estado}")
         if f_dec.exists() and any(m in f_dec.read_text(encoding="utf-8") for m in MARCAS_VIEJAS):
-            print(f"  {f_dec.name:24s} v1 todavia puesta (se quitara al aplicar)")
+            print(f"  {f_dec.name:24s} v1 still installed (will be removed on apply)")
         return 0
 
     if args.revertir:
@@ -552,27 +555,27 @@ def main():
             orig = original_de(f)
             if orig.exists():
                 shutil.copy2(orig, f)
-                print(f"[ok] Restaurado {f.name} desde {orig.name}")
+                print(f"[ok] Restored {f.name} from {orig.name}")
         print()
-        print("  HAY QUE RECOMPILAR EL SDK para que sirva de algo.")
+        print("  THE SDK MUST BE RECOMPILED for this to do anything.")
         return 0
 
     restaurar_si_hay_version_vieja(f_dec)
     for f, anclas in trabajo:
         if not f.exists():
-            sys.exit(f"[ERROR] No encuentro {f}")
+            sys.exit(f"[ERROR] Cannot find {f}")
         restaurar_si_hay_version_vieja(f)
         aplicar(f, anclas)
 
     print()
-    print("  Se veran las tres piezas de la cadena de audio:")
-    print("    - los kicks del juego y por que Work() no descodifica")
-    print("    - un latido por segundo del hilo de audio, que NO se calla")
-    print("    - si el juego sigue entregando audio, y el silencio de la salida")
+    print("  The three pieces of the audio chain will be shown:")
+    print("    - the game's kicks and why Work() does not decode")
+    print("    - a one-per-second heartbeat from the audio thread, which does NOT go silent")
+    print("    - whether the game keeps delivering audio, and the output's silence")
     print()
-    print("  Hace falta lanzar con --log_noisy=true (lo hace LOG_DETALLADO.bat).")
+    print("  It must be launched with --log_noisy=true (LOG_DETALLADO.bat does it).")
     print()
-    print("  HAY QUE RECOMPILAR EL SDK para que sirva de algo:")
+    print("  THE SDK MUST BE RECOMPILED for this to do anything:")
     print("    cmake --build out/build/win-amd64 --config Release --target install")
     print()
     return 0

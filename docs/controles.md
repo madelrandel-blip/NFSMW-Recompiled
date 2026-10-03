@@ -1,98 +1,99 @@
-# Controles
+# Controls
 
-## Mando
+## Controller
 
-**No hay que mapear nada.** El backend por defecto es SDL, que trae mapeos
-nativos para los mandos habituales. Y las fuentes de entrada se **mezclan**:
-`MergeInto` hace un OR de los botones de teclado y mando, así que los dos
-funcionan a la vez y activar `--mnk_mode` no desactiva el mando.
+**Nothing needs to be mapped.** The default backend is SDL, which ships native
+mappings for the usual controllers. And input sources are **merged**: `MergeInto`
+ORs the keyboard and controller buttons, so both work at once and enabling
+`--mnk_mode` doesn't disable the controller.
 
 ### DualShock 4 / DualSense (PlayStation)
 
-Funciona por USB y por Bluetooth. Este SDL está compilado con el driver
-`hidapi`, que es el que maneja los mandos de PlayStation.
+It works over USB and Bluetooth. This SDL is built with the `hidapi` driver, which is
+the one that handles PlayStation controllers.
 
-| Botón de 360 | Botón de PlayStation |
+| 360 button | PlayStation button |
 |---|---|
 | **Start** | **Options** |
 | Back | Share / Create |
-| A | **Cruz** |
-| B | Círculo |
-| X | Cuadrado |
-| Y | Triángulo |
+| A | **Cross** |
+| B | Circle |
+| X | Square |
+| Y | Triangle |
 | LB / RB | L1 / R1 |
 | LT / RT | L2 / R2 |
-| Stick izq. / der. | Stick izq. / der. |
-| Pulsar sticks | L3 / R3 |
-| Cruceta | Cruceta |
-| Guide | PS (hay que activarlo con `--guide_button`) |
+| Left / right stick | Left / right stick |
+| Stick clicks | L3 / R3 |
+| D-pad | D-pad |
+| Guide | PS (has to be enabled with `--guide_button`) |
 
-Para conducir: acelerar **R2**, frenar **L2**, girar con el stick izquierdo.
+To drive: accelerate **R2**, brake **L2**, steer with the left stick.
 
-### Si el mando no responde
+### If the controller doesn't respond
 
-`FASE3_RUN.bat` imprime al final una sección **MANDOS DETECTADOS**. Si SDL lo
-ha visto, aparece una línea `SDL OnControllerDeviceAdded` con su nombre y GUID.
-Si no aparece nada:
+`FASE3_RUN.bat` prints a **CONTROLLERS DETECTED** section at the end. If SDL has seen
+it, an `SDL OnControllerDeviceAdded` line appears with its name and GUID. If nothing
+appears:
 
-1. **Steam abierto**: Steam Input secuestra los mandos de PlayStation y puede
-   ocultarlos o presentarlos como un mando de Xbox. Cierra Steam o desactiva
-   la compatibilidad con PlayStation en sus ajustes de mando.
-2. **DS4Windows / DSX**: mismo problema, hacen de intermediario. Ciérralos.
-3. **Bluetooth dormido**: pulsa el botón PS para despertarlo antes de arrancar
-   el juego. SDL enumera al iniciar y también en caliente, pero es más fiable
-   tenerlo despierto antes.
-4. **Mapeo manual**: si SDL lo ve como joystick pero no como gamepad, hace falta
-   un `gamecontrollerdb.txt` junto al ejecutable. El log avisa de que no existe
-   (`SDL GameControllerDB: file does not exist`), pero es solo un aviso: los
-   mapeos internos de SDL3 cubren el DS4. Solo hace falta el archivo para
-   mandos raros. Se descarga del proyecto SDL_GameControllerDB y se apunta con
+1. **Steam running**: Steam Input hijacks PlayStation controllers and can hide them or
+   present them as an Xbox controller. Close Steam or disable PlayStation compatibility
+   in its controller settings.
+2. **DS4Windows / DSX**: same problem, they act as a middleman. Close them.
+3. **Bluetooth asleep**: press the PS button to wake it before starting the game. SDL
+   enumerates at startup and also hot-plugs, but it's more reliable to have it awake
+   beforehand.
+4. **Manual mapping**: if SDL sees it as a joystick but not as a gamepad, you need a
+   `gamecontrollerdb.txt` next to the executable. The log warns that it doesn't exist
+   (`SDL GameControllerDB: file does not exist`), but it's just a warning: SDL3's
+   internal mappings cover the DS4. You only need the file for unusual controllers. It's
+   downloaded from the SDL_GameControllerDB project and pointed to with
    `--hid_mappings_file`.
 
-Alternativa para mandos de Xbox: `--input_backend xinput`.
+Alternative for Xbox controllers: `--input_backend xinput`.
 
-## Teclado
+## Keyboard
 
-**Hay que activarlo explícitamente con `--mnk_mode`.** Viene apagado de fábrica,
-y por eso ninguna tecla hace nada aunque las asignaciones ya existan. Los
-lanzadores del proyecto ya lo pasan.
+**It has to be enabled explicitly with `--mnk_mode`.** It's off by default, which is
+why no key does anything even though the bindings already exist. The project's launchers
+already pass it.
 
-| Botón de 360 | Tecla |
+| 360 button | Key |
 |---|---|
-| **Start** | **X** o **Enter** |
-| Back | Z o Tab |
-| A | `;` o Espacio |
-| B | `'` o Retroceso |
+| **Start** | **X** or **Enter** |
+| Back | Z or Tab |
+| A | `;` or Space |
+| B | `'` or Backspace |
 | X | L |
 | Y | P |
-| Gatillo izquierdo (LT) | Q o I |
-| Gatillo derecho (RT) | E o O |
-| Bumper izquierdo (LB) | 1 |
-| Bumper derecho (RB) | 3 |
-| Stick izquierdo | W A S D |
-| Pulsar stick izquierdo | F |
-| Stick derecho | Flechas |
-| Pulsar stick derecho | K |
-| Cruceta | Shift + flechas |
-| Guide | sin asignar |
+| Left trigger (LT) | Q or I |
+| Right trigger (RT) | E or O |
+| Left bumper (LB) | 1 |
+| Right bumper (RB) | 3 |
+| Left stick | W A S D |
+| Left stick click | F |
+| Right stick | Arrow keys |
+| Right stick click | K |
+| D-pad | Shift + arrows |
+| Guide | unassigned |
 
-Ojo con la trampa: la tecla **X es Start**, no el botón X. El botón X es la **L**.
+Watch out for the trap: the **X key is Start**, not the X button. The X button is
+**L**.
 
-### Para conducir
+### To drive
 
-- Acelerar: **E** o **O** (gatillo derecho)
-- Frenar: **Q** o **I** (gatillo izquierdo)
-- Girar: **A** / **D**
-- Freno de mano: `;` o Espacio (botón A)
+- Accelerate: **E** or **O** (right trigger)
+- Brake: **Q** or **I** (left trigger)
+- Steer: **A** / **D**
+- Handbrake: `;` or Space (A button)
 
-### Cambiar las asignaciones
+### Changing the bindings
 
-Cada botón es un CVar y acepta varias teclas separadas por comas:
+Every button is a CVar and accepts several keys separated by commas:
 
 ```
 --keybind_start "Return,Space"
 --keybind_right_trigger "Up"
 ```
 
-`--mnk_mouse` usa el ratón para el stick derecho (la cámara).
-`--mnk_sensitivity` ajusta su sensibilidad.
+`--mnk_mouse` uses the mouse for the right stick (the camera).
+`--mnk_sensitivity` adjusts its sensitivity.

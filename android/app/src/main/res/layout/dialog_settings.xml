@@ -1,0 +1,772 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/dialog_settings_bg"
+    android:padding="16dp">
+
+    <!-- Cabeçalho do Diálogo -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="12dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⚙ GAME &amp; RUNTIME SETTINGS"
+            android:textColor="@color/nfsmw_amber"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.04" />
+
+        <Button
+            android:id="@+id/btn_close_settings"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/rom_button_bg"
+            android:text="✕"
+            android:textColor="@color/nfsmw_amber"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#40FFB800"
+        android:layout_marginBottom="10dp" />
+
+    <!-- Conteúdo Rolável -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="16dp">
+
+            <!-- ========================================================= -->
+            <!-- SEÇÃO 1: VÍDEO & PERFORMANCE                              -->
+            <!-- ========================================================= -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📺 VIDEO &amp; PERFORMANCE"
+                android:textColor="@color/nfsmw_amber_light"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="6dp" />
+
+            <!-- Resolução -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Output Resolution:"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <Spinner
+                android:id="@+id/sp_resolution"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_bg"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Resolução Interna (Supersampling) -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Engine Internal Resolution (Supersampling):"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <Spinner
+                android:id="@+id/sp_resolution_scale"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_bg"
+                android:layout_marginBottom="10dp" />
+
+            <!-- V-Sync -->
+            <Switch
+                android:id="@+id/sw_vsync"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Vertical Sync (V-Sync)"
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
+
+            <!-- Tela Estendida / Preencher Tela -->
+            <Switch
+                android:id="@+id/sw_stretch_screen"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Stretch Screen (Fill Entire Screen)"
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="2dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ Removes black bars by stretching the game to match your device's aspect ratio."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Divisor -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#20FFFFFF"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="12dp" />
+
+            <!-- ========================================================= -->
+            <!-- SEÇÃO 2: MOTOR GRÁFICO & VULKAN (ReXGlue)                 -->
+            <!-- ========================================================= -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⚡ GRAPHICS ENGINE &amp; VULKAN (ReXGlue)"
+                android:textColor="@color/nfsmw_amber_light"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <!-- GPU Backend Plugin -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Graphics Backend (GPU Emulator):"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <Spinner
+                android:id="@+id/sp_gpu_plugin"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_bg"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ 'Plume' is the faster native (Vulkan) rewrite. 'Xenos' uses the original emulation."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Caminho da EDRAM -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Xenos EDRAM Emulation:"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <Spinner
+                android:id="@+id/sp_edram_path"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_bg"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ The 'rtv' (FBO) mode doubles the frame rate and is highly recommended on phones."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Async Shaders -->
+            <Switch
+                android:id="@+id/sw_async_shaders"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Asynchronous Shader Compilation"
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="2dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ Compiles pipelines in the background to reduce in-game stuttering."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Vulkan Async Skip Incomplete Frames -->
+            <Switch
+                android:id="@+id/sw_async_skip"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Skip Frames with Incomplete Shaders"
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="2dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ Avoids sudden FPS drops when new effects are compiled on track."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Pipeline Creation Threads -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Vulkan Compilation Threads (Pipelines):"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <Spinner
+                android:id="@+id/sp_pipeline_threads"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_bg"
+                android:layout_marginBottom="2dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ 2 Threads saves battery and reduces heat; 4 Threads compiles faster."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Limite de Memória de Texturas (texture_cache_memory_limit_soft) -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Texture Cache Memory Limit:"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <Spinner
+                android:id="@+id/sp_texture_cache_limit"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_bg"
+                android:layout_marginBottom="2dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ 256MB or 384MB prevents out-of-memory crashes on 4GB–6GB RAM Android phones."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Conversão de Textura 3D para 2D -->
+            <Switch
+                android:id="@+id/sw_gpu_3d_to_2d"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Optimize 3D Textures to 2D (gpu_3d_to_2d)"
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="2dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ Saves graphics memory bandwidth on mobile Adreno and Mali GPUs."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Readback Resolve -->
+            <Switch
+                android:id="@+id/sw_readback_resolve"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Post-Processing / Bloom Effects (readback_resolve)"
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="2dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ Disabling this greatly relieves the GPU and raises the frame rate (FPS) on Android."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Filtragem Anisotrópica -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Anisotropic Filtering (Road Sharpness):"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <Spinner
+                android:id="@+id/sp_anisotropic"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_bg"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Anti-Aliasing -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Anti-Aliasing (FXAA):"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <Spinner
+                android:id="@+id/sp_antialiasing"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_bg"
+                android:layout_marginBottom="10dp" />
+
+            <!-- MSAA Nativo 2x -->
+            <Switch
+                android:id="@+id/sw_native_msaa"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Native 2x MSAA (Geometry Anti-Aliasing)"
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="2dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ Polygon smoothing. Keep it disabled on mid-range phones."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Divisor -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#20FFFFFF"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="12dp" />
+
+            <!-- ========================================================= -->
+            <!-- SEÇÃO 3: ÁUDIO & CONTROLES                                -->
+            <!-- ========================================================= -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔊 AUDIO &amp; CONTROLS"
+                android:textColor="@color/nfsmw_amber_light"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <!-- Silenciar Áudio -->
+            <Switch
+                android:id="@+id/sw_audio_mute"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Mute All Game Audio"
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
+
+            <!-- Teclado/Mouse MNK -->
+            <Switch
+                android:id="@+id/sw_mnk_mode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Enable Physical Keyboard and Mouse Input"
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="10dp" />
+
+            <!-- Divisor -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#20FFFFFF"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="12dp" />
+
+            <!-- ========================================================= -->
+            <!-- SEÇÃO 4: JOGO & SISTEMA                                   -->
+            <!-- ========================================================= -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🏎️ GAME &amp; SYSTEM"
+                android:textColor="@color/nfsmw_amber_light"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <!-- Black Edition -->
+            <Switch
+                android:id="@+id/sw_black_edition"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Unlock Black Edition Content (Bonus Cars)"
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
+
+            <!-- Privilégios Online -->
+            <Switch
+                android:id="@+id/sw_grant_privileges"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Xbox Live Gold Account Privileges"
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:paddingTop="6dp"
+                android:paddingBottom="10dp" />
+
+            <!-- Gamertag -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Player Gamertag:"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <EditText
+                android:id="@+id/et_gamertag"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_bg"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:hint="Player"
+                android:textColorHint="#808080"
+                android:singleLine="true"
+                android:maxLength="15"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Nível de Log do Runtime -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Runtime Log Level:"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <Spinner
+                android:id="@+id/sp_log_level"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_bg"
+                android:layout_marginBottom="2dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ 'Error (Performance)' disables unnecessary logs, reducing write overhead on Android."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Velocidade do Jogo -->
+            <TextView
+                android:id="@+id/tv_speed_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Simulation Speed: 100%"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <SeekBar
+                android:id="@+id/sb_game_speed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:min="20"
+                android:max="200"
+                android:progress="100"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Divisor -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#20FFFFFF"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="12dp" />
+
+            <!-- ========================================================= -->
+            <!-- SEÇÃO: CONTROLS                                           -->
+            <!-- ========================================================= -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🕹 CONTROLS"
+                android:textColor="@color/nfsmw_amber_light"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Default On-Screen Layout:"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <Spinner
+                android:id="@+id/sp_ctl_layout"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/spinner_bg"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ Switch layouts anytime in-game with the pill button at the top of the screen. Long-press it to drag controls anywhere you like."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tv_ctl_racing_size"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Racing layout size: 100%"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <SeekBar
+                android:id="@+id/sb_ctl_racing_size"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:min="60"
+                android:max="160"
+                android:progress="100"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tv_ctl_racing_alpha"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Racing layout opacity: 85%"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <SeekBar
+                android:id="@+id/sb_ctl_racing_alpha"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:min="25"
+                android:max="100"
+                android:progress="85"
+                android:layout_marginBottom="10dp" />
+
+            <TextView
+                android:id="@+id/tv_ctl_pad_size"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Gamepad layout size: 100%"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <SeekBar
+                android:id="@+id/sb_ctl_pad_size"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:min="60"
+                android:max="160"
+                android:progress="100"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tv_ctl_pad_alpha"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Gamepad layout opacity: 85%"
+                android:textColor="#E0E0E0"
+                android:textSize="12sp"
+                android:layout_marginBottom="2dp" />
+
+            <SeekBar
+                android:id="@+id/sb_ctl_pad_alpha"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:min="25"
+                android:max="100"
+                android:progress="85"
+                android:layout_marginBottom="10dp" />
+
+            <Button
+                android:id="@+id/btn_reset_controls"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:background="@drawable/rom_button_bg"
+                android:text="↺ RESET CONTROL POSITIONS &amp; SIZES"
+                android:textColor="#CCCCCC"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Divisor -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#20FFFFFF"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="12dp" />
+
+            <!-- ========================================================= -->
+            <!-- SEÇÃO 5: DRIVER VULKAN (TURNIP / MESA)                    -->
+            <!-- ========================================================= -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🎮 VULKAN DRIVER (TURNIP / MESA)"
+                android:textColor="@color/nfsmw_amber_light"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <!-- Status do driver instalado -->
+            <TextView
+                android:id="@+id/tv_turnip_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="● Driver: using system (default)"
+                android:textColor="#A0A0A0"
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="ℹ Install Turnip/Mesa to guarantee Vulkan 1.3+, shaderInt64 and BDA — essential for Adreno GPUs whose vendor driver does not expose these capabilities."
+                android:textColor="#A0A0A0"
+                android:textSize="10sp"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Botões: Instalar e Remover -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <Button
+                    android:id="@+id/btn_install_turnip"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/start_button_bg"
+                    android:text="📦 INSTALL (ZIP)"
+                    android:textColor="@color/nfsmw_black"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:layout_marginEnd="6dp" />
+
+                <Button
+                    android:id="@+id/btn_remove_turnip"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="0.8"
+                    android:background="@drawable/rom_button_bg"
+                    android:text="🗑 REMOVE"
+                    android:textColor="#FF6666"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:layout_marginStart="6dp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Download from: github.com/K11MCH1/AdrenoToolsDrivers — Adreno 6xx (650) or 7xx (730)"
+                android:textColor="#707070"
+                android:textSize="10sp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="16dp" />
+
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Divisor Inferior -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#40FFB800"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Botões de Ação Inferiores -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btn_reset_defaults"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:background="@drawable/rom_button_bg"
+            android:text="🔄 ANDROID DEFAULTS"
+            android:textColor="#CCCCCC"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btn_save_settings"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1.4"
+            android:background="@drawable/start_button_bg"
+            android:text="💾 SAVE &amp; APPLY"
+            android:textColor="@color/nfsmw_black"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+</LinearLayout>

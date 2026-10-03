@@ -23,9 +23,10 @@ struct GameSettings {
   double outputGain = 0.5;
   int highpassHz = 100;
 
-  // PAL Spain is the currently supported dump; Language ID 5 / Country 31.
-  int languageId = 5;
-  int countryId = 31;
+  // English (US) defaults for the NTSC/USA build: Language ID 1 / Country 103.
+  // The PAL Spain build used 5 / 31.
+  int languageId = 1;
+  int countryId = 103;
   bool logging = true;
 };
 

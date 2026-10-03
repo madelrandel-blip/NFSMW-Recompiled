@@ -1,32 +1,31 @@
 #!/usr/bin/env python3
 """
-Deja conceder los privilegios de Xbox Live, para poder entrar al multijugador.
+Lets you grant the Xbox Live privileges, so you can get into multiplayer.
 
-    python tools/parche_privilegios.py            aplicar
+    python tools/parche_privilegios.py            apply
     python tools/parche_privilegios.py --estado
     python tools/parche_privilegios.py --revertir
 
-Toca un fichero del SDK:  src/kernel/xam/xam_user.cpp
+It touches one SDK file:  src/kernel/xam/xam_user.cpp
 
-No guarda .original: aplica y deshace por sustitucion de texto exacta, bloque a
-bloque, como los demas parches de este proyecto.
+It does not keep a .original: it applies and undoes by exact text replacement,
+block by block, like the other patches in this project.
 
 
-DE DONDE SALE ESTO
-==================
+WHERE THIS COMES FROM
+=====================
 
-Al entrar al multijugador, el juego saca este cartel:
+When entering multiplayer, the game shows this sign:
 
     ATENCION
     Los privilegios que tienes en Xbox Live no te permiten acceder a esta
     funcion.
 
-No es un fallo ni un cuelgue: es un NO limpio, y llega mucho antes de que se
-toque la red. El juego pregunta por sus privilegios y se le contesta que no
-tiene ninguno.
+It is not a failure or a hang: it is a clean NO, and it arrives long before the
+network is touched. The game asks about its privileges and is told it has none.
 
-La respuesta esta en xam_user.cpp, y el comentario original no deja lugar a
-dudas:
+The answer is in xam_user.cpp, and the original comment leaves no room for
+doubt:
 
     u32 XamUserCheckPrivilege_entry(u32 user_index, u32 mask, mapped_u32 out_value) {
       ...
@@ -35,63 +34,63 @@ dudas:
       return X_ERROR_SUCCESS;
     }
 
-Deniega TODOS los privilegios, siempre, sea cual sea el que se pregunte. Viene
-de Xenia y para un emulador sin Xbox Live tiene su logica: si el juego se cree
-sin permisos, ni lo intenta, y te ahorras que se cuelgue contra unos servidores
-que llevan años apagados.
+It denies ALL privileges, always, whichever one is asked about. It comes from
+Xenia and for an emulator without Xbox Live it has its logic: if the game
+believes it has no permissions, it does not even try, and you are spared a hang
+against servers that have been off for years.
 
-Lo raro es que el resto del SDK dice justo lo contrario:
+The odd thing is that the rest of the SDK says just the opposite:
 
-    XamUserIsOnlineEnabled   -> 1        (hay conexion)
-    XamUserGetMembershipTier -> 6        (que es Gold)
-    user_profile.signin_state -> 1       (hay sesion iniciada)
-    user_profile.type         -> 1 | 2   (perfil local y online)
+    XamUserIsOnlineEnabled   -> 1        (there is a connection)
+    XamUserGetMembershipTier -> 6        (which is Gold)
+    user_profile.signin_state -> 1       (there is a signed-in session)
+    user_profile.type         -> 1 | 2   (local and online profile)
 
-O sea que la unica pieza que dice que no es esta. El perfil esta montado, la
-sesion iniciada y la membresia es Gold; solo faltan los permisos.
+So the only piece that says no is this one. The profile is set up, the session
+signed in and the membership is Gold; only the permissions are missing.
 
 
-LO QUE ESTO NO ARREGLA, QUE ES LO IMPORTANTE
-============================================
+WHAT THIS DOES NOT FIX, WHICH IS THE IMPORTANT PART
+===================================================
 
-Esto abre la PUERTA del menu. No hace que el multijugador funcione. Detras
-sigue faltando media capa de red, y conviene saberlo antes de probar para no
-llevarse un chasco:
+This opens the menu's DOOR. It does not make multiplayer work. Behind it, half
+the network layer is still missing, and it is worth knowing before trying so as
+not to be disappointed:
 
-  - De las 158 funciones de red que declara la tabla de ordinales del SDK, 114
-    no tienen implementacion. Entre ellas estan justo las del System Link:
+  - Of the 158 network functions declared by the SDK's ordinal table, 114 have
+    no implementation. Among them are precisely the System Link ones:
 
         0x36  XNetCreateKey          0x41  XNetConnect
         0x37  XNetRegisterKey        0x42  XNetGetConnectStatus
         0x38  XNetUnregisterKey      0x53  XNetGetSystemLinkPort
         0x3F  XNetUnregisterInAddr   0x09  getsockname
 
-    Ese trio CreateKey/RegisterKey/UnregisterKey es el que asocia la XNKID y
-    la XNKEY de la partida; XNetConnect y XNetGetConnectStatus son los que
-    levantan el enlace con el otro equipo.
+    That CreateKey/RegisterKey/UnregisterKey trio is the one that associates
+    the match's XNKID and XNKEY; XNetConnect and XNetGetConnectStatus are the
+    ones that bring up the link with the other machine.
 
-  - Los manejadores de sesion de xam/apps/xgi_app.cpp son de adorno: leen los
-    parametros, los escriben en el log y devuelven X_E_SUCCESS sin hacer nada.
-    XSessionSearch ni siquiera toca el buffer de resultados, asi que un cliente
-    buscando partidas siempre encontrara cero.
+  - The session handlers in xam/apps/xgi_app.cpp are decorative: they read the
+    parameters, write them to the log and return X_E_SUCCESS without doing
+    anything. XSessionSearch does not even touch the results buffer, so a
+    client searching for matches will always find zero.
 
-Asi que la utilidad de este parche es AVERIGUAR DONDE ESTA EL SIGUIENTE MURO.
-Con el puesto, el menu deberia dejarte pasar, y lo que salga en el log a partir
-de ahi dice que necesita este juego en concreto, que puede ser bastante menos
-de lo que falta en total.
+So the usefulness of this patch is FINDING WHERE THE NEXT WALL IS. With it in
+place, the menu should let you through, and whatever shows up in the log from
+there on says what this particular game needs, which may be considerably less
+than what is missing overall.
 
 
-VIENE APAGADO
-=============
+IT COMES DISABLED
+=================
 
-El ajuste nuevo es  grant_user_privileges  y por defecto esta en false, o sea
-que el comportamiento no cambia hasta que tu lo enciendas. Se lee en CADA
-llamada, asi que se puede encender desde el menu de F4 sin reiniciar el juego:
-lo enciendes, sales del menu del multijugador y vuelves a entrar.
+The new setting is  grant_user_privileges  and by default it is false, so the
+behavior does not change until you turn it on. It is read on EVERY call, so it
+can be enabled from the F4 menu without restarting the game: you enable it,
+leave the multiplayer menu and enter again.
 
-Si al concederlos el juego se pone a intentar cosas de Xbox Live y se cuelga,
-apagalo y vuelves a estar como antes. Por eso es un interruptor y no un cambio
-fijo.
+If granting them makes the game start trying Xbox Live things and hang, turn it
+off and you are back to how it was. That is why it is a switch and not a fixed
+change.
 """
 
 import argparse
@@ -100,7 +99,7 @@ import sys
 
 
 # ---------------------------------------------------------------------------
-#  Bloque 1: el ajuste
+#  Block 1: the setting
 # ---------------------------------------------------------------------------
 
 CVAR_ANCLA = '''REXCVAR_DEFINE_UINT32(user_language, 1, "Kernel", "User's language ID");
@@ -129,7 +128,7 @@ REXCVAR_DEFINE_BOOL(grant_user_privileges, false, "Kernel",
 
 
 # ---------------------------------------------------------------------------
-#  Bloque 2: la respuesta
+#  Block 2: the response
 # ---------------------------------------------------------------------------
 
 CHEQUEO_ANCLA = '''  // If we deny everything, games should hopefully not try to do stuff.
@@ -168,14 +167,14 @@ CHEQUEO_NUEVO = '''  // PARCHE LOCAL - privilegios de Xbox Live
 
 
 BLOQUES = [
-    ("el ajuste grant_user_privileges", CVAR_ANCLA, CVAR_NUEVO),
-    ("la respuesta de XamUserCheckPrivilege", CHEQUEO_ANCLA, CHEQUEO_NUEVO),
+    ("the grant_user_privileges setting", CVAR_ANCLA, CVAR_NUEVO),
+    ("the XamUserCheckPrivilege response", CHEQUEO_ANCLA, CHEQUEO_NUEVO),
 ]
 
 
-# Todavia no ha habido ninguna version anterior de este parche. La lista existe
-# para que la maquinaria de migracion sea la misma que en los demas scripts: el
-# dia que haya una v2, se anade aqui y ya funciona.
+# There has not yet been any previous version of this patch. The list exists
+# so the migration machinery is the same as in the other scripts: the day
+# there is a v2, it is added here and it just works.
 VIEJOS = []
 
 
@@ -184,21 +183,21 @@ def localizar_sdk():
     for cand in [raiz.parent / "rexglue-sdk", raiz / "sdk"]:
         if (cand / "src" / "kernel" / "xam" / "xam_user.cpp").exists():
             return cand
-    sys.exit("[ERROR] No encuentro src/kernel/xam/xam_user.cpp del SDK.\n"
-             "        Se busca en ..\\rexglue-sdk y en .\\sdk")
+    sys.exit("[ERROR] Cannot find the SDK's src/kernel/xam/xam_user.cpp.\n"
+             "        Looked in ..\\rexglue-sdk and .\\sdk")
 
 
 def quitar_version_vieja(txt):
-    """Quita los restos de una version anterior de este mismo parche.
+    """Removes the remains of a previous version of this same patch.
 
-    Misma regla que en los otros parches del proyecto: encontrar el bloque
-    viejo solo cuenta si NO puede ser el bueno visto a medias.
+    Same rule as in the other patches of the project: finding the old block
+    only counts if it CANNOT be the good one seen halfway.
 
         es_de_verdad_vieja = (viejo in txt) and
                              (viejo not in nuevo or nuevo not in txt)
 
-    Ver parche_backend.py, donde esta contado entero y donde costo tres
-    intentos dar con ella.
+    See parche_backend.py, where the whole story is told and where it took
+    three attempts to hit on it.
     """
     ahora = {ancla: nuevo for _, ancla, nuevo in BLOQUES}
     quitados = 0
@@ -209,15 +208,15 @@ def quitar_version_vieja(txt):
         nuevo = ahora[ancla]
         if viejo not in txt:
             if huella in txt and nuevo not in txt:
-                print(f"[aviso] Veo restos de '{nombre}' pero no en la forma que esperaba.")
-                print(f"        Lo dejo estar; miralo a mano si algo va raro.")
+                print(f"[aviso] I see remains of '{nombre}' but not in the form I expected.")
+                print(f"        Leaving it alone; look at it by hand if something seems off.")
             continue
         if viejo in nuevo and nuevo in txt:
             anclajes_hechos.add(ancla)
             continue
         txt = txt.replace(viejo, ancla)
         anclajes_hechos.add(ancla)
-        print(f"[ok] Quitada la version anterior: {nombre}")
+        print(f"[ok] Removed previous version: {nombre}")
         quitados += 1
     return txt, quitados
 
@@ -233,9 +232,9 @@ def main():
 
     if args.estado:
         puestos = sum(1 for _, _, nuevo in BLOQUES if nuevo in txt)
-        print(f"  {f.name:26s} {puestos} de {len(BLOQUES)} bloques aplicados")
+        print(f"  {f.name:26s} {puestos} of {len(BLOQUES)} blocks applied")
         for nombre, _, nuevo in BLOQUES:
-            print(f"      {'si' if nuevo in txt else 'NO':>2}  {nombre}")
+            print(f"      {'yes' if nuevo in txt else 'NO':>2}  {nombre}")
         return 0
 
     if args.revertir:
@@ -244,44 +243,44 @@ def main():
             if nuevo not in txt:
                 continue
             if txt.count(nuevo) != 1:
-                sys.exit(f"[ERROR] El bloque '{nombre}' aparece {txt.count(nuevo)} veces.\n"
-                         f"        No lo toco, quitalo tu.")
+                sys.exit(f"[ERROR] The block '{nombre}' appears {txt.count(nuevo)} times.\n"
+                         f"        I am not touching it, remove it yourself.")
             txt = txt.replace(nuevo, ancla)
             quitados += 1
         txt, viejos = quitar_version_vieja(txt)
         quitados += viejos
         if not quitados:
-            print(f"[ok] {f.name}: no habia nada puesto")
+            print(f"[ok] {f.name}: there was nothing applied")
             return 0
         f.write_text(txt, encoding="utf-8")
-        print(f"[ok] Quitados {quitados} bloques de {f.name}")
+        print(f"[ok] Removed {quitados} blocks from {f.name}")
         print()
-        print("  HAY QUE RECOMPILAR EL SDK.")
+        print("  THE SDK MUST BE RECOMPILED.")
         return 0
 
     txt, _ = quitar_version_vieja(txt)
 
     faltan = [(n, a, v) for n, a, v in BLOQUES if v not in txt]
     if not faltan:
-        print(f"[ok] {f.name}: los {len(BLOQUES)} bloques ya estaban")
+        print(f"[ok] {f.name}: all {len(BLOQUES)} blocks were already there")
         return 0
 
     for nombre, ancla, _ in faltan:
         n = txt.count(ancla)
         if n != 1:
-            sys.exit(f"[ERROR] El anclaje de '{nombre}' aparece {n} veces, esperaba 1.\n"
-                     f"        El SDK habra cambiado. No he tocado nada.")
+            sys.exit(f"[ERROR] The anchor for '{nombre}' appears {n} times, expected 1.\n"
+                     f"        The SDK must have changed. I have not touched anything.")
 
     for nombre, ancla, nuevo in faltan:
         txt = txt.replace(ancla, nuevo)
-        print(f"[ok] Aplicado: {nombre}")
+        print(f"[ok] Applied: {nombre}")
 
     f.write_text(txt, encoding="utf-8")
     print()
-    print("  En F4, categoria Kernel, ajuste  grant_user_privileges")
-    print("  Viene APAGADO. Encendido, el juego se cree con todos los permisos.")
+    print("  In F4, Kernel category, setting  grant_user_privileges")
+    print("  It comes OFF. When on, the game believes it has every permission.")
     print()
-    print("  HAY QUE RECOMPILAR EL SDK:")
+    print("  THE SDK MUST BE RECOMPILED:")
     print("    cmake --build out/build/win-amd64 --config Release --target install")
     return 0
 

@@ -15,6 +15,11 @@ calls, the filesystem, audio, input, and a translation of the Xenos GPU to Direc
 `default.xex`, no generated C++, and no compiled binary — and it never will. See
 [Legal](#legal).
 
+**Launcher download:** the standalone launcher (choose your own ISO, configure and
+play) is on the [Releases](https://github.com/Sampreeth004/NFSMW-Recompiled/releases)
+page. You still need to build the game from your own disc dump; the launcher only
+picks the ISO and configures the run.
+
 ---
 
 ## Status
@@ -72,14 +77,14 @@ Step-by-step detail, including what to do when something fails:
 
 ## Documentation
 
-The README is in English; the technical documentation is in Spanish, matching the
-source comments.
+The README and the technical documentation are in English.
 
 | Document | What it covers |
 |---|---|
 | [docs/arquitectura.md](docs/arquitectura.md) | How the pieces fit: SDK, app, patches, launcher |
 | [docs/compilar.md](docs/compilar.md) | Building from a clean checkout |
 | [docs/parches.md](docs/parches.md) | Every patch: what it changes, why, and how it was verified |
+| [docs/04-usa.md](docs/04-usa.md) | USA (NTSC) support: region deltas, overrides, the FP fix |
 | [docs/lanzador.md](docs/lanzador.md) | The launcher, its settings and how it is built |
 | [docs/rendimiento.md](docs/rendimiento.md) | Measured findings: EDRAM paths, resolution scaling, frame pacing |
 | [docs/problemas-conocidos.md](docs/problemas-conocidos.md) | What is broken and how far each one was traced |
@@ -120,6 +125,24 @@ they are idempotent, and `--revertir` restores the original. Run any of them wit
 `--estado` to see what is applied. The reasoning behind that design, and the bugs that
 forced it, are in [docs/parches.md](docs/parches.md).
 
+## Android launcher (APK)
+
+The `android/` directory contains a standalone Android port: a launcher APK where
+you pick your own game ISO, configure the engine and play, with an on-screen
+Xbox 360 gamepad overlay. It targets arm64-v8a (Android 8.0+), renders through
+Vulkan (Plume or Xenos plugin) and outputs audio through AAudio.
+
+The port is based on the Android build by
+[WINDROID-EMU](https://github.com/WINDROID-EMU/NFSMW-RECOMP) (itself forked from
+[madelrandel-blip](https://github.com/madelrandel-blip/NFSMW-Recompiled)); this
+fork carries it with an English launcher UI and builds against this fork's own
+USA codegen output.
+
+Build it on Windows with `CONSTRUIR_APK.bat` (requires the Android SDK, NDK
+27.2.12479018 and CMake 3.22.1; paths are in the script header). The same legal
+rules apply: the APK contains the game's own translated code, so it is for your
+own use and must never be distributed.
+
 ## Contributing
 
 Pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first — the
@@ -151,10 +174,12 @@ work with its own terms.
 Need for Speed and Most Wanted are trademarks of Electronic Arts Inc. This project is
 not affiliated with, endorsed by, or connected to Electronic Arts in any way.
 
-⚠️ IMPORTANT ROM REQUIREMENT: This project strictly requires the Need for Speed: Most Wanted (2005) [Xbox 360] ROM in its PAL Spain version. PAL UK (English) or NTSC (US) versions are not acceptable (for now).
+⚠️ IMPORTANT ROM REQUIREMENT: this fork supports the Need for Speed: Most Wanted (2005) [Xbox 360] ROM in two versions: **PAL Spain** (the original target of the Spanish project) and **NTSC/USA** (English, added by this fork). PAL UK is not supported. See [docs/04-usa.md](docs/04-usa.md) for the USA build notes.
 
 ## Credits
 
 - [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk) — the runtime this is built on
 - [XenonRecomp](https://github.com/hedge-dev/XenonRecomp) — the static recompilation approach
 - [Xenia](https://xenia.jp/) — the kernel and GPU emulation ReXGlue descends from
+- [WINDROID-EMU](https://github.com/WINDROID-EMU/NFSMW-RECOMP) — the Android port the launcher APK is based on
+- [madelrandel-blip](https://github.com/madelrandel-blip/NFSMW-Recompiled) — upstream of this fork

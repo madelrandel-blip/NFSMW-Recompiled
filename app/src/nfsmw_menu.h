@@ -1,9 +1,9 @@
-// nfsmw - menu de ajustes ingame (estilo GoldenEye, abierto con ESC)
+// nfsmw - in-game settings menu (GoldenEye style, opened with ESC)
 //
-// Se apoya en el dialogo de ImGui del SDK: al construirse se registra solo
-// (ImGuiDrawer::AddDialog) y al llamar a Close() se cierra y se borra solo
-// (ImGuiDialog::Draw). La app no necesita poseerlo: guarda un puntero puro que
-// se anula con on_closed.
+// It relies on the SDK's ImGui dialog: when constructed it registers itself
+// (ImGuiDrawer::AddDialog) and when Close() is called it closes and deletes
+// itself (ImGuiDialog::Draw). The app does not need to own it: it keeps a raw
+// pointer that is cleared with on_closed.
 
 #pragma once
 
@@ -15,11 +15,11 @@
 class NfsmwMenuDialog : public rex::ui::ImGuiDialog {
  public:
   struct Callbacks {
-    std::function<void()> persist_config;      // SaveConfig en nfsmw.toml
-    std::function<void()> request_restart;     // guardar + relanzar el .exe
-    std::function<void()> request_quit;        // cerrar la ventana
-    std::function<void()> on_closed;           // avisar a la app (anula su puntero)
-    std::function<rex::ui::FrameStats()> sample_fps;  // medidor del overlay F3
+    std::function<void()> persist_config;      // SaveConfig to nfsmw.toml
+    std::function<void()> request_restart;     // save + relaunch the .exe
+    std::function<void()> request_quit;        // close the window
+    std::function<void()> on_closed;           // notify the app (clears its pointer)
+    std::function<rex::ui::FrameStats()> sample_fps;  // F3 overlay meter
   };
 
   NfsmwMenuDialog(rex::ui::ImGuiDrawer* drawer, Callbacks callbacks);
@@ -42,6 +42,6 @@ class NfsmwMenuDialog : public rex::ui::ImGuiDialog {
   int selected_tab_ = 0;
   bool quit_requested_ = false;
 
-  char gamertag_[16];  // 15 caracteres + nulo, como un gamertag de Xbox Live
+  char gamertag_[16];  // 15 characters + null, like an Xbox Live gamertag
   bool gamertag_sync_ = false;
 };

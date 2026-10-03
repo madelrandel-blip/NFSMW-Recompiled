@@ -1,150 +1,155 @@
 ================================================================================
-  NFS: Most Wanted (Xbox 360)  -  Recompilacion estatica
-  Carpeta portable
+  NFS: Most Wanted (Xbox 360)  -  Static recompilation
+  Portable folder
 ================================================================================
 
-COMO SE USA
------------
-  1. Copia tu ISO en esta misma carpeta.
-     Si la llamas  nfsmw.iso  se elegira esa aunque haya mas.
+HOW TO USE IT
+-------------
+  1. Copy your ISO into this same folder.
+     If you name it  nfsmw.iso  that one will be chosen even if there are more.
 
-  2. Doble clic en  NFS_Most_Wanted.exe
+  2. Double-click  NFS_Most_Wanted.exe
 
-     Ese es EL LANZADOR: abre una ventana con la portada al lado donde
-     eliges ISO, resolucion, escala, pantalla completa o ventana, vsync,
-     limite de fps, motor de video y API grafica. Recuerda lo elegido
-     para la proxima vez.
+     That is THE LAUNCHER: it opens a window with the box art next to it where
+     you choose ISO, resolution, scale, fullscreen or windowed, vsync,
+     fps limit, video engine and graphics API. It remembers your choices
+     for next time.
 
-     Si prefieres ir directo, doble clic en  nfsmw.exe , que es el juego
-     de verdad: coge la ISO que encuentre en la carpeta y los ajustes de
+     If you prefer to go straight in, double-click  nfsmw.exe , which is the
+     actual game: it takes the ISO it finds in the folder and the settings from
      nfsmw.toml.
 
-     LANZADOR.bat abre la version antigua de esa ventana, en PowerShell.
-     Hace lo mismo y comparte los ajustes; esta por si acaso.
+     LANZADOR.bat opens the old version of that window, in PowerShell.
+     It does the same thing and shares the settings; it is there just in case.
 
-Nada mas. No hay que instalar nada, ni pasar parametros, ni extraer la ISO.
-La carpeta funciona este donde este: C:\Juegos\, D:\, un USB, el Escritorio.
+Nothing else. There is nothing to install, no parameters to pass, no ISO to
+extract. The folder works wherever it is: C:\Juegos\, D:\, a USB stick, the
+Desktop.
 
 
-QUE ES CADA ARCHIVO
--------------------
-  NFS_Most_Wanted.exe      EL LANZADOR. Lleva el icono del juego porque es
-                           lo que hay que abrir. No es el juego.
-  nfsmw.exe                el juego. Ver mas abajo que es exactamente.
-  rexruntime.dll           el runtime del SDK: kernel, sistema de archivos,
-                           audio, entrada, ventana.
-  rexgpu-xenos.dll         emulacion de la GPU Xenos traducida a Direct3D 12.
-                           Se carga en tiempo de ejecucion, no esta enlazada.
+WHAT EACH FILE IS
+-----------------
+  NFS_Most_Wanted.exe      THE LAUNCHER. It carries the game icon because it
+                           is what needs to be opened. It is not the game.
+  nfsmw.exe                the game. See below for exactly what it is.
+  rexruntime.dll           the SDK runtime: kernel, file system,
+                           audio, input, window.
+  rexgpu-xenos.dll         Xenos GPU emulation translated to Direct3D 12.
+                           It loads at runtime, it is not linked.
   MSVCP140.dll             \
-  MSVCP140_ATOMIC_WAIT.dll  |  runtime de Visual C++. Van aqui para no tener
-  VCRUNTIME140.dll          |  que instalar el Redistribuible.
+  MSVCP140_ATOMIC_WAIT.dll  |  Visual C++ runtime. They are here so you do not
+  VCRUNTIME140.dll          |  have to install the Redistributable.
   VCRUNTIME140_1.dll       /
-  LANZADOR.bat             la ventana de opciones antigua, en PowerShell.
-                           Hace lo mismo que NFS_Most_Wanted.exe y comparte
-                           los ajustes. Esta por si el lanzador diera guerra.
-  lanzador.ps1             lo que abre LANZADOR.bat. No se toca.
-  COMPARAR_VIDEO.bat       compara los dos motores de emulacion de video.
-                           Solo hace falta si te pedimos una prueba.
-  PROBAR.bat               prueba de arranque, por si el juego no abre.
-  matriz.ps1               lo que usa PROBAR.bat. No se toca.
-  nfsmw.toml               ajustes. Trae elegido el motor de video rapido.
-  logs\                    se crea solo al ejecutar.
+  LANZADOR.bat             the old options window, in PowerShell.
+                           It does the same as NFS_Most_Wanted.exe and shares
+                           the settings. It is here in case the launcher gives
+                           trouble.
+  lanzador.ps1             what LANZADOR.bat opens. Do not touch.
+  COMPARAR_VIDEO.bat       compares the two video emulation engines.
+                           Only needed if we ask you for a test.
+  PROBAR.bat               startup test, in case the game does not open.
+  matriz.ps1               what PROBAR.bat uses. Do not touch.
+  nfsmw.toml               settings. The fast video engine is already selected.
+  logs\                    created automatically when running.
 
-El resto de lo que necesita -el UCRT, Direct3D 12, DXGI- ya forma parte de
-Windows 10 y 11.
-
-
-QUE TRAE ARREGLADO ESTA VERSION
--------------------------------
-EL AUDIO SE MORIA Y EL JUEGO SE COLGABA
-  Al salir del taller tras el prologo, a los segundos moria el audio, y al
-  intentar volver al menu el juego se quedaba clavado.
-
-  Todo el audio lo lleva un solo hilo del juego: el mismo alimenta al
-  descodificador, consume lo que sale y mezcla. Cuando ese hilo entraba a
-  mezclar una voz que acababa de quedarse sin datos, se ponia a esperar audio
-  que solo podia producir el descodificador... al que tendria que alimentar
-  el mismo, en cuanto saliera de ahi. Y no salia.
-
-  El juego tiene una salida de emergencia -cuando su lectura alcanza a la
-  escritura, pregunta si el buffer sigue valido y, si le dicen que no, lo da
-  por terminado-, pero en el atasco se quedaba a un bloque de alcanzarla, asi
-  que nunca llegaba a preguntar. Ahora se le da esa senal cuando lleva mas de
-  un cuarto de segundo girando en vano.
-
-  Puede costar un tropiezo de audio en esa voz. A cambio de no colgarse.
-
-EL LOG SE COMIA LA CPU
-  El aviso "Too few processor cores" se escribia mil veces por segundo en
-  equipos de pocos nucleos: 105 MB de log en un cuarto de hora, y la CPU que
-  le robaba era justo la que le hacia falta al audio. Ahora sale una vez.
-
-SI NO HAY GRAFICA COMPATIBLE
-  Si no se encuentra ninguna con Direct3D 12 nivel 11_0, se intenta WARP -el
-  rasterizador por software- antes de rendirse. Va lentisimo, pero arranca. Y
-  si tampoco hay WARP, sale un cuadro de dialogo explicandolo, en vez de que
-  el ejecutable no haga nada al abrirlo.
+The rest of what it needs -the UCRT, Direct3D 12, DXGI- is already part of
+Windows 10 and 11.
 
 
-ESTO NO ES UN EMULADOR
-----------------------
-El codigo PowerPC del juego se tradujo a C++ y se compilo como programa nativo
-de x86-64. Corre directamente en tu CPU, sin interpretar nada en tiempo real.
-Solo la GPU se emula, traduciendola a Direct3D 12.
+WHAT THIS VERSION FIXES
+-----------------------
+THE AUDIO DIED AND THE GAME HUNG
+  After leaving the garage after the prologue, the audio died within seconds,
+  and trying to return to the menu left the game stuck.
 
-Consecuencia importante: el .exe NO es un programa que "carga" el juego. Es el
-codigo del propio juego, traducido y compilado dentro. Cada copia se construye
-desde una ISO concreta.
+  All the audio is handled by a single game thread: the same one feeds the
+  decoder, consumes what comes out and mixes. When that thread entered to mix
+  a voice that had just run out of data, it started waiting for audio that only
+  the decoder could produce... a decoder it itself would have to feed as soon
+  as it got out of there. And it never got out.
+
+  The game has an emergency exit -when its read catches up with the write, it
+  asks whether the buffer is still valid and, if told no, considers it
+  finished- but in the jam it was one block away from catching up, so it never
+  got to ask. Now it is given that signal when it has been spinning in vain for
+  more than a quarter of a second.
+
+  It may cost an audio glitch on that voice. In exchange for not hanging.
+
+THE LOG WAS EATING THE CPU
+  The "Too few processor cores" warning was written a thousand times per second
+  on machines with few cores: 105 MB of log in a quarter of an hour, and the
+  CPU it stole was exactly the one the audio needed. Now it appears once.
+
+IF THERE IS NO COMPATIBLE GRAPHICS
+  If none with Direct3D 12 feature level 11_0 is found, WARP -the software
+  rasterizer- is tried before giving up. It is very slow, but it starts. And
+  if there is no WARP either, a dialog box explains it, instead of the
+  executable doing nothing when opened.
 
 
-AJUSTES
--------
-Arranca bien sin tocar nada. Si quieres cambiar algo, hay dos vias.
+THIS IS NOT AN EMULATOR
+-----------------------
+The game's PowerPC code was translated to C++ and compiled as a native
+x86-64 program. It runs directly on your CPU, interpreting nothing in real
+time. Only the GPU is emulated, translating it to Direct3D 12.
 
-Por linea de comandos, que manda sobre todo lo demas:
+Important consequence: the .exe is NOT a program that "loads" the game. It is
+the game's own code, translated and compiled inside. Each copy is built from a
+specific ISO.
+
+
+SETTINGS
+--------
+It starts fine without touching anything. If you want to change something,
+there are two ways.
+
+By command line, which takes precedence over everything else:
 
     nfsmw.exe --resolution 1080p --resolution_scale 2
 
-  --resolution WxH        tamano de la ventana y de la imagen final.
+  --resolution WxH        window size and final image size.
                           Presets: 480p 540p 720p 900p 1080p 1440p 1800p 4k
-  --resolution_scale N    resolucion INTERNA de verdad (1, 2, 3). Multiplica
-                          los render targets. Cuesta al cuadrado: 2x son
-                          cuatro veces los pixeles.
-  --fullscreen=false      arrancar en ventana.
-  --game_data_root RUTA   usar otra ISO o una carpeta extraida.
-  --log_level debug       mas detalle en logs\
+  --resolution_scale N    the real INTERNAL resolution (1, 2, 3). Multiplies
+                          the render targets. It costs squared: 2x is
+                          four times the pixels.
+  --fullscreen=false      start windowed.
+  --game_data_root PATH   use another ISO or an extracted folder.
+  --log_level debug       more detail in logs\
 
-O con un archivo  nfsmw.toml  al lado del .exe, que el juego lee al arrancar.
-Ojo: game_data_root NO funciona ahi. El SDK resuelve las rutas antes de leer
-el toml, asi que para eso hay que usar la linea de comandos.
+Or with a  nfsmw.toml  file next to the .exe, which the game reads on startup.
+Note: game_data_root does NOT work there. The SDK resolves the paths before
+reading the toml, so for that you have to use the command line.
 
-Se llama nfsmw.toml y no NFS_Most_Wanted.toml aunque renombres el .exe: ese
-nombre sale del nombre interno del proyecto, no del archivo.
-
-
-DENTRO DEL JUEGO
-----------------
-  F3       fps y tiempo de fotograma
-  F4       ajustes
-  `        consola
-
-Mando de Xbox o PlayStation por USB o Bluetooth: funciona directamente.
-Si no responde, lo habitual es que Steam Input o DS4Windows lo capturen antes.
+It is called nfsmw.toml and not NFS_Most_Wanted.toml even if you rename the
+.exe: that name comes from the project's internal name, not from the file.
 
 
-SI ALGO FALLA
--------------
-Todo queda en  logs\  . Las lineas que importan llevan [critical], [error] o
-FATAL.
+IN-GAME
+-------
+  F3       fps and frame time
+  F4       settings
+  `        console
 
-Si sale "unregistered function at guest address 0x...", APUNTA ESA DIRECCION.
-Es un destino de llamada indirecta que el analisis estatico no puede ver, y
-solo aparece cuando el juego pisa ese camino. Es lo mas util que se puede
-reportar.
+Xbox or PlayStation controller over USB or Bluetooth: works directly.
+If it does not respond, the usual cause is Steam Input or DS4Windows capturing
+it first.
 
-Si Windows se queja de que falta un DLL, dilo con el nombre exacto: significa
-que la carpeta se armo incompleta.
 
-Si ves lineas [desatasco], es el arreglo del audio saltando. Una suelta de vez
-en cuando es normal y no molesta. Si salen a montones, dilo: significa que el
-hilo de audio va justo de tiempo en esa maquina y hay algo mas que mirar.
+IF SOMETHING FAILS
+------------------
+Everything ends up in  logs\ . The lines that matter carry [critical], [error]
+or FATAL.
+
+If "unregistered function at guest address 0x..." appears, WRITE DOWN THAT
+ADDRESS. It is an indirect call target that static analysis cannot see, and it
+only appears when the game walks that path. It is the most useful thing you can
+report.
+
+If Windows complains that a DLL is missing, say so with the exact name: it
+means the folder was assembled incomplete.
+
+If you see [desatasco] lines, that is the audio fix kicking in. One every now
+and then is normal and harmless. If they come in droves, say so: it means the
+audio thread is tight on time on that machine and there is something else to
+look at.

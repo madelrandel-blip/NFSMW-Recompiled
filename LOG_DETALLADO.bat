@@ -3,56 +3,55 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 rem ===========================================================================
-rem  Lanza el juego con el log al maximo detalle, para cazar el cuelgue.
+rem  Launches the game with maximum-detail logging, to hunt the hang.
 rem
-rem  POR QUE HACE FALTA
-rem  Con el log normal, la sesion que se colgo no dejo NADA: cero errores, y
-rem  silencio total desde el momento en que se traba. Eso descarta que sea una
-rem  excepcion o una funcion sin registrar -esas se ven-. Lo que queda es que
-rem  el codigo del juego se quedo esperando algo que no llega, o dando vueltas.
+rem  WHY IT IS NEEDED
+rem  With the normal log, the session that hung left NOTHING: zero errors, and
+rem  total silence from the moment it got stuck. That rules out an exception or
+rem  an unregistered function -those show up-. What remains is that the game
+rem  code stayed waiting for something that never arrives, or spinning.
 rem
-rem  A nivel debug se registran ademas las llamadas al kernel: esperas sobre
-rem  eventos y semaforos, lecturas de archivo, creacion y salida de hilos. Si
-rem  el juego esta bloqueado en una espera, las ULTIMAS LINEAS antes del
-rem  silencio dicen sobre que.
+rem  At debug level the kernel calls are also logged: waits on events and
+rem  semaphores, file reads, thread creation and exit. If the game is blocked
+rem  on a wait, the LAST LINES before the silence say what it is waiting on.
 rem
-rem  POR QUE NO SE PODIA HACER ANTES
-rem  Porque el aviso "Too few processor cores" salia mil veces por segundo y
-rem  se comia el log entero: 105 MB en un cuarto de hora, y lo interesante
-rem  rotaba fuera del archivo antes de que a uno le diera tiempo a leerlo. Ya
-rem  esta arreglado, asi que ahora el detalle cabe.
+rem  WHY IT COULD NOT BE DONE BEFORE
+rem  Because the "Too few processor cores" warning came out a thousand times
+rem  per second and ate the whole log: 105 MB in a quarter of an hour, and the
+rem  interesting part rotated out of the file before one had time to read it.
+rem  It is fixed now, so the detail fits.
 rem
-rem  QUE ES log_noisy, Y POR QUE AHORA SI
-rem  Muchos mensajes internos del SDK -entre ellos TODO el ciclo de vida del
-rem  descodificador de audio XMA- estan detras de REXLOG_NOISY_DEBUG, que no
-rem  se compila fuera: se enciende con el cvar log_noisy. Y el XMA es
-rem  justamente donde se quedo colgado el juego, dando vueltas entre
-rem  XMAGetOutputBufferWriteOffset y XMAGetOutputBufferReadOffset esperando
-rem  datos que no llegan. Sin esto no se ve ni una linea de lo que hace ese
-rem  descodificador.
+rem  WHAT log_noisy IS, AND WHY IT WORKS NOW
+rem  Many internal SDK messages -among them the WHOLE XMA audio decoder
+rem  lifecycle- are behind REXLOG_NOISY_DEBUG, which is not compiled out: it is
+rem  turned on with the log_noisy cvar. And the XMA is precisely where the game
+rem  hung, spinning between XMAGetOutputBufferWriteOffset and
+rem  XMAGetOutputBufferReadOffset waiting for data that never arrives. Without
+rem  this you cannot see a single line of what that decoder does.
 rem
-rem  EL LOG VA A SER MUY GRANDE. Es normal. Rota solo, y lo mas reciente
-rem  -que es lo que interesa- se queda siempre en logs\detallado.log.
+rem  THE LOG IS GOING TO BE VERY BIG. That is normal. It rotates by itself, and
+rem  the most recent part -which is what matters- always stays in
+rem  logs\detallado.log.
 rem
-rem  COMO USARLO
-rem    1. Doble clic.
-rem    2. Reproduce el fallo: termina el prologo, sal del taller, espera a que
-rem       se muera el audio, e intenta volver al menu.
-rem    3. Cuando se cuelgue, ESPERA UNOS SEGUNDOS antes de cerrar. Si hay algo
-rem       que se registre con retraso, que le de tiempo.
-rem    4. Cierra y avisa. El archivo es logs\detallado.log
+rem  HOW TO USE IT
+rem    1. Double-click.
+rem    2. Reproduce the failure: finish the prologue, leave the garage, wait
+rem       for the audio to die, and try to return to the menu.
+rem    3. When it hangs, WAIT A FEW SECONDS before closing. If there is
+rem       anything logged with delay, give it time.
+rem    4. Close it and report. The file is logs\detallado.log
 rem ===========================================================================
 
 set "EXE="
-rem nfsmw.exe PRIMERO: desde que el lanzador ocupa el nombre
-rem NFS_Most_Wanted.exe, el juego en build\ se llama asi. Se sigue mirando
-rem el nombre viejo detras, para carpetas armadas antes del cambio.
+rem nfsmw.exe FIRST: since the launcher takes the name NFS_Most_Wanted.exe,
+rem the game in build\ is called that. The old name is still looked at behind
+rem it, for folders assembled before the change.
 if exist "%~dp0build\nfsmw.exe" set "EXE=%~dp0build\nfsmw.exe"
 if not defined EXE if exist "%~dp0build\NFS_Most_Wanted.exe" set "EXE=%~dp0build\NFS_Most_Wanted.exe"
 if not defined EXE if exist "%~dp0app\out\build\win-amd64-release\nfsmw.exe" set "EXE=%~dp0app\out\build\win-amd64-release\nfsmw.exe"
 
 if not defined EXE (
-    echo [ERROR] No encuentro el ejecutable.
+    echo [ERROR] Cannot find the executable.
     echo.
     pause
     exit /b 1
@@ -66,7 +65,7 @@ if not defined ISO for %%f in ("%~dp0*.iso") do if not defined ISO set "ISO=%%~f
 if not defined ISO for %%f in ("%~dp0assets\*.iso") do if not defined ISO set "ISO=%%~ff"
 
 if not defined ISO (
-    echo [ERROR] No encuentro ninguna .iso.
+    echo [ERROR] Cannot find any .iso.
     echo.
     pause
     exit /b 1
@@ -75,43 +74,45 @@ if not defined ISO (
 if not exist "logs" mkdir "logs"
 
 echo ============================================
-echo   Log detallado - cazar el cuelgue
+echo   Detailed log - hunt the hang
 echo ============================================
 echo.
-echo   Ejecutable: %EXE%
+echo   Executable: %EXE%
 echo   ISO       : %ISO%
 echo   Log       : %~dp0logs\detallado.log
 echo.
-echo QUE HACER
-echo   1. Termina el prologo y sal del taller con el coche.
-echo   2. Espera a que se muera el audio.
-echo   3. Intenta volver al menu.
-echo   4. Cuando se cuelgue, ESPERA UNOS SEGUNDOS antes de cerrar.
+echo WHAT TO DO
+echo   1. Finish the prologue and leave the garage with the car.
+echo   2. Wait for the audio to die.
+echo   3. Try to return to the menu.
+echo   4. When it hangs, WAIT A FEW SECONDS before closing.
 echo.
-echo El juego va a ir BASTANTE MAS LENTO: se registra todo, incluido el
-echo detalle interno del descodificador de audio, que es donde se cuelga.
-echo Eso no importa para lo que buscamos, solo hay que llegar al fallo.
+echo The game is going to run MUCH SLOWER: everything is logged, including
+echo the internal detail of the audio decoder, which is where it hangs.
+echo That does not matter for what we are after, we only need to reach the
+echo failure.
 echo.
-echo Y cuando se cuelgue, AGUANTA 30 SEGUNDOS antes de cerrar: hacen falta
-echo dos o tres instantaneas del vigilante dentro del cuelgue.
+echo And when it hangs, HOLD ON 30 SECONDS before closing: two or three
+echo watchdog snapshots inside the hang are needed.
 echo.
 pause
 echo.
-echo Lanzando...
+echo Launching...
 echo.
 
 "%EXE%" --game_data_root="%ISO%" --log_level=debug --log_noisy=true --log_file="%~dp0logs\detallado.log" --fullscreen=false --vsync=false
 
 echo.
 echo ============================================
-echo   Terminado
+echo   Finished
 echo ============================================
 echo.
-echo El log esta en:
+echo The log is at:
 echo   %~dp0logs\detallado.log
 echo.
-echo Si hay archivos detallado.1.log, detallado.2.log y demas, son los
-echo trozos anteriores. El que importa es detallado.log a secas: siempre
-echo tiene lo mas reciente, que es justo el momento del cuelgue.
+echo If there are files detallado.1.log, detallado.2.log and so on, they are
+echo the previous chunks. The one that matters is plain detallado.log: it
+echo always has the most recent part, which is exactly the moment of the
+echo hang.
 echo.
 pause

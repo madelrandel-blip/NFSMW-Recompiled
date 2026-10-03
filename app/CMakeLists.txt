@@ -22,20 +22,20 @@ else()
     add_executable(nfsmw ${NFSMW_SOURCES})
 endif()
 
-# GPU_PLUGINS deja el DLL del backend grafico junto al .exe
-# (rexgpu-xenosd.dll en Debug, rexgpu-xenos.dll en Release).
+# GPU_PLUGINS leaves the graphics backend DLL next to the .exe
+# (rexgpu-xenosd.dll in Debug, rexgpu-xenos.dll in Release).
 #
-# Hacen falta LAS DOS COSAS para ver imagen:
-#   1. esta linea, que coloca el DLL donde el cargador lo busca
-#   2. que gpu_plugin valga "xenos" al ejecutar
+# BOTH THINGS are needed to see an image:
+#   1. this line, which places the DLL where the loader looks for it
+#   2. gpu_plugin being "xenos" at runtime
 #
-# El CVar gpu_plugin viene vacio de fabrica, y vacio significa "sin emulacion
-# de GPU": el juego inicializa su ring buffer y sus callbacks graficos, el
-# runtime los descarta con "no GPU emulation loaded", y la pantalla se queda
-# en negro aunque el juego este corriendo perfectamente.
+# The gpu_plugin CVar is empty by default, and empty means "no GPU emulation":
+# the game initializes its ring buffer and its graphics callbacks, the runtime
+# drops them with "no GPU emulation loaded", and the screen stays black even
+# though the game is running perfectly.
 #
-# Desde que src/nfsmw_app.h pone gpu_plugin=xenos por defecto, el argumento
-# --gpu_plugin ya no hace falta; se puede seguir pasando para cambiarlo.
+# Since src/nfsmw_app.h defaults gpu_plugin=xenos, the --gpu_plugin argument
+# is no longer needed; it can still be passed to change it.
 rexglue_setup_target(nfsmw GPU_PLUGINS xenos)
 
 # Native Qt launcher (Linux). Used by packaging/appimage/.
@@ -57,44 +57,46 @@ endif()
 
 
 # =============================================================================
-#  TARGET "dist" - la carpeta portable, que se llama  build\
+#  TARGET "dist" - the portable folder, which is called  build\
 #
-#  Junta en una sola carpeta el ejecutable, las DLL del proyecto y las del
-#  runtime de Visual C++, para poder llevarsela a un equipo sin herramientas
-#  de desarrollo.
+#  Gathers into a single folder the executable, the project DLLs and the
+#  Visual C++ runtime DLLs, so it can be taken to a machine without
+#  development tools.
 #
 #      cmake --build --preset win-amd64-release --target dist
 #
-#  EL TARGET SE LLAMA "dist" Y LA CARPETA "build". No es un descuido: build/
-#  ya estaba en el .gitignore y dist/ no, asi que dejando ahi la carpeta -que
-#  lleva dentro el ejecutable con el codigo del juego- queda fuera de git
-#  sola. Para ponerla en otro sitio:  -D NFSMW_DIST_DIR=...
+#  THE TARGET IS CALLED "dist" AND THE FOLDER "build". That is not an
+#  oversight: build/ was already in .gitignore and dist/ was not, so leaving
+#  the folder there -it contains the executable with the game code- keeps it
+#  out of git by itself. To put it somewhere else:  -D NFSMW_DIST_DIR=...
 #
-#  NO CONFUNDIR con app/out/build/win-amd64-release, que es donde compila
-#  CMake. Esta es la carpeta ya montada, lista para llevarsela.
+#  DO NOT CONFUSE it with app/out/build/win-amd64-release, which is where
+#  CMake compiles. This is the folder already assembled, ready to be taken
+#  away.
 #
-#  LO QUE NO HACE, Y ES IMPORTANTE:
-#  no mete la ISO dentro de nada. Sigue siendo un archivo suelto que el juego
-#  lee al vuelo, y src/nfsmw_app.h la busca junto al .exe. Asi la carpeta
-#  funciona este donde este, sin ninguna ruta fija.
+#  WHAT IT DOES NOT DO, AND IT MATTERS:
+#  it does not put the ISO inside anything. It remains a loose file that the
+#  game reads on the fly, and src/nfsmw_app.h looks for it next to the .exe.
+#  That way the folder works wherever it is, without any fixed path.
 #
-#  Nada de esto cambia como se construye el proyecto: es un paso mas, aparte.
+#  None of this changes how the project is built: it is one more step, on the
+#  side.
 # =============================================================================
 if(WIN32)
-    # Resuelve las DLL del runtime de VC desde el toolchain que se este usando.
-    # Con _SKIP a TRUE no instala nada: solo rellena la lista, que es lo unico
-    # que queremos. Sin esto habria que escribir a mano una ruta tipo
-    # "C:\Program Files\Microsoft Visual Studio\...\Microsoft.VC143.CRT", que es
-    # exactamente lo que no debe haber aqui.
+    # Resolves the VC runtime DLLs from the toolchain being used.
+    # With _SKIP set to TRUE it installs nothing: it only fills the list, which
+    # is the only thing we want. Without this, a path like
+    # "C:\Program Files\Microsoft Visual Studio\...\Microsoft.VC143.CRT" would
+    # have to be written by hand, which is exactly what must not be here.
     set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP TRUE)
     set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS TRUE)
     include(InstallRequiredSystemLibraries)
 
-    # SIN cache a proposito. Si fueran variables de cache, cambiar el valor
-    # por defecto no serviria de nada en un arbol ya configurado: seguiria
-    # usando el viejo sin decir ni pio, el target diria "hecho" y la carpeta
-    # apareceria donde antes. Asi manda siempre lo de aqui, y un -D de la
-    # linea de comandos lo sigue pisando.
+    # Deliberately NOT cached. If they were cache variables, changing the
+    # default value would do nothing in an already configured tree: it would
+    # keep using the old one without a peep, the target would say "done" and
+    # the folder would appear where it did before. This way what is here always
+    # wins, and a -D from the command line still overrides it.
     if(NOT DEFINED NFSMW_DIST_NOMBRE)
         set(NFSMW_DIST_NOMBRE "NFS_Most_Wanted")
     endif()
@@ -119,7 +121,7 @@ if(WIN32)
                 -D "D_MATRIZ=${CMAKE_CURRENT_SOURCE_DIR}/../tools/matriz.ps1"
                 -D "D_PROBAR=${CMAKE_CURRENT_SOURCE_DIR}/dist_probar.bat"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/hacer_dist.cmake"
-        COMMENT "Armando la carpeta portable en ${NFSMW_DIST_DIR}"
+        COMMENT "Assembling the portable folder in ${NFSMW_DIST_DIR}"
         VERBATIM
     )
 endif()
