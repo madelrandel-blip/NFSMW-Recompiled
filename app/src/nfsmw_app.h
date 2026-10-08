@@ -15,6 +15,9 @@
 #endif
 #include <windows.h>
 #include <shellapi.h>
+#elif defined(__linux__)
+#include <unistd.h>
+#include <sys/types.h>
 #endif
 
 #include "nfsmw_menu.h"
@@ -346,15 +349,19 @@ class NfsmwApp : public rex::ReXApp {
   // ==========================================================================
 
   void ArrancarVigilante() {
+#if !defined(REX_PLATFORM_ANDROID)
     vigilante_activo_ = true;
     vigilante_ = std::thread([this] { VigilanteMain(); });
+#endif
   }
 
   void PararVigilante() {
+#if !defined(REX_PLATFORM_ANDROID)
     vigilante_activo_ = false;
     if (vigilante_.joinable()) {
       vigilante_.join();
     }
+#endif
   }
 
   // Volcado de la tabla de hilos. 'grave' decide si sale como error -cuando
@@ -510,8 +517,9 @@ class NfsmwApp : public rex::ReXApp {
                   "Black Edition seguira oculto.", kBlackEditionAddr);
       return;
     }
-    // La memoria del guest se expone en big-endian: el valor se escribe tal cual.
-    *bandera = 0x00000100u;
+    // La memoria del guest se almacena en representacion big-endian (leida con __builtin_bswap32 en REX_LOAD_U32).
+    // En host little-endian (ARM64/x86_64), se debe hacer bswap para que el guest lea 0x00000100u.
+    *bandera = __builtin_bswap32(0x00000100u);
     REXLOG_INFO("[black-edition] bandera 0x{:08X} = 0x{:08X} (contenido desbloqueado).",
                 kBlackEditionAddr, *bandera);
   }
@@ -564,6 +572,25 @@ class NfsmwApp : public rex::ReXApp {
       }
       REXLOG_ERROR("[menu] no se pudo relanzar el juego (ShellExecuteW = {}); sigue con "
                    "lo aplicado y reinicia a mano.", int32_t(resultado));
+    } else {
+      REXLOG_ERROR("[menu] sin ruta del ejecutable; reinicia el juego a mano.");
+    }
+#elif defined(__linux__)
+    const auto exe = rex::filesystem::GetExecutablePath();
+    if (!exe.empty()) {
+      std::string ruta = exe.string();
+      pid_t pid = fork();
+      if (pid == 0) {
+        char* args[] = {const_cast<char*>(ruta.c_str()), nullptr};
+        execv(ruta.c_str(), args);
+        _exit(1);
+      } else if (pid > 0) {
+        if (window() != nullptr) {
+          window()->RequestClose();
+        }
+        return;
+      }
+      REXLOG_ERROR("[menu] fallo al relanzar el proceso en Linux.");
     } else {
       REXLOG_ERROR("[menu] sin ruta del ejecutable; reinicia el juego a mano.");
     }

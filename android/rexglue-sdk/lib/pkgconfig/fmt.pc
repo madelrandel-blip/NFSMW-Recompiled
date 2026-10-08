@@ -1,0 +1,11 @@
+prefix=/media/windroid/SSD KING/PROJETO NFSMW RECOMP/RunTime/out/install/android-arm64
+exec_prefix=/media/windroid/SSD KING/PROJETO NFSMW RECOMP/RunTime/out/install/android-arm64
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: fmt
+Description: A modern formatting library
+Version: 12.1.0
+Libs: -L${libdir} -lfmt
+Cflags: -I${includedir}
+

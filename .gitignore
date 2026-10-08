@@ -20,7 +20,8 @@ assets/
 # --- Salida del generador de codigo -----------------------------------------
 # Se deriva del XEX, asi que tampoco se distribuye.
 generated/
-app/generated/
+!app/generated/
+!app/generated/**
 
 # --- Compilacion -------------------------------------------------------------
 out/
@@ -78,3 +79,33 @@ __pycache__/
 # Los parches actuales aplican y revierten por texto y no dejan .original, pero
 # algunos del SDK todavia los generan.
 *.original
+
+# --- Android & Game Assets ---------------------------------------------------
+game_root/
+rexglue-sdk/
+!android/rexglue-sdk/
+!android/rexglue-sdk/**
+android/app/build/
+android/app/.cxx/
+android/.gradle/
+android/local.properties
+*.apk
+*.aab
+lib_compat/
+
+
+# Ignore heavy debug native libraries
+android/rexglue-sdk/lib/*d.so
+android/rexglue-sdk/lib/*d.a
+
+# Keep Android App Assets
+!android/app/src/main/assets/
+!android/app/src/main/assets/**
+
+# Ignore heavy debug native libraries
+android/app/src/main/jniLibs/arm64-v8a/*d.so
+
+# Ignore local build tools and cache
+tools/extraer_todos_shaders
+tools/shader_cache_run/
+tools/xenosrecomp/

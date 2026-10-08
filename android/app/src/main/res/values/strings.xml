@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Need for Speed: Most Wanted</string>
+    <string name="title_press_start">TAP THE SCREEN OR PRESS START</string>
+    <string name="title_starting">STARTING ENGINE...</string>
+    <string name="title_version">RECOMP ARM64 • NATIVE VULKAN</string>
+
+    <string name="btn_select_rom">📂 SELECT ROM / GAME FOLDER</string>
+    <string name="btn_change_rom">📁 CHANGE GAME LOCATION</string>
+    <string name="status_no_rom">⚠ NO ROM SELECTED. TAP THE BUTTON ABOVE.</string>
+    <string name="status_rom_verified">✔ GAME VERIFIED: %s</string>
+    <string name="dialog_choose_type_title">How do you want to load the game?</string>
+    <string name="dialog_choose_folder">📁 Choose Folder with Files (game_root)</string>
+    <string name="dialog_choose_iso">💿 Choose ISO File (.iso)</string>
+    <string name="error_files_missing">Game files not found! The folder must contain \'default.xex\' or a \'game_root\' subfolder, or you must select a valid NFSMW ISO.</string>
+    <string name="permission_storage_needed">The app needs storage permission to read the game ROM.</string>
+</resources>

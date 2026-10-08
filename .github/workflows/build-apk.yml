@@ -1,0 +1,207 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Tipo de compilação (debug ou release)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - debug
+          - release
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Android APK (arm64-v8a)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set Swap Space (10GB)
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 10
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android Tools & Environment
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> $GITHUB_ENV
+          echo "Instalando NDK 27.2.12479018 e CMake 3.22.1..."
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
+
+      - name: Download ReXGlue SDK & Verify Sources
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -d "android/rexglue-sdk" ] && [ -f "android/rexglue-sdk/lib/cmake/rexglue/rexglueConfig.cmake" ]; then
+            echo "ReXGlue SDK já presente no repositório. Mantendo versão sincronizada."
+          else
+            echo "=== Obtendo última release do ReXGlue SDK de WINDROID-EMU/RunTime ==="
+            mkdir -p /tmp/sdk-download
+            
+            # Tenta baixar usando GitHub CLI (já presente nos runners ubuntu-latest)
+            if command -v gh &>/dev/null; then
+              echo "Tentando baixar via gh CLI..."
+              gh release download --repo WINDROID-EMU/RunTime --pattern "*android-arm64.zip" --dir /tmp/sdk-download || true
+            fi
+
+            ZIP_FILE=$(find /tmp/sdk-download -name "*android-arm64.zip" | head -n 1)
+
+            # Se gh falhar ou não encontrar, faz fallback com curl
+            if [ -z "$ZIP_FILE" ]; then
+              echo "Tentando baixar via curl/API do GitHub..."
+              SDK_URL=$(curl -sL https://api.github.com/repos/WINDROID-EMU/RunTime/releases/latest \
+                | grep "browser_download_url.*android-arm64.zip" \
+                | head -n 1 \
+                | cut -d '"' -f 4)
+              if [ -n "$SDK_URL" ]; then
+                echo "Baixando asset de: $SDK_URL"
+                curl -sL -o /tmp/sdk-download/rexglue-sdk.zip "$SDK_URL"
+                ZIP_FILE="/tmp/sdk-download/rexglue-sdk.zip"
+              fi
+            fi
+
+            if [ -z "$ZIP_FILE" ] || [ ! -f "$ZIP_FILE" ]; then
+              echo "::warning title=ReXGlue SDK::Não foi possível baixar o SDK de WINDROID-EMU/RunTime. Verificando se já existe localmente..."
+            else
+              echo "Extraindo ReXGlue SDK ($ZIP_FILE)..."
+              mkdir -p /tmp/sdk-extracted
+              unzip -q -o "$ZIP_FILE" -d /tmp/sdk-extracted
+              rm -rf android/rexglue-sdk
+              mkdir -p android/rexglue-sdk
+              if [ -d "/tmp/sdk-extracted/android-arm64" ]; then
+                cp -r /tmp/sdk-extracted/android-arm64/* android/rexglue-sdk/
+              else
+                cp -r /tmp/sdk-extracted/* android/rexglue-sdk/
+              fi
+              rm -rf /tmp/sdk-download /tmp/sdk-extracted
+            fi
+          fi
+
+          if [ ! -d "android/rexglue-sdk" ] || [ ! -f "android/rexglue-sdk/lib/cmake/rexglue/rexglueConfig.cmake" ]; then
+            echo "::error title=ReXGlue SDK::ReXGlue SDK inválido ou ausente em android/rexglue-sdk!"
+            exit 1
+          else
+            echo "ReXGlue SDK pronto em android/rexglue-sdk"
+            # Sincroniza jniLibs com o SDK atualizado caso exista
+            if [ -d "android/app/src/main/jniLibs/arm64-v8a" ]; then
+              echo "Sincronizando bibliotecas do SDK com jniLibs..."
+              cp -f android/rexglue-sdk/lib/librexruntime.so android/app/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
+              cp -f android/rexglue-sdk/lib/librexgpu-xenos.so android/app/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
+              cp -f android/rexglue-sdk/lib/librexgpu-plume.so android/app/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
+            fi
+          fi
+
+          if [ ! -f "app/generated/default/sources.cmake" ]; then
+            echo "::warning title=Generated Sources::'app/generated/default/sources.cmake' não encontrado."
+          else
+            echo "Fontes geradas encontradas em app/generated/default"
+          fi
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
+
+      - name: Make Gradlew Executable
+        run: chmod +x android/gradlew
+
+      - name: Determine Build Type
+        id: build_config
+        run: |
+          BUILD_TYPE="release"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BUILD_TYPE="${{ inputs.build_type }}"
+          fi
+          echo "build_type=$BUILD_TYPE" >> $GITHUB_OUTPUT
+          if [ "$BUILD_TYPE" = "release" ]; then
+            echo "gradle_task=assembleRelease" >> $GITHUB_OUTPUT
+            echo "apk_path=android/app/build/outputs/apk/release/app-release.apk" >> $GITHUB_OUTPUT
+            echo "apk_name=NFSMW-Android-release.apk" >> $GITHUB_OUTPUT
+          else
+            echo "gradle_task=assembleDebug" >> $GITHUB_OUTPUT
+            echo "apk_path=android/app/build/outputs/apk/debug/app-debug.apk" >> $GITHUB_OUTPUT
+            echo "apk_name=NFSMW-Android-debug.apk" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Ensure Native Libraries are Stripped
+        run: |
+          STRIP_CMD="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          if [ -d "android/rexglue-sdk/lib" ]; then
+            echo "Stripping SDK shared libraries..."
+            find android/rexglue-sdk/lib -name "*.so" -exec $STRIP_CMD --strip-unneeded {} + 2>/dev/null || true
+          fi
+
+      - name: Build Android APK with Gradle
+        run: |
+          cd android
+          ./gradlew ${{ steps.build_config.outputs.gradle_task }} --no-daemon -Dorg.gradle.jvmargs="-Xmx1536m -XX:+UseSerialGC" --stacktrace
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build_config.outputs.apk_name }}
+          path: ${{ steps.build_config.outputs.apk_path }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Prepare APK Release Artifacts
+        id: release_info
+        run: |
+          mkdir -p release-assets
+          cp "${{ steps.build_config.outputs.apk_path }}" "release-assets/${{ steps.build_config.outputs.apk_name }}"
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "title=Need for Speed Most Wanted Android Port ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "title=Need for Speed Most Wanted Android Port (Latest Build)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/${{ steps.build_config.outputs.apk_name }}
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: ${{ steps.release_info.outputs.title }}
+          body: |
+            ### 🏎️ Need for Speed: Most Wanted (2005) - Android Recompiled Port
+            
+            - **Commit**: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            - **Ref**: `${{ github.ref_name }}`
+            - **Build Type**: `${{ steps.build_config.outputs.build_type }}`
+            
+            #### 📦 Arquivos incluídos:
+            - `${{ steps.build_config.outputs.apk_name }}`: APK nativo compilado para `arm64-v8a` (Android 8.0+ / Vulkan / AAudio).
+          draft: false
+          prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
