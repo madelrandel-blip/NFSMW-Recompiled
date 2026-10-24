@@ -86,6 +86,8 @@ class NfsmwApp : public rex::ReXApp {
   // ==========================================================================
   std::optional<rex::PathConfig> OnFinalizePaths(const rex::PathConfig& defaults,
                                                  std::function<void(rex::PathConfig)> resume) override {
+    // The player sees the product name, not the SDK build stamp the window starts with.
+    if (window() != nullptr) window()->SetTitle("NFSMW Recomp");
     const bool por_linea = rex::cvar::GetFlagSource("game_data_root") == rex::cvar::Source::kCommandLine;
     if (por_linea || !nfsmw::lanzador::DebeMostrarse() || imgui_drawer() == nullptr) {
       rex::PathConfig paths = defaults;

@@ -54,6 +54,4 @@ std::filesystem::path Biblioteca(const std::string& edicion) {
          (edicion == "es" ? std::string("nfsmw_shaders.nfsp") : "nfsmw_shaders_" + edicion + ".nfsp");
 }
 
-bool TieneVariosIdiomas(const std::string& edicion) { return edicion == "usa"; }
-
 }  // namespace nfsmw::edicion

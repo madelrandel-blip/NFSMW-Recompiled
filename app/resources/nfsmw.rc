@@ -1,0 +1,28 @@
+// Windows resources shared by the game and the "NFSMW Recomp" starter: the icon and the version.
+#include <winver.h>
+#include "version_rc.h"
+
+1 ICON "nfsmw.ico"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION NFSMW_VERSION_RC
+PRODUCTVERSION NFSMW_VERSION_RC
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "FileDescription", "NFSMW Recomp"
+      VALUE "ProductName", "NFSMW Recomp"
+      VALUE "FileVersion", NFSMW_VERSION_STR
+      VALUE "ProductVersion", NFSMW_VERSION_STR
+      VALUE "LegalCopyright", "GPL-3.0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END

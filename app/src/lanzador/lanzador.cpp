@@ -1544,13 +1544,6 @@ void Lanzador::DibujarConfig() {
       ImGui::EndCombo();
     }
   }
-  if (edicion::TieneVariosIdiomas(EdicionJuego())) {
-    // El juego pregunta el idioma de la consola (XGetLanguage / XConfig): user_language del SDK.
-    Tarjeta t(T("cfg.idioma_juego"));
-    ComboCvar(T("cfg.idioma_juego"), "user_language",
-              {{"English", "1"}, {"Français", "4"}, {"Español", "5"}, {"Deutsch", "3"}, {"Italiano", "6"}});
-    Nota(T("cfg.idioma_juego_nota"));
-  }
   {
     Tarjeta t(T("cfg.inicio"));
     BoolCvar(T("cfg.lanzador"), "nfsmw_lanzador");

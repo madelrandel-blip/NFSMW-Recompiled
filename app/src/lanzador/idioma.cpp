@@ -74,9 +74,7 @@ constexpr Texto kTextos[] = {
                        "Essa pasta não contém default.xex"}},
   {"estado.falta", {"No se encuentra el archivo elegido", "The chosen file cannot be found",
                     "O arquivo escolhido não foi encontrado"}},
-  {"inicio.atajos", {"Durante el juego: F3 muestra los fps y F4 abre los ajustes avanzados.",
-                     "In game: F3 shows the FPS and F4 opens the advanced settings.",
-                     "No jogo: F3 mostra o FPS e F4 abre as configurações avançadas."}},
+  {"inicio.atajos", {"Durante el juego: F3 muestra los FPS.", "In game: F3 shows the FPS.", "No jogo: F3 mostra o FPS."}},
   {"extraer.titulo", {"Extrayendo la ISO…", "Extracting the ISO…", "Extraindo a ISO…"}},
   {"extraer.nota", {"Solo hace falta la primera vez. Puede tardar varios minutos.",
                     "Only needed the first time. It may take several minutes.",
@@ -150,8 +148,6 @@ constexpr Texto kTextos[] = {
   {"estado.edicion", {"Edición", "Edition", "Edição"}},
   {"ed.desconocida", {"Desconocida: se intentará con la de este ejecutable", "Unknown: this executable's edition will be tried", "Desconhecida: será tentada a deste executável"}},
   {"ed.falta_exe", {"Falta el ejecutable de esta edición:", "This edition's executable is missing:", "Falta o executável desta edição:"}},
-  {"cfg.idioma_juego", {"Idioma del juego", "Game language", "Idioma do jogo"}},
-  {"cfg.idioma_juego_nota", {"Idioma de los textos del juego. Solo en ediciones con varios idiomas, como la USA. Se aplica al jugar.", "Language of the game's text. Only for editions with several languages, such as USA. Applies when you play.", "Idioma dos textos do jogo. Só em edições com vários idiomas, como a USA. Vale ao jogar."}},
   {"tk.izq", {"Girar a la izquierda", "Steer left", "Virar à esquerda"}},
   {"tk.der", {"Girar a la derecha", "Steer right", "Virar à direita"}},
   {"tk.arriba", {"Stick izquierdo arriba", "Left stick up", "Analógico esquerdo para cima"}},
@@ -318,9 +314,7 @@ constexpr Texto kTextos[] = {
                     "Recompilação estática nativa de Need for Speed: Most Wanted (2005) para Xbox 360. O código "
                     "PowerPC do jogo é traduzido para C++ antes de compilar e roda como código nativo: não é um "
                     "emulador."}},
-  {"acerca.base", {"Construido sobre ReXGlue y sobre el renderizador nativo de nfsmw-nx (StevensND).",
-                   "Built on ReXGlue and on the native renderer of nfsmw-nx (StevensND).",
-                   "Construído sobre o ReXGlue e o renderizador nativo do nfsmw-nx (StevensND)."}},
+  {"acerca.base", {"Gracias a StevensND por el renderizador nativo en Vulkan (nfsmw-nx), base de este port. Construido sobre ReXGlue.", "Thanks to StevensND for the native Vulkan renderer (nfsmw-nx) this port is built on. Built on ReXGlue.", "Obrigado ao StevensND pelo renderizador nativo em Vulkan (nfsmw-nx), base deste port. Construído sobre o ReXGlue."}},
   {"acerca.legal", {"Necesitas tu propia copia del juego: este proyecto no incluye ni distribuye datos del juego. "
                     "Need for Speed y Most Wanted son marcas de Electronic Arts; este proyecto no está afiliado a "
                     "EA. Código bajo licencia GPLv3.",

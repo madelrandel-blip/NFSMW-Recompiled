@@ -28,7 +28,4 @@ std::filesystem::path Ejecutable(const std::string& edicion);
 std::filesystem::path Biblioteca(const std::string& edicion);
 inline std::filesystem::path BibliotecaPropia() { return Biblioteca(Propia()); }
 
-// The edition lets the player pick the game language (the USA disc carries several).
-bool TieneVariosIdiomas(const std::string& edicion);
-
 }  // namespace nfsmw::edicion

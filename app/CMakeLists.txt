@@ -249,9 +249,24 @@ if(NFSMW_NATIVE_SHADER_LIBRARY)
 endif()
 
 # Version of this executable, for the launcher's new-version notice.
-set(NFSMW_VERSION "0.1.0" CACHE STRING "NFSMW Recompiled version")
+set(NFSMW_VERSION "1.0.1" CACHE STRING "NFSMW Recompiled version")
 set_source_files_properties(src/lanzador/actualizacion.cpp PROPERTIES COMPILE_DEFINITIONS "NFSMW_VERSION=\"${NFSMW_VERSION}\"")
 
 # Edition of the game this executable is built for (src/edicion.h): es, usa...
 set(NFSMW_EDICION "es" CACHE STRING "Game edition (es, usa)")
 set_source_files_properties(src/edicion.cpp PROPERTIES COMPILE_DEFINITIONS "NFSMW_EDICION=\"${NFSMW_EDICION}\"")
+
+# Windows: the icon and version in both executables, and the "NFSMW Recomp.exe" starter that sits at the top of the
+# release folder and runs data\nfsmw.exe (stub/main.cpp).
+if(WIN32)
+    enable_language(RC)
+    string(REPLACE "." "," NFSMW_VERSION_COMAS "${NFSMW_VERSION}")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generado/version_rc.h"
+         "#define NFSMW_VERSION_RC ${NFSMW_VERSION_COMAS},0\n#define NFSMW_VERSION_STR \"${NFSMW_VERSION}\"\n")
+    set(NFSMW_RC "${CMAKE_CURRENT_SOURCE_DIR}/resources/nfsmw.rc")
+    set_source_files_properties(${NFSMW_RC} PROPERTIES
+        INCLUDE_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR}/generado;${CMAKE_CURRENT_SOURCE_DIR}/resources")
+    target_sources(nfsmw PRIVATE ${NFSMW_RC})
+    add_executable(nfsmw_inicio WIN32 stub/main.cpp ${NFSMW_RC})
+    set_target_properties(nfsmw_inicio PROPERTIES OUTPUT_NAME "NFSMW Recomp")
+endif()
