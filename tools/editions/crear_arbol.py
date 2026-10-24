@@ -126,6 +126,11 @@ def main():
             cambios += nuevo != texto
             escribir(rel, nuevo)
 
+    # folders without game addresses: copied as they are (the icon, and the starter executable)
+    for carpeta in ('resources', 'stub'):
+        if os.path.isdir(os.path.join(APP, carpeta)):
+            shutil.copytree(os.path.join(APP, carpeta), os.path.join(destino, carpeta), dirs_exist_ok=True)
+
     # the rest of app/ that the build uses
     for rel in ('CMakeLists.txt', 'CMakePresets.json', 'nfsmw.toml', 'orden_funciones.ld', 'overrides.toml',
                 os.path.join('generated', 'rexglue.cmake')):
