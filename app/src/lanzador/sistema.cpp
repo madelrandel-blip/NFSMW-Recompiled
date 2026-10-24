@@ -104,14 +104,13 @@ void Abrir(const std::string& destino) {
 #endif
 }
 
-bool Relanzar(const std::string& argumentos) {
-  const auto exe = rex::filesystem::GetExecutablePath();
+bool Lanzar(const std::filesystem::path& exe, const std::string& argumentos) {
   if (exe.empty()) return false;
 #if defined(_WIN32)
   const std::wstring args = DesdeUtf8(argumentos).wstring();
   const auto r = reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", exe.wstring().c_str(), args.c_str(),
                                                          exe.parent_path().wstring().c_str(), SW_SHOWNORMAL));
-  if (r <= 32) REXLOG_ERROR("[lanzador] no se pudo reiniciar el juego (ShellExecuteW = {})", int(r));
+  if (r <= 32) REXLOG_ERROR("[lanzador] no se pudo abrir {} (ShellExecuteW = {})", rex::path_to_utf8(exe), int(r));
   return r > 32;
 #elif defined(__linux__)
   const pid_t pid = fork();
@@ -155,4 +154,5 @@ Resolucion ResolucionPantalla() {
   return {};
 }
 
+bool Relanzar(const std::string& argumentos) { return Lanzar(rex::filesystem::GetExecutablePath(), argumentos); }
 }  // namespace nfsmw::sistema

@@ -123,6 +123,7 @@ set(NFSMW_SOURCES
     # Profile dump of the instrumented build for PGO (NFSMW_PGO=generar; empty otherwise).
     src/nfsmw_pgo.cpp
     # Lanzador dentro del juego: eleccion de la copia del juego, ajustes e idioma.
+    src/edicion.cpp
     src/lanzador/actualizacion.cpp
     src/lanzador/idioma.cpp
     src/lanzador/iso.cpp
@@ -250,3 +251,7 @@ endif()
 # Version of this executable, for the launcher's new-version notice.
 set(NFSMW_VERSION "0.1.0" CACHE STRING "NFSMW Recompiled version")
 set_source_files_properties(src/lanzador/actualizacion.cpp PROPERTIES COMPILE_DEFINITIONS "NFSMW_VERSION=\"${NFSMW_VERSION}\"")
+
+# Edition of the game this executable is built for (src/edicion.h): es, usa...
+set(NFSMW_EDICION "es" CACHE STRING "Game edition (es, usa)")
+set_source_files_properties(src/edicion.cpp PROPERTIES COMPILE_DEFINITIONS "NFSMW_EDICION=\"${NFSMW_EDICION}\"")

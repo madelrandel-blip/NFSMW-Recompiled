@@ -10,6 +10,8 @@
 #include "sistema.h"
 #include "trucos.h"
 
+#include "../edicion.h"
+
 #include "../nfsmw_ajustes_graficos.h"
 
 #include <rex/cvar.h>
@@ -100,9 +102,14 @@ bool EsIso(const std::filesystem::path& p) {
   return ext == ".iso";
 }
 
-bool HayBiblioteca() {
+// La biblioteca de shaders de una edicion; vacia = la de este ejecutable.
+std::filesystem::path BibliotecaDe(const std::string& ed) {
+  return edicion::Biblioteca(ed.empty() ? std::string(edicion::Propia()) : ed);
+}
+
+bool HayBiblioteca(const std::string& ed) {
   std::error_code ec;
-  return std::filesystem::is_regular_file(shaders::RutaBiblioteca(), ec);
+  return std::filesystem::is_regular_file(BibliotecaDe(ed), ec);
 }
 
 // ---- Iconos ---------------------------------------------------------------------
@@ -554,8 +561,9 @@ void Lanzador::ArrancarTarea(Tarea tarea) {
     });
   } else {
     const auto carpeta = CarpetaJuego();
-    hilo_ = std::thread([this, carpeta] {
-      const std::string error = shaders::Generar(carpeta, shaders::RutaBiblioteca(),
+    const auto salida = BibliotecaDe(EdicionJuego());
+    hilo_ = std::thread([this, carpeta, salida] {
+      const std::string error = shaders::Generar(carpeta, salida,
                                                  [this](shaders::Fase fase, int hechos, int total) {
                                                    fase_ = int(fase);
                                                    hechos_ = hechos;
@@ -569,6 +577,21 @@ void Lanzador::ArrancarTarea(Tarea tarea) {
   }
 }
 
+std::string Lanzador::EdicionJuego() const {
+  const auto carpeta = CarpetaJuego();
+  if (carpeta.empty()) return {};
+  // La clave incluye la fecha del default.xex: una ISO nueva extraida en la misma carpeta se vuelve a mirar.
+  std::error_code ec;
+  const auto xex = carpeta / "default.xex";
+  const std::string clave = rex::path_to_utf8(carpeta) + "|" +
+                            std::to_string(std::filesystem::last_write_time(xex, ec).time_since_epoch().count());
+  if (clave != edicion_clave_) {
+    edicion_clave_ = clave;
+    edicion_juego_ = edicion::Detectar(carpeta);
+  }
+  return edicion_juego_;
+}
+
 void Lanzador::Jugar() {
   const Estado estado = EstadoJuego();
   // Antes de nada, lo que hace falta para arrancar: la copia extraida y la
@@ -580,7 +603,8 @@ void Lanzador::Jugar() {
     return;
   }
   if (estado != Estado::kIsoLista && estado != Estado::kCarpeta) return;
-  if (!HayBiblioteca() && shaders::PuedeGenerar()) {
+  const std::string ed = EdicionJuego();
+  if (!HayBiblioteca(ed) && shaders::PuedeGenerar()) {
     jugar_al_terminar_ = true;
     ArrancarTarea(Tarea::kShaders);
     return;
@@ -588,6 +612,18 @@ void Lanzador::Jugar() {
 
   PonerCv("fullscreen", pantalla_completa_ ? "true" : "false");
   callbacks_.guardar();
+  // Copia de otra edicion: la juega su ejecutable, que esta al lado de este.
+  if (!ed.empty() && ed != edicion::Propia()) {
+    const auto exe = edicion::Ejecutable(ed);
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(exe, ec)) {
+      std::lock_guard<std::mutex> l(mutex_);
+      error_ = std::string(T("ed.falta_exe")) + " " + rex::path_to_utf8(exe.filename());
+      return;
+    }
+    if (sistema::Lanzar(exe, "--nfsmw_lanzador_omitir=true")) callbacks_.salir();
+    return;
+  }
   if (NecesitaReinicio()) {
     if (sistema::Relanzar("--nfsmw_lanzador_omitir=true")) {
       callbacks_.salir();
@@ -886,8 +922,16 @@ void Lanzador::DibujarInicio() {
     Fila(T("estado.juego"));
     TextoColor(color, texto);
 
+    // Edicion de la copia: la detecta el SHA-256 de su default.xex.
+    if (!CarpetaJuego().empty()) {
+      const std::string ed = EdicionJuego();
+      Fila(T("estado.edicion"));
+      if (ed.empty()) TextoColor(kAviso, T("ed.desconocida"));
+      else TextoColor(kTexto, edicion::Nombre(ed));
+    }
+
     Fila(T("estado.shaders"));
-    if (HayBiblioteca()) {
+    if (HayBiblioteca(EdicionJuego())) {
       TextoColor(kTexto, T("shaders.listos"));
     } else {
       TextoColor(shaders::PuedeGenerar() ? kSuave : kAviso,
@@ -1499,6 +1543,13 @@ void Lanzador::DibujarConfig() {
         if (ImGui::Selectable(idioma::Nombre(i), mostrado == idioma::Nombre(i))) idioma::Elegir(i);
       ImGui::EndCombo();
     }
+  }
+  if (edicion::TieneVariosIdiomas(EdicionJuego())) {
+    // El juego pregunta el idioma de la consola (XGetLanguage / XConfig): user_language del SDK.
+    Tarjeta t(T("cfg.idioma_juego"));
+    ComboCvar(T("cfg.idioma_juego"), "user_language",
+              {{"English", "1"}, {"Français", "4"}, {"Español", "5"}, {"Deutsch", "3"}, {"Italiano", "6"}});
+    Nota(T("cfg.idioma_juego_nota"));
   }
   {
     Tarjeta t(T("cfg.inicio"));

@@ -11,6 +11,8 @@
 
 #include <rex/kernel/xam/module.h>
 #include <rex/kernel/xam/private.h>
+#include <rex/cvar.h>
+#include <rex/system/flags.h>
 #include <rex/logging.h>
 #include <rex/hook.h>
 #include <rex/types.h>
@@ -183,6 +185,11 @@ u32 XGetGameRegion_entry() {
 }
 
 u32 XGetLanguage_entry() {
+  // The console language the player chose (user_language), the same value XConfig reports.
+  const uint32_t user = REXCVAR_GET(user_language);
+  if (user > uint32_t(XLanguage::kInvalid) && user < uint32_t(XLanguage::kMaxLanguages)) {
+    return user;
+  }
   auto desired_language = XLanguage::kEnglish;
 
   // Switch the language based on game region.

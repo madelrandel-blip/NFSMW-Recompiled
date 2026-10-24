@@ -2,6 +2,8 @@
 
 #include "shaders.h"
 
+#include "../edicion.h"
+
 #include "../nfsmw_shader_library.h"
 #include "nfsmw_contenedor.h"
 #include "shader_recompiler.h"
@@ -15,6 +17,7 @@
 #include <cctype>
 #include <cstring>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -415,7 +418,14 @@ class Dxc {
 
 }  // namespace
 
-fs::path RutaBiblioteca() { return rex::filesystem::GetExecutableFolder() / "nfsmw_shaders.nfsp"; }
+fs::path RutaBiblioteca() { return edicion::BibliotecaPropia(); }
+
+std::string Sha256Fichero(const fs::path& ruta) {
+  std::ifstream in(ruta, std::ios::binary);
+  if (!in) return {};
+  const Bytes datos((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  return Sha256(datos.data(), datos.size());
+}
 
 bool PuedeGenerar() {
 #if defined(_WIN32) && defined(NFSMW_CON_DXC)

@@ -20,6 +20,9 @@ void Abrir(const std::string& destino);
 // Devuelve false si no se pudo; el llamador sigue con el proceso actual.
 bool Relanzar(const std::string& argumentos);
 
+// Lanza otro ejecutable (el de otra edicion del juego) con `argumentos`.
+bool Lanzar(const std::filesystem::path& exe, const std::string& argumentos);
+
 // Resolucion actual del monitor principal, en pixeles reales. {0, 0} si no se sabe.
 struct Resolucion {
   int ancho = 0, alto = 0;

@@ -1,4 +1,5 @@
 #include "nfsmw_shader_hooks.h"
+#include "edicion.h"
 #include <atomic>
 #include <cstring>
 #include <mutex>
@@ -51,7 +52,7 @@ void IniciarBibliotecaShaders() {
   static std::once_flag inicio;
   std::call_once(inicio, [] {
     try {
-      g_biblioteca.Cargar(rex::filesystem::GetExecutableFolder() / "nfsmw_shaders.nfsp");
+      g_biblioteca.Cargar(nfsmw::edicion::BibliotecaPropia());
       g_lista.store(true, std::memory_order_release);
       REXLOG_INFO("Biblioteca experimental: {} shaders nativos; video disponible, resto de dibujados Xenos",
                   g_biblioteca.shaders().size());

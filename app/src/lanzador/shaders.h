@@ -30,6 +30,9 @@ std::filesystem::path RutaBiblioteca();
 // Hay DXC para compilar (dxcompiler.dll junto al ejecutable).
 bool PuedeGenerar();
 
+// SHA-256 of a whole file, in lowercase hex. Empty if it cannot be read.
+std::string Sha256Fichero(const std::filesystem::path& ruta);
+
 // Genera la biblioteca de la carpeta del juego `juego` en `salida`. Devuelve
 // vacio si todo fue bien o el mensaje de error.
 std::string Generar(const std::filesystem::path& juego, const std::filesystem::path& salida,

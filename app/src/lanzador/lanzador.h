@@ -80,6 +80,7 @@ class Lanzador : public rex::ui::ImGuiDialog {
 
   Estado EstadoJuego() const;
   std::filesystem::path CarpetaJuego() const;  // vacia si aun no hay carpeta lista
+  std::string EdicionJuego() const;             // edicion de esa copia ("es", "usa"...), vacia si no se conoce
   bool NecesitaReinicio() const;
 
   void Jugar();
@@ -108,6 +109,9 @@ class Lanzador : public rex::ui::ImGuiDialog {
   std::string detalle_;  // fichero actual
   std::string error_;
   bool jugar_al_terminar_ = false;
+
+  // Edicion detectada de la copia elegida: el SHA-256 de su default.xex, calculado una vez por copia.
+  mutable std::string edicion_juego_, edicion_clave_;
 
   // Comprobacion de version nueva, en segundo plano al abrir.
   std::thread hilo_version_;
