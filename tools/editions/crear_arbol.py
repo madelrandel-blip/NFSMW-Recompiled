@@ -130,11 +130,6 @@ def main():
     for rel in ('CMakeLists.txt', 'CMakePresets.json', 'nfsmw.toml', 'orden_funciones.ld', 'overrides.toml',
                 os.path.join('generated', 'rexglue.cmake')):
         texto = open(os.path.join(APP, rel), encoding='utf-8', newline='').read()
-        if rel == 'CMakeLists.txt':
-            # PGO profile translated to this edition (tools/editions/pgo/traducir_perfil.py)
-            if texto.count('/../pgo/pal_es"') != 1:
-                raise SystemExit('CMakeLists.txt: profile folder not found')
-            texto = texto.replace('/../pgo/pal_es"', '/../pgo/%s"' % edicion)
         if rel == 'orden_funciones.ld':
             # it only orders hot functions; a doubtful entry does no harm (the linker ignores a name that
             # does not exist), so the doubtful translation is acceptable too
