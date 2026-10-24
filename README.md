@@ -6,12 +6,16 @@ game directly instead of emulating the Xbox 360 GPU.
 
 > This repository contains no game data and no code generated from the game. You need your own copy of the game.
 
-## Supported edition
+## Supported editions
 
 | Edition | Status |
 |---|---|
 | PAL, Spanish (`default.xex` SHA-256 `aad15fc2…`) | Supported |
-| Other editions | Not yet. Each edition has its own `default.xex` and needs its own build. |
+| USA (`default.xex` SHA-256 `aebdf3c1…`) | Supported |
+| Other editions | Not yet |
+
+Both work from the same download: pick your `.iso` or game folder in the launcher, and it detects the edition and
+starts the right executable.
 
 ## Features
 
