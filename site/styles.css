@@ -1,0 +1,463 @@
+:root {
+  --fondo: #000;
+  --barra: #080808;
+  --tarjeta: #111;
+  --borde: #262626;
+  --texto: #f5f5f5;
+  --suave: #b0b0b0;
+  --nota: #767676;
+  --resalte: #eee;
+  --ancho: 1120px;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: "Inter", "Segoe UI", "Yu Gothic UI", "Meiryo", "Hiragino Sans", system-ui, sans-serif;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; }
+
+img { max-width: 100%; display: block; }
+
+/* ---- Barra superior ---- */
+.barra {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 24px;
+  background: rgba(8, 8, 8, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--borde);
+}
+
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+}
+
+.marca img { border-radius: 6px; }
+
+.menu { display: flex; gap: 20px; margin-left: auto; }
+
+.menu a {
+  color: var(--suave);
+  text-decoration: none;
+  font-size: 15px;
+}
+
+.menu a:hover { color: var(--texto); }
+
+/* Selector de idioma: un boton con la bandera y una lista que se despliega debajo. */
+.idiomas { position: relative; }
+
+.idioma-actual {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: var(--texto);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.idioma-actual:hover,
+.idioma-actual[aria-expanded="true"] { border-color: var(--resalte); }
+
+.idioma-actual::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--suave);
+  border-bottom: 2px solid var(--suave);
+  transform: translateY(-2px) rotate(45deg);
+  margin-left: 2px;
+}
+
+.idioma-lista {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 180px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--tarjeta);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+.idioma-lista li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--suave);
+}
+
+.idioma-lista li:hover,
+.idioma-lista li:focus { background: #202020; color: var(--texto); outline: none; }
+
+.idioma-lista li[aria-selected="true"] { color: var(--texto); font-weight: 600; }
+
+.bandera {
+  width: 22px;
+  height: 15px;
+  border-radius: 2px;
+  flex: none;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+/* ---- Portada ---- */
+.portada {
+  position: relative;
+  min-height: calc(100vh - 57px);
+  display: flex;
+  align-items: flex-end;
+  padding: 0 48px 32px;
+  overflow: hidden;
+}
+
+.portada-fondo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  filter: grayscale(0.35) brightness(0.55);
+  opacity: 0;
+  transition: opacity 0.8s;
+}
+
+.portada-fondo.listo { opacity: 1; }
+
+/* El reproductor de YouTube cubre la portada sin bandas, como object-fit: cover (video 16:9). */
+.portada-fondo iframe {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 177.78vh);
+  height: max(100%, 56.25vw);
+  transform: translate(-50%, -50%) scale(1.15);
+  border: 0;
+}
+
+/* Quien pide menos movimiento ve la imagen fija (el poster) en lugar del video. */
+@media (prefers-reduced-motion: reduce) {
+  .portada-fondo { display: none; }
+  .portada { background: url("assets/captura-3.jpg") center / cover; }
+}
+
+.portada::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 30%, #000 100%);
+}
+
+.portada-contenido { position: relative; z-index: 1; max-width: 720px; }
+
+.antetitulo {
+  margin: 0;
+  color: var(--suave);
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  font-size: 14px;
+}
+
+h1 {
+  margin: 4px 0 12px;
+  font-size: clamp(44px, 8vw, 88px);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+
+h1 span {
+  display: block;
+  font-size: 0.42em;
+  font-weight: 500;
+  color: var(--suave);
+  letter-spacing: 0.05em;
+  margin-top: 8px;
+}
+
+.lema { font-size: 19px; color: var(--suave); margin: 0 0 28px; max-width: 560px; }
+
+.acciones { display: flex; flex-wrap: wrap; gap: 12px; }
+
+.boton {
+  display: inline-block;
+  padding: 13px 22px;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  background: rgba(17, 17, 17, 0.8);
+  text-decoration: none;
+  font-weight: 600;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.boton:hover { border-color: var(--resalte); }
+
+.boton.primario {
+  background: var(--resalte);
+  border-color: var(--resalte);
+  color: #000;
+  font-weight: 800;
+}
+
+.boton.primario:hover { background: #fff; }
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--texto);
+  cursor: pointer;
+}
+
+.boton.primario { color: #000; font-weight: 800; }
+
+.icono { width: 20px; height: 20px; flex: none; }
+
+.flecha { width: 16px; height: 16px; margin-left: 2px; transition: transform 0.15s; }
+
+.boton[aria-expanded="true"] .flecha { transform: rotate(180deg); }
+
+/* Menu del boton Descargar: Windows o Android. */
+.descarga { position: relative; }
+
+.menu-descarga {
+  position: absolute;
+  left: 0;
+  /* Hacia arriba: el boton esta al pie de la portada, que recorta lo que sale por abajo (por el video). */
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  min-width: 260px;
+  padding: 6px;
+  background: var(--tarjeta);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+}
+
+.menu-descarga a {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--texto);
+}
+
+.menu-descarga a:hover,
+.menu-descarga a:focus { background: #202020; outline: none; }
+
+.menu-descarga .icono { width: 26px; height: 26px; }
+
+.texto-menu { display: flex; flex-direction: column; line-height: 1.3; }
+
+.texto-menu small { color: var(--nota); font-size: 13px; }
+
+.version { margin: 16px 0 0; color: var(--nota); font-size: 14px; }
+
+/* ---- Secciones ---- */
+.seccion {
+  max-width: var(--ancho);
+  margin: 0 auto;
+  padding: 80px 16px 24px;
+}
+
+h2 {
+  font-size: 32px;
+  margin: 0 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+h2::before {
+  content: "";
+  width: 4px;
+  height: 28px;
+  background: var(--resalte);
+}
+
+h3 { margin: 0 0 6px; font-size: 18px; }
+
+.rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.tarjeta {
+  background: var(--tarjeta);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 22px;
+}
+
+.tarjeta p { margin: 0; color: var(--suave); }
+
+.galeria {
+  max-width: var(--ancho);
+  margin: 0 auto;
+  padding: 48px 16px 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.galeria figure {
+  margin: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--borde);
+}
+
+.pasos { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+
+.pasos li {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  background: var(--tarjeta);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 20px 22px;
+}
+
+.pasos p { margin: 0; color: var(--suave); }
+
+.num {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--resalte);
+  color: #000;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+.aviso {
+  margin-top: 18px;
+  padding: 14px 18px;
+  border-left: 3px solid var(--resalte);
+  background: var(--tarjeta);
+  color: var(--suave);
+  border-radius: 0 6px 6px 0;
+}
+
+.lista { margin: 0; padding-left: 20px; color: var(--suave); display: grid; gap: 8px; }
+
+details {
+  background: var(--tarjeta);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 10px;
+}
+
+summary { cursor: pointer; font-weight: 600; }
+
+details p { margin: 10px 0 0; color: var(--suave); }
+
+/* ---- Pie ---- */
+.pie {
+  margin-top: 80px;
+  padding: 32px 16px 48px;
+  border-top: 1px solid var(--borde);
+  text-align: center;
+  color: var(--suave);
+}
+
+.pie p { margin: 4px auto; max-width: 760px; }
+
+.legal { color: var(--nota); font-size: 13px; }
+
+/* ---- Movil ---- */
+@media (max-width: 760px) {
+  .menu { display: none; }
+  .idiomas { margin-left: auto; }
+  .barra { padding: 12px 16px; }
+  .portada { min-height: 78vh; padding: 0 16px 48px; }
+  .lema { font-size: 17px; }
+  .seccion { padding-top: 56px; }
+  .galeria { grid-template-columns: 1fr; }
+
+  /* Botones de la portada: Descargar a todo el ancho y Discord y GitHub a medias debajo. */
+  .acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .descarga { grid-column: 1 / -1; }
+  .acciones .boton { width: 100%; justify-content: center; padding: 14px 16px; }
+  .menu-descarga { right: 0; min-width: 0; }
+  .menu-descarga a { padding: 14px; }
+}
+
+/* ---- Creditos: en fila, con la foto de perfil de GitHub ---- */
+.creditos {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0 auto 28px;
+}
+
+.persona {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 180px;
+  padding: 20px 12px 18px;
+  background: var(--tarjeta);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+
+.persona:hover { border-color: var(--resalte); }
+
+.persona img {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  margin-bottom: 8px;
+  background: var(--borde);
+}
+
+.persona strong { color: var(--texto); }
+
+.persona span { color: var(--nota); font-size: 13px; }
+
+@media (max-width: 600px) {
+  .persona { width: calc(50% - 8px); }
+}
