@@ -450,6 +450,16 @@ void CargarFuentes(ImFontAtlas* atlas) {
   }
 }
 
+namespace {
+int g_pantalla_completa_preferida = -1;  // -1: sin decidir aun; 0/1 lo que habia en nfsmw.toml
+}  // namespace
+
+void PrepararVentana() {
+  if (REXCVAR_GET(nfsmw_lanzador_omitir) || !REXCVAR_GET(nfsmw_lanzador)) return;  // arranca directo al juego
+  g_pantalla_completa_preferida = Cv("fullscreen") == "true" ? 1 : 0;
+  rex::cvar::SetFlagByName("fullscreen", "false");
+}
+
 bool DebeMostrarse() {
   if (REXCVAR_GET(nfsmw_lanzador_omitir)) {
     // Se vuelve a su valor por defecto para que ningun guardado posterior lo
@@ -476,7 +486,8 @@ Lanzador::Lanzador(rex::ui::ImGuiDrawer* drawer, std::filesystem::path juego_por
     : rex::ui::ImGuiDialog(drawer),
       callbacks_(std::move(callbacks)),
       juego_por_defecto_(std::move(juego_por_defecto)),
-      pantalla_completa_(Cv("fullscreen") == "true") {
+      pantalla_completa_(g_pantalla_completa_preferida >= 0 ? g_pantalla_completa_preferida == 1
+                                                            : Cv("fullscreen") == "true") {
   for (const char* nombre : kAjustesConReinicio) valores_iniciales_.push_back(Cv(nombre));
   if (callbacks_.pantalla_completa) callbacks_.pantalla_completa(false);
   // La consulta de version va aparte: sin red tarda lo que tarde el tiempo de espera.

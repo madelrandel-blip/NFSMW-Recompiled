@@ -179,6 +179,9 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(const bool with_surface,
     // #10.
     requested_extensions.emplace("VK_KHR_win32_surface",
                                  &vulkan_instance->extensions_.ext_KHR_win32_surface);
+    // #120. Required by VK_EXT_full_screen_exclusive (vulkan_device.cpp).
+    requested_extensions.emplace("VK_KHR_get_surface_capabilities2",
+                                 &vulkan_instance->extensions_.ext_KHR_get_surface_capabilities2);
 #endif
 #ifdef VK_USE_PLATFORM_METAL_EXT
     // #217.

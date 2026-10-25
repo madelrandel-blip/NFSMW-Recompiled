@@ -1848,6 +1848,17 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   }
   swapchain_create_info.clipped = VK_TRUE;
   swapchain_create_info.oldSwapchain = old_swapchain;
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+  // A borderless window covering the screen may be promoted by the driver to exclusive fullscreen, and
+  // then screen capture and streaming (OBS, Discord) only see black. Disallowed: it stays a window.
+  VkSurfaceFullScreenExclusiveInfoEXT sin_exclusiva{};
+  sin_exclusiva.sType = VK_STRUCTURE_TYPE_SURFACE_FULL_SCREEN_EXCLUSIVE_INFO_EXT;
+  sin_exclusiva.fullScreenExclusive = VK_FULL_SCREEN_EXCLUSIVE_DISALLOWED_EXT;
+  if (vulkan_device->extensions().ext_EXT_full_screen_exclusive) {
+    sin_exclusiva.pNext = const_cast<void*>(swapchain_create_info.pNext);
+    swapchain_create_info.pNext = &sin_exclusiva;
+  }
+#endif
   VkSwapchainKHR swapchain;
   if (dfn.vkCreateSwapchainKHR(device, &swapchain_create_info, nullptr, &swapchain) != VK_SUCCESS) {
     REXLOG_ERROR("VulkanPresenter: Failed to create a swapchain");

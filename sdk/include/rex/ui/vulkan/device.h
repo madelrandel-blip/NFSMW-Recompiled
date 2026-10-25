@@ -204,6 +204,7 @@ class VulkanDevice {
   // `ext_major_minor_` prefix rather than `ext_`).
   struct Extensions {
     bool ext_KHR_swapchain = false;                     // #2
+    bool ext_EXT_full_screen_exclusive = false;         // #256 (Windows)
     bool ext_1_1_KHR_dedicated_allocation = false;      // #128
     bool ext_EXT_shader_stencil_export = false;         // #141
     bool ext_1_1_KHR_get_memory_requirements2 = false;  // #147

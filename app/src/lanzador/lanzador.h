@@ -39,6 +39,10 @@ void CargarFuentes(ImFontAtlas* atlas);
 // reinicio pedido por el propio lanzador (--nfsmw_lanzador_omitir).
 bool DebeMostrarse();
 
+// Antes de crear la ventana: si el lanzador va a salir, la ventana empieza en modo ventana (sin pasar por
+// pantalla completa y volver, que es el parpadeo) y la eleccion del jugador se guarda para el lanzador.
+void PrepararVentana();
+
 // La carpeta del juego con la que arrancar sin lanzador: la ISO o carpeta
 // guardada en nfsmw_juego (ya extraida) o, si no hay, `por_defecto`.
 std::filesystem::path CarpetaGuardada(const std::filesystem::path& por_defecto);

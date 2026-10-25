@@ -249,7 +249,7 @@ if(NFSMW_NATIVE_SHADER_LIBRARY)
 endif()
 
 # Version of this executable, for the launcher's new-version notice.
-set(NFSMW_VERSION "1.0.1" CACHE STRING "NFSMW Recompiled version")
+set(NFSMW_VERSION "1.0.2" CACHE STRING "NFSMW Recompiled version")
 set_source_files_properties(src/lanzador/actualizacion.cpp PROPERTIES COMPILE_DEFINITIONS "NFSMW_VERSION=\"${NFSMW_VERSION}\"")
 
 # Edition of the game this executable is built for (src/edicion.h): es, usa...

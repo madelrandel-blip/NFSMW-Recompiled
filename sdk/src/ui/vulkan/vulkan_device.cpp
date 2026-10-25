@@ -210,6 +210,13 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   if (with_swapchain) {
     // #2.
     XE_UI_VULKAN_STRUCT_EXTENSION(KHR_swapchain)
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+    // #256. Only to tell the driver NOT to take exclusive fullscreen (see the swapchain): screen
+    // capture and streaming (OBS, Discord) cannot see an exclusive fullscreen window.
+    if (vulkan_instance->extensions().ext_KHR_get_surface_capabilities2) {
+      XE_UI_VULKAN_STRUCT_EXTENSION(EXT_full_screen_exclusive)
+    }
+#endif
   }
 
   bool ext_1_2_KHR_sampler_mirror_clamp_to_edge = false;

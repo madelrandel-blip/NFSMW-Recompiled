@@ -268,6 +268,8 @@ class NfsmwApp : public rex::ReXApp {
   //                          before a single frame has been drawn.
   // ==========================================================================
   void OnPostInitLogging() override {
+    // The window is created after this: if the launcher will show, it opens windowed (no fullscreen flash).
+    nfsmw::lanzador::PrepararVentana();
     // Mesa/NVK environment variables (nfsmw_mesa_entorno): the toml has already been read and Vulkan is
     // created later, in SetupPresentation.
     nfsmw::entorno::AplicarEntornoMesa();

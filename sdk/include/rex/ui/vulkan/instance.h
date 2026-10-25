@@ -106,6 +106,7 @@ class VulkanInstance {
 #endif
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     bool ext_KHR_win32_surface = false;  // #10
+    bool ext_KHR_get_surface_capabilities2 = false;  // #120, needed by VK_EXT_full_screen_exclusive
 #endif
 #ifdef VK_USE_PLATFORM_VI_NN
     bool ext_NN_vi_surface = false;  // #63
