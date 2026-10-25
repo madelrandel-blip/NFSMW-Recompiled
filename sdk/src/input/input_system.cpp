@@ -38,9 +38,13 @@ REXCVAR_DEFINE_STRING(input_backend, "sdl", "Input", "Input backend: sdl, xinput
 #endif
 
 REXCVAR_DEFINE_BOOL(guide_button, false, "Input", "Enable guide button pass-through");
+#if REX_PLATFORM_SWITCH
 REXCVAR_DEFINE_BOOL(input_vibracion, false, "Input",
                     "Vibracion del mando (desactivada por defecto: a los mandos solo llega "
                     "vibracion cero). true = la vibracion del juego");
+#else
+REXCVAR_DEFINE_BOOL(input_vibracion, true, "Input", "Vibracion del mando");
+#endif
 namespace rex::input {
 
 namespace {

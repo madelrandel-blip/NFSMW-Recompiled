@@ -145,6 +145,7 @@ constexpr Texto kTextos[] = {
   {"graf.limite", {"Límite de fps", "FPS limit", "Limite de FPS"}},
   {"graf.limite_60", {"60 fps", "60 FPS", "60 FPS"}},
   {"graf.limite_30", {"30 fps estables", "Steady 30 FPS", "30 FPS estáveis"}},
+  {"ctl.vibracion", {"Vibración", "Vibration", "Vibração"}},
   {"estado.edicion", {"Edición", "Edition", "Edição"}},
   {"ed.desconocida", {"Desconocida: se intentará con la de este ejecutable", "Unknown: this executable's edition will be tried", "Desconhecida: será tentada a deste executável"}},
   {"ed.falta_exe", {"Falta el ejecutable de esta edición:", "This edition's executable is missing:", "Falta o executável desta edição:"}},

@@ -30,8 +30,11 @@ REXCVAR_DEFINE_STRING(hid_mappings_file, "gamecontrollerdb.txt", "Input",
 REXCVAR_DEFINE_STRING(mando_mapa, "", "Input",
                       "Remapeo del mando: pares boton_fisico=boton_del_juego separados por comas, p. ej. \"a=b,b=a\". "
                       "Nombres: a b x y back start guide ls rs lb rb up down left right");
-REXCVAR_DEFINE_BOOL(volante_activo, true, "Input",
-                    "Usar como mando los volantes y joysticks que SDL no reconoce como mando");
+REXCVAR_DEFINE_BOOL(volante_activo, true, "Input", "Usar los volantes como mando");
+REXCVAR_DEFINE_BOOL(volante_cualquier_joystick, false, "Input",
+                    "Usar tambien como volante cualquier joystick que SDL no reconoce como mando. Apagado: solo los "
+                    "que se presentan como volante. Encendido, un panel tactil, un mando virtual o un teclado con "
+                    "interfaz de joystick ocupa el puesto del jugador 1 y el juego pide iniciar sesion");
 REXCVAR_DEFINE_INT32(volante_eje_direccion, 0, "Input", "Eje del volante para girar").range(0, 15);
 REXCVAR_DEFINE_INT32(volante_eje_acelerador, 1, "Input", "Eje del pedal del acelerador (gatillo derecho)")
     .range(0, 15);
@@ -731,6 +734,11 @@ void SDLInputDriver::OnControllerDeviceButtonChangedLocked(const SDL_Event& even
 void SDLInputDriver::OnWheelAddedLocked(const SDL_Event& event) {
   if (!REXCVAR_GET(volante_activo) || SDL_IsGamepad(event.jdevice.which) ||
       GetControllerIndexFromInstanceID(event.jdevice.which)) {
+    return;
+  }
+  // Only real wheels by default: any other non-gamepad joystick would take guest user 0 from the pad.
+  if (!REXCVAR_GET(volante_cualquier_joystick) &&
+      SDL_GetJoystickTypeForID(event.jdevice.which) != SDL_JOYSTICK_TYPE_WHEEL) {
     return;
   }
   SDL_Joystick* joy = SDL_OpenJoystick(event.jdevice.which);

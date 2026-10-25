@@ -1287,6 +1287,8 @@ void AbrirVolante() {
   SDL_JoystickID* ids = SDL_GetJoysticks(&n);
   for (int i = 0; ids && i < n; ++i) {
     if (SDL_IsGamepad(ids[i])) continue;  // los mandos van por el otro camino
+    // Solo volantes, como el driver (volante_cualquier_joystick).
+    if (Cv("volante_cualquier_joystick") != "true" && SDL_GetJoystickTypeForID(ids[i]) != SDL_JOYSTICK_TYPE_WHEEL) continue;
     g_volante.joy = SDL_OpenJoystick(ids[i]);
     if (g_volante.joy) {
       const char* nombre = SDL_GetJoystickName(g_volante.joy);
@@ -1421,6 +1423,7 @@ void Lanzador::DibujarControles() {
     Tarjeta t(T("ctl.mando"));
     SegCvar(T("ctl.entrada"), "input_backend", {{"@ctl.sdl", "sdl"}, {"XInput", "xinput"}});
     BoolCvar(T("ctl.guia"), "guide_button");
+    BoolCvar(T("ctl.vibracion"), "input_vibracion");
     Nota(T("ctl.mando_nota"));
   }
   DibujarMapaTeclado();
