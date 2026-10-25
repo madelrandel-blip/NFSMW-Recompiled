@@ -1,5 +1,7 @@
 # NFSMW Recompiled
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?logo=discord&logoColor=white)](https://discord.gg/THtWjtCtNx)
+
 A native PC port of the Xbox 360 version of **Need for Speed: Most Wanted** (2005), made by static recompilation:
 the game's PowerPC code is translated to C++ ahead of time and runs natively, with a Vulkan renderer that draws the
 game directly instead of emulating the Xbox 360 GPU.
