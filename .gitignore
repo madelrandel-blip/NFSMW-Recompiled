@@ -2,7 +2,7 @@
 # binaries built from that code.
 
 # --- Game files ---------------------------------------------------------------
-assets/
+/assets/
 *.xex
 *.xexp
 *.iso
