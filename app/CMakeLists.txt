@@ -260,7 +260,9 @@ set_source_files_properties(src/edicion.cpp PROPERTIES COMPILE_DEFINITIONS "NFSM
 # release folder and runs data\nfsmw.exe (stub/main.cpp).
 if(WIN32)
     enable_language(RC)
-    string(REPLACE "." "," NFSMW_VERSION_COMAS "${NFSMW_VERSION}")
+    # The resource only takes numbers: a test build like 1.0.2-amd1 keeps 1.0.2.
+    string(REGEX REPLACE "-.*$" "" NFSMW_VERSION_NUM "${NFSMW_VERSION}")
+    string(REPLACE "." "," NFSMW_VERSION_COMAS "${NFSMW_VERSION_NUM}")
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generado/version_rc.h"
          "#define NFSMW_VERSION_RC ${NFSMW_VERSION_COMAS},0\n#define NFSMW_VERSION_STR \"${NFSMW_VERSION}\"\n")
     set(NFSMW_RC "${CMAKE_CURRENT_SOURCE_DIR}/resources/nfsmw.rc")
