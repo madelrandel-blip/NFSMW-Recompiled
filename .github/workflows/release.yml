@@ -1,0 +1,234 @@
+# Builds a Windows release (PAL Spain + USA) and leaves it as a draft release to test before publishing.
+#
+# Run it by hand: Actions -> Release -> Run workflow, with the version (e.g. 1.0.3).
+#
+# The game's default.xex files are never in this repository. They are read during the build from a private
+# repository with the XEX_TOKEN secret (a read-only token), the code generated from them stays on the build
+# machine, and only the finished executables leave it.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 1.0.3). The release tag will be v<version>"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  LLVM_VERSION: "20.1.8"
+  XEX_REPO: "madelrandel-blip/NFSMW-Recompiled-builds"
+
+jobs:
+  build:
+    name: Build (${{ matrix.edition }})
+    runs-on: windows-2022
+    timeout-minutes: 330
+    strategy:
+      fail-fast: true
+      matrix:
+        edition: [es, usa]
+    steps:
+      - name: Long paths
+        shell: pwsh
+        run: |
+          New-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force | Out-Null
+          git config --system core.longpaths true
+          # libmspack/cabextract/mspack is a symbolic link.
+          git config --system core.symlinks true
+
+      - name: Source
+        uses: actions/checkout@v4
+        with:
+          path: nx
+          fetch-depth: 1
+
+      # Not in this repository: the default.xex files and the SDK's rexglue.cmake template.
+      - name: Game executables (private)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.XEX_REPO }}
+          token: ${{ secrets.XEX_TOKEN }}
+          path: privado
+          sparse-checkout: |
+            xex
+            plantillas
+
+      - name: SDK version stamp
+        shell: bash
+        run: |
+          # The SDK takes its version from git describe; with the project's v1.x tags CMake refuses it.
+          cd nx && git tag -l | xargs -r git tag -d > /dev/null
+          mkdir -p app/generated
+          cp ../privado/plantillas/rexglue.cmake app/generated/rexglue.cmake
+
+      # Same as tools/fetch_thirdparty.py: SDK v0.10.0 with its submodules, keeping the files this project changed.
+      - name: SDK third-party sources
+        shell: bash
+        run: |
+          git clone -q https://github.com/rexglue/rexglue-sdk.git tp
+          cd tp && git checkout -q c94f5ebdcb3c9d1a460ca48e04f9758448f8d518
+          git submodule update --init --recursive -q
+          cd ..
+          cp -rn tp/thirdparty/. nx/sdk/thirdparty/ 2>/dev/null || true
+          rm -rf tp
+          m=nx/sdk/thirdparty/libmspack/cabextract/mspack
+          if [ ! -f "$m/lzxd.c" ]; then
+            rm -rf "$m" && cp -r nx/sdk/thirdparty/libmspack/libmspack/mspack "$m"
+          fi
+
+      - name: Clang 20
+        shell: pwsh
+        run: |
+          choco install llvm --version=$env:LLVM_VERSION -y --no-progress
+          "C:\Program Files\LLVM\bin" | Out-File $env:GITHUB_PATH -Append
+
+      - name: Code generation (PAL Spain, the reference)
+        shell: cmd
+        run: |
+          mkdir nx\assets\game_root
+          copy /y privado\xex\default.xex nx\assets\game_root\default.xex >nul
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set VS=%%i
+          call "%VS%\VC\Auxiliary\Build\vcvars64.bat" >nul
+          set "PATH=C:\Program Files\LLVM\bin;%PATH%"
+          cmake -S nx\sdk -B out\host -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_FLAGS=-march=x86-64-v2 -DCMAKE_CXX_FLAGS=-march=x86-64-v2 > host.log 2>&1 || exit /b 1
+          cmake --build out\host --target rexglue >> host.log 2>&1 || exit /b 1
+          set "REXGLUE=%CD%\nx\sdk\out\win-amd64\rexglue.exe"
+          cd nx\app
+          "%REXGLUE%" codegen nfsmw_manifest.toml > codegen.log 2>&1
+          if errorlevel 1 ( powershell -Command "Get-Content codegen.log -Tail 40" & exit /b 1 )
+          cd ..
+          python tools\llamadas_directas.py --gen app\generated\default || exit /b 1
+          python tools\copia_literal.py app\generated\default app\src\copias_literales || exit /b 1
+
+      # Other editions (docs/editions.md): the reference addresses are translated to the edition's, its tree is
+      # created and swapped into app/ so it builds from the same paths.
+      - name: Edition tree
+        if: matrix.edition != 'es'
+        shell: bash
+        run: |
+          set -e
+          ed="${{ matrix.edition }}"
+          pip install -q numpy
+          mkdir -p nx/assets/game_root_$ed
+          cp privado/xex/$ed/default.xex nx/assets/game_root_$ed/default.xex
+          m=$(dirname $(find nx/sdk/thirdparty -name lzxd.c | head -1))
+          c=$(dirname $(dirname $(find nx/sdk/thirdparty -name rijndael-alg-fst.c | head -1)))
+          "/c/Program Files/LLVM/bin/clang" -O2 -w -c "$m/lzxd.c" -I"$m" -o lzxd.o
+          "/c/Program Files/LLVM/bin/clang" -O2 -w -c "$m/system.c" -I"$m" -o system.o
+          "/c/Program Files/LLVM/bin/clang++" -std=c++20 -O2 -w -D_CRT_SECURE_NO_WARNINGS nx/tools/editions/imagen_xex.cpp lzxd.o system.o -I"$m" -I"$c" -o imagen_xex.exe
+          ./imagen_xex.exe nx/assets/game_root/default.xex pal.img
+          ./imagen_xex.exe nx/assets/game_root_$ed/default.xex otra.img
+          cd nx
+          python tools/editions/direcciones.py app > ../direcciones.txt
+          python tools/editions/emparejar.py ../pal.img ../otra.img ../todas.tsv < ../direcciones.txt | tail -12
+          parejas=""
+          [ -f tools/editions/$ed/parejas_corregidas.json ] && parejas="--parejas tools/editions/$ed/parejas_corregidas.json"
+          python tools/editions/crear_arbol.py $ed ../todas.tsv ../assets/game_root_$ed/default.xex $parejas | tail -5
+          cp ../todas.tsv app_$ed/tabla.tsv
+          rm -f ../pal.img ../otra.img
+
+      - name: Edition code generation
+        if: matrix.edition != 'es'
+        shell: cmd
+        run: |
+          set "REXGLUE=%CD%\nx\sdk\out\win-amd64\rexglue.exe"
+          cd nx\app_${{ matrix.edition }}
+          if not exist generated mkdir generated
+          copy /y ..\app\generated\rexglue.cmake generated\rexglue.cmake >nul
+          "%REXGLUE%" codegen nfsmw_manifest.toml > codegen.log 2>&1
+          if errorlevel 1 ( powershell -Command "Get-Content codegen.log -Tail 40" & exit /b 1 )
+          cd ..
+          python tools\llamadas_directas.py --gen app_${{ matrix.edition }}\generated\default --enganchadas app_${{ matrix.edition }}\enganchadas.txt || exit /b 1
+          python tools\copia_literal.py app_${{ matrix.edition }}\generated\default app_${{ matrix.edition }}\src\copias_literales --tabla app_${{ matrix.edition }}\tabla.tsv || exit /b 1
+          ren app app_es || exit /b 1
+          ren app_${{ matrix.edition }} app || exit /b 1
+
+      - name: DirectXShaderCompiler (the launcher's shader generator)
+        shell: pwsh
+        run: |
+          curl.exe -sfL -o dxc.zip https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2407/dxc_2024_07_31.zip
+          Expand-Archive dxc.zip dxc
+
+      - name: Build
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set VS=%%i
+          call "%VS%\VC\Auxiliary\Build\vcvars64.bat" >nul
+          set "PATH=C:\Program Files\LLVM\bin;%PATH%"
+          cmake -S nx\app -B out\pc -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ^
+            -DCMAKE_C_FLAGS=-march=x86-64-v2 -DCMAKE_CXX_FLAGS=-march=x86-64-v2 ^
+            -DREXSDK_DIR=%CD%\nx\sdk -DREXGLUE_USE_VULKAN=ON -DNFSMW_BUILD_LAUNCHER=OFF ^
+            -DNFSMW_DXC_DIR=%CD%/dxc -DNFSMW_EDICION=${{ matrix.edition }} -DNFSMW_VERSION=${{ inputs.version }} ^
+            -DREXGLUE_RECOMP_DEBUG_INFO=none > configure.log 2>&1
+          if errorlevel 1 ( powershell -Command "Get-Content configure.log -Tail 40" & exit /b 1 )
+          cmake --build out\pc --target nfsmw nfsmw_inicio -j 2 > build.log 2>&1
+          set ERR=%errorlevel%
+          powershell -Command "Get-Content build.log -Tail 40"
+          exit /b %ERR%
+
+      # Only the executables and DLLs leave the machine; the generated code and the game files stay here.
+      - name: Collect
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist | Out-Null
+          $exe = Get-ChildItem out/pc -Recurse -Filter nfsmw.exe | Select-Object -First 1
+          $name = if ("${{ matrix.edition }}" -eq "es") { "nfsmw.exe" } else { "nfsmw_${{ matrix.edition }}.exe" }
+          Copy-Item $exe.FullName "dist/$name"
+          if ("${{ matrix.edition }}" -eq "es") {
+            Copy-Item (Get-ChildItem out/pc -Recurse -Filter 'NFSMW Recomp.exe' | Select-Object -First 1).FullName dist/
+            Get-ChildItem $exe.DirectoryName -Filter *.dll | Copy-Item -Destination dist/
+            Copy-Item nx/app/nfsmw.toml dist/nfsmw.toml
+            $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+            Get-ChildItem "$vs\VC\Redist\MSVC" -Recurse -Filter *.dll -ErrorAction SilentlyContinue |
+              Where-Object { $_.DirectoryName -match '\\x64\\Microsoft\.VC\d+\.CRT$' } |
+              Copy-Item -Destination dist/ -Force
+          }
+          Get-ChildItem dist | Select-Object Name, Length | Format-Table | Out-String | Write-Host
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.edition }}
+          path: dist
+          retention-days: 1
+
+  release:
+    name: Draft release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: parts
+
+      - name: Package
+        run: |
+          set -e
+          mkdir -p "NFSMW Recomp/data"
+          cp -r parts/build-es/. "NFSMW Recomp/data/"
+          cp parts/build-*/nfsmw_*.exe "NFSMW Recomp/data/"
+          mv "NFSMW Recomp/data/NFSMW Recomp.exe" "NFSMW Recomp/"
+          find "NFSMW Recomp" -maxdepth 2 | sort
+          zip -qr "NFSMW-Recomp-${{ inputs.version }}-Windows-x64.zip" "NFSMW Recomp"
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'EOF'
+          NFSMW Recomp for Windows x64.
+
+          Supported editions: PAL Spain and USA.
+          You need your own copy of the game (.iso or extracted folder). No game data is included.
+          Unzip, run "NFSMW Recomp.exe", pick your game in the launcher and press Play.
+          The first launch builds the shader library from your disc.
+
+          Need for Speed is a trademark of Electronic Arts. This project is not affiliated with EA.
+          EOF
+          gh release create "v${{ inputs.version }}" --repo ${{ github.repository }} --draft \
+            --target ${{ github.sha }} --title "NFSMW Recomp ${{ inputs.version }}" --notes-file notes.md \
+            "NFSMW-Recomp-${{ inputs.version }}-Windows-x64.zip"
