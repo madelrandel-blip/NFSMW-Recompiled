@@ -1363,6 +1363,7 @@ void ShaderRecompiler::recompile(const uint8_t* shaderData, const std::string_vi
         out += "#endif\n";
 
         auto pixelShader = reinterpret_cast<const PixelShader*>(shader);
+        pixelOutputs = pixelShader->outputs;
         if (pixelShader->outputs & PIXEL_SHADER_OUTPUT_COLOR0)
             out += ",\n\tout float4 oC0 : SV_Target0";
         if (pixelShader->outputs & PIXEL_SHADER_OUTPUT_COLOR1)
@@ -1917,6 +1918,20 @@ void ShaderRecompiler::recompile(const uint8_t* shaderData, const std::string_vi
             {
                 if (isPixelShader)
                 {
+                #ifdef NFSMW_RECOMP
+                    // NFSMW: Xenos never produces NaN where HLSL does (0 * inf), and what a NaN becomes
+                    // after clamp/saturate or when written to the target depends on the driver: on AMD it
+                    // comes out white and the bloom spreads it over the whole screen. Write 0 instead.
+                    for (uint32_t i = 0; i < 4; ++i)
+                    {
+                        if (pixelOutputs & (PIXEL_SHADER_OUTPUT_COLOR0 << i))
+                        {
+                            indent();
+                            print("oC{0} = select(isnan(oC{0}), 0.0, oC{0});", i);
+                        }
+                    }
+                #endif
+
                     specConstantsMask |= SPEC_CONSTANT_ALPHA_TEST;
 
                     indent();
