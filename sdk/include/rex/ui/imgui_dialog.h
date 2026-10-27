@@ -39,6 +39,11 @@ class ImGuiDialog {
 
   void Draw();
 
+  // Whether the drawer must keep repainting (and reading input) at every UI tick while this dialog is shown. An
+  // overlay that only changes along with the guest output returns false: every refresh of the guest output already
+  // asks for a paint, and repainting at the display rate in between costs a full composite each time.
+  virtual bool NeedsContinuousRepaint() const { return true; }
+
  protected:
   ImGuiDialog(ImGuiDrawer* imgui_drawer);
 
