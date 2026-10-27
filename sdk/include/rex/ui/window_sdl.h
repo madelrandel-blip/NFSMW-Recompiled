@@ -43,6 +43,13 @@ class WindowSDL final : public Window {
   void HandleDropEvent(SDL_Event& event);
   void HandlePaintEvent();
 
+#if REX_PLATFORM_ANDROID
+  // SDL replaces the ANativeWindow when the activity comes back from the background (another app, a file
+  // picker) without an event saying the new one is ready. Called by the main loop: rebuilds the presenter's
+  // surface when the window SDL publishes is not the one the surface was made from.
+  void CheckAndroidNativeWindow();
+#endif
+
  protected:
   uint32_t GetLatestDpiImpl() const override;
 
@@ -84,6 +91,10 @@ class WindowSDL final : public Window {
   std::atomic<bool> paint_pending_{false};
   // Auto-hide cursor bookkeeping (CursorVisibility::kAutoHidden).
   SDL_TimerID cursor_hide_timer_ = 0;
+#if REX_PLATFORM_ANDROID
+  // The ANativeWindow the current surface was created from (only compared, never dereferenced).
+  void* android_native_window_ = nullptr;
+#endif
 };
 
 }  // namespace rex::ui

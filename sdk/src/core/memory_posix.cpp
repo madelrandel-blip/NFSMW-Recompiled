@@ -18,6 +18,9 @@
 #include <string>
 
 #include <fcntl.h>
+#if defined(__ANDROID__)
+#include <rex/main_android.h>
+#endif
 
 #if REX_PLATFORM_MAC
 #include <mach/mach.h>
@@ -50,8 +53,10 @@
 
 #include <dlfcn.h>
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
 
 #include <linux/ashmem.h>
+#include <linux/memfd.h>
 
 // TODO(tomc): Android or maybe na. idk
 // #include "xenia/base/main_android.h"
@@ -432,7 +437,21 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path, size_t length,
                                           PageAccess access, bool commit) {
 #if REX_PLATFORM_ANDROID
-  // TODO(Triang3l): Check if memfd can be used instead on API 30+.
+  // memfd first: an anonymous, sparse file of any size (the guest needs 4.5 GB of it), in every kernel Android 10+
+  // ships. The syscall is used directly because bionic only wraps it from API 30.
+  {
+    const std::string name = path.filename().string();
+    const int memfd = static_cast<int>(syscall(__NR_memfd_create, name.c_str(), MFD_CLOEXEC));
+    if (memfd >= 0) {
+      if (rex_ftruncate64(memfd, static_cast<off_t>(length)) == 0) {
+        return static_cast<FileMappingHandle>(memfd);
+      }
+      close(memfd);
+    }
+  }
+  // Nothing calls AndroidInitialize at startup: load ASharedMemory_create here the first time it is needed.
+  static const bool android_initialized = (AndroidInitialize(), true);
+  (void)android_initialized;
   if (android_ASharedMemory_create_) {
     int sharedmem_fd = android_ASharedMemory_create_(path.c_str(), length);
     return sharedmem_fd >= 0 ? static_cast<FileMappingHandle>(sharedmem_fd)
@@ -509,7 +528,13 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length, P
   // The emulator reserves address space first, then maps file views into it.
   // MAP_FIXED_NOREPLACE would fail with EEXIST in this case.
   if (base_address) {
+#if REX_PLATFORM_ANDROID && defined(MAP_FIXED_NOREPLACE)
+    // Nothing is reserved there first on Android, and the runtime (ART heaps, libraries) may own the range: never
+    // replace it. Kernels without the flag take the address as a hint, and the check below rejects a moved view.
+    flags |= MAP_FIXED_NOREPLACE;
+#else
     flags |= MAP_FIXED;
+#endif
   }
 
   uint32_t prot = ToPosixProtectFlags(access);

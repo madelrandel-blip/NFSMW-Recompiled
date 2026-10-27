@@ -288,8 +288,9 @@ static sem_t* RexCreateAnonymousSemaphore() {
 class PosixConditionBase {
  public:
   PosixConditionBase() {
-#if REX_PLATFORM_LINUX
-    // Use robust mutexes so waits can recover if owner thread terminates.
+#if REX_PLATFORM_LINUX && !REX_PLATFORM_ANDROID
+    // Use robust mutexes so waits can recover if owner thread terminates. Bionic has none: on Android the plain
+    // mutex stays, and EOWNERDEAD (handled below) never comes back.
     pthread_mutexattr_t attr;
     if (pthread_mutexattr_init(&attr) == 0) {
       if (pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST) == 0) {
@@ -332,7 +333,9 @@ class PosixConditionBase {
     auto native_mutex = static_cast<pthread_mutex_t*>(mutex_.native_handle());
     int lock_result = pthread_mutex_lock(native_mutex);
     if (lock_result == EOWNERDEAD) {
+#if !REX_PLATFORM_ANDROID
       pthread_mutex_consistent(native_mutex);
+#endif
     } else if (lock_result != 0) {
       return WaitResult::kFailed;
     }
@@ -392,7 +395,9 @@ class PosixConditionBase {
         int result = pthread_mutex_trylock(native_mutex);
         if (result == 0 || result == EOWNERDEAD) {
           if (result == EOWNERDEAD) {
+#if !REX_PLATFORM_ANDROID
             pthread_mutex_consistent(native_mutex);
+#endif
           }
           locks.emplace_back(handles[i]->mutex_, std::adopt_lock);
         } else {

@@ -108,8 +108,7 @@ std::filesystem::path BibliotecaDe(const std::string& ed) {
 }
 
 bool HayBiblioteca(const std::string& ed) {
-  std::error_code ec;
-  return std::filesystem::is_regular_file(BibliotecaDe(ed), ec);
+  return shaders::BibliotecaActual(BibliotecaDe(ed));
 }
 
 // ---- Iconos ---------------------------------------------------------------------
@@ -435,6 +434,11 @@ void CargarFuentes(ImFontAtlas* atlas) {
   const char* windir = std::getenv("WINDIR");
   const std::filesystem::path fuentes = std::filesystem::path(windir ? windir : "C:\\Windows") / "Fonts";
   candidatas.push_back({fuentes / "segoeui.ttf", fuentes / "segoeuib.ttf"});
+#elif defined(__ANDROID__)
+  // Android's system fonts (Roboto since 4.0; DroidSans on older or trimmed builds).
+  candidatas.push_back({"/system/fonts/Roboto-Regular.ttf", "/system/fonts/Roboto-Bold.ttf"});
+  candidatas.push_back({"/system/fonts/Roboto-Regular.ttf", "/system/fonts/Roboto-Regular.ttf"});
+  candidatas.push_back({"/system/fonts/DroidSans.ttf", "/system/fonts/DroidSans-Bold.ttf"});
 #else
   candidatas.push_back({"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"});
@@ -456,8 +460,14 @@ int g_pantalla_completa_preferida = -1;  // -1: sin decidir aun; 0/1 lo que habi
 
 void PrepararVentana() {
   if (REXCVAR_GET(nfsmw_lanzador_omitir) || !REXCVAR_GET(nfsmw_lanzador)) return;  // arranca directo al juego
+#if defined(__ANDROID__)
+  // A phone has no windowed mode: full screen hides the system bars and gives the launcher the whole display.
+  g_pantalla_completa_preferida = 1;
+  rex::cvar::SetFlagByName("fullscreen", "true");
+#else
   g_pantalla_completa_preferida = Cv("fullscreen") == "true" ? 1 : 0;
   rex::cvar::SetFlagByName("fullscreen", "false");
+#endif
 }
 
 bool DebeMostrarse() {
@@ -489,7 +499,9 @@ Lanzador::Lanzador(rex::ui::ImGuiDrawer* drawer, std::filesystem::path juego_por
       pantalla_completa_(g_pantalla_completa_preferida >= 0 ? g_pantalla_completa_preferida == 1
                                                             : Cv("fullscreen") == "true") {
   for (const char* nombre : kAjustesConReinicio) valores_iniciales_.push_back(Cv(nombre));
+#if !defined(__ANDROID__)
   if (callbacks_.pantalla_completa) callbacks_.pantalla_completa(false);
+#endif
   // La consulta de version va aparte: sin red tarda lo que tarde el tiempo de espera.
   hilo_version_ = std::thread([this] {
     const auto r = actualizacion::Comprobar();
@@ -595,7 +607,9 @@ std::string Lanzador::EdicionJuego() const {
   std::error_code ec;
   const auto xex = carpeta / "default.xex";
   const std::string clave = rex::path_to_utf8(carpeta) + "|" +
-                            std::to_string(std::filesystem::last_write_time(xex, ec).time_since_epoch().count());
+                            // long long: libc++ counts file time in __int128, which to_string does not take.
+                            std::to_string(static_cast<long long>(
+                                std::filesystem::last_write_time(xex, ec).time_since_epoch().count()));
   if (clave != edicion_clave_) {
     edicion_clave_ = clave;
     edicion_juego_ = edicion::Detectar(carpeta);
@@ -672,7 +686,13 @@ void Lanzador::OnDraw(ImGuiIO& io) {
     }
   }
 
+#if defined(__ANDROID__)
+  // A phone packs ~1080 rows into 6-7 cm: the PC proportion (900 rows) would leave text about a millimetre tall and
+  // buttons too small for a finger. But the layout needs about 600 x 1100 units to fit, so the scale stops there.
+  escala_ = std::clamp(std::min(io.DisplaySize.y / 600.0f, io.DisplaySize.x / 1100.0f), 1.0f, 3.5f);
+#else
   escala_ = std::clamp(io.DisplaySize.y / 900.0f, 0.75f, 2.5f);
+#endif
   g_escala = escala_;
 
   ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -917,6 +937,13 @@ void Lanzador::DibujarInicio() {
     }
     Separador();
     Nota(T("juego.nota"));
+#if defined(__ANDROID__)
+    // There is no other way to get the logs off a phone without a cable and a debugger.
+    Separador();
+    if (Boton(ConId(T("btn.exportar_log"), "exportar_log").c_str(), false, ImVec2(S(220), alto))) {
+      sistema::ExportarLog();
+    }
+#endif
   }
   {
     Tarjeta t(T("estado.titulo"));
@@ -945,8 +972,7 @@ void Lanzador::DibujarInicio() {
     if (HayBiblioteca(EdicionJuego())) {
       TextoColor(kTexto, T("shaders.listos"));
     } else {
-      TextoColor(shaders::PuedeGenerar() ? kSuave : kAviso,
-                 shaders::PuedeGenerar() ? T("shaders.faltan") : T("shaders.sin_dxc"));
+      TextoColor(kSuave, T("shaders.faltan"));
     }
 
     const int perfil = perfiles::Detectar();

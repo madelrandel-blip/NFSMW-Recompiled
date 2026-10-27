@@ -87,11 +87,24 @@ void SDLWindowedAppContext::PlatformQuitFromUIThread() {
 int SDLWindowedAppContext::RunMainMessageLoop() {
   while (!HasQuitFromUIThread()) {
     SDL_Event event;
+#if REX_PLATFORM_ANDROID
+    // The new ANativeWindow after a return from the background arrives without an event: look at it at least
+    // every 100 ms (WindowSDL::CheckAndroidNativeWindow).
+    const bool got_event = SDL_WaitEventTimeout(&event, 100);
+    if (got_event) {
+      ProcessEvent(event);
+    }
+    for (const auto& [id, window] : windows_) {
+      (void)id;
+      window->CheckAndroidNativeWindow();
+    }
+#else
     if (!SDL_WaitEvent(&event)) {
       REXLOG_ERROR("SDL_WaitEvent failed: {}", SDL_GetError());
       return EXIT_FAILURE;
     }
     ProcessEvent(event);
+#endif
   }
   return EXIT_SUCCESS;
 }

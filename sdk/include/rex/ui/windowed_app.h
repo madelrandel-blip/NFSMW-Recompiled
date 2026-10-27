@@ -24,10 +24,8 @@
 #include <rex/platform.h>
 #include <rex/ui/windowed_app_context.h>
 
-#if REX_PLATFORM_ANDROID
-// Multiple apps in a single library instead of separate executables.
-#define XE_UI_WINDOWED_APPS_IN_LIBRARY 1
-#endif
+// Xenia's Android build put several apps in one library (XE_UI_WINDOWED_APPS_IN_LIBRARY). With SDL3's SDLActivity
+// there is one app and SDL_main, as on the desktop, so the usual REX_DEFINE_APP applies on Android too.
 
 namespace rex {
 namespace ui {

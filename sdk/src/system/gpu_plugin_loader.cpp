@@ -93,8 +93,15 @@ std::unique_ptr<IGraphicsSystem> LoadGpuPlugin(std::string_view name, std::strin
 #else
 
 std::unique_ptr<IGraphicsSystem> LoadGpuPlugin(std::string_view name, std::string_view backend) {
+#if REX_PLATFORM_ANDROID
+  // The APK's libraries are not in the data folder that stands in for the executable folder: a bare name lets the
+  // dynamic linker find it in the app's native library directory.
+  const std::filesystem::path path = PluginFileName(name);
+  if (false) {
+#else
   auto path = rex::filesystem::GetExecutableFolder() / PluginFileName(name);
   if (!std::filesystem::exists(path)) {
+#endif
     REXSYS_ERROR(
         "GPU plugin '{}' not found at {}. Stage it next to the executable "
         "(GPU_PLUGINS {} in rexglue_configure_target).",

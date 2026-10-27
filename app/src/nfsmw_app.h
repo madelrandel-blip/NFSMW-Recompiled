@@ -32,6 +32,7 @@
 #include "nfsmw_nativo_sistema.h"
 #include "nfsmw_perfil_pc.h"
 #include "nfsmw_prueba_entrada.h"
+#include "nfsmw_tactil.h"
 #include "nfsmw_video_nativo.h"  // HANG WATCHDOG - cutscene frames with FFmpeg
 #include "lanzador/lanzador.h"
 #include "lanzador/trucos.h"
@@ -60,6 +61,7 @@ class NfsmwApp : public rex::ReXApp {
     }
     // Automated tests: virtual gamepad if nfsmw_prueba_botones has a script.
     nfsmw::prueba::EnvolverEntrada(config);
+    nfsmw::tactil::EnvolverEntrada(config);
   }
 
   // Available hooks, unused:
@@ -295,6 +297,8 @@ class NfsmwApp : public rex::ReXApp {
   }
 
   void OnPostSetup() override {
+    // On-screen controls over the game (Android; nfsmw_tactil).
+    nfsmw::tactil::MostrarControles(imgui_drawer());
 #if defined(NFSMW_NATIVE_SHADER_LIBRARY)
     nfsmw::native::IniciarBibliotecaShaders();
 #endif

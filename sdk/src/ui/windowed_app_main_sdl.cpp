@@ -126,6 +126,11 @@ int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE hinstance_prev, LPWSTR comman
 
 #else
 
+#if REX_PLATFORM_ANDROID
+// SDLActivity loads the app as libmain.so and calls SDL_main; SDL_main.h renames main() to it and exports it.
+#include <SDL3/SDL_main.h>
+#endif
+
 int main(int argc, char* argv[]) {
   return RunWindowedApp(argc, argv);
 }

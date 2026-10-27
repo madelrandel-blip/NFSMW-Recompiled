@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NFSMW Recomp</string>
+    <string name="pick_need_access">Without \"All files access\" the game cannot read the ISO. Close the app and open it again to grant it</string>
+    <string name="pick_no_access">Without storage access the game cannot open the ISO</string>
+    <string name="pick_not_a_path">Choose it from the phone storage or an SD card (Files, not an app or cloud folder)</string>
+    <string name="access_title">Storage access</string>
+    <string name="access_message">The game reads the ISO straight from the phone storage and keeps its data in the \"NFSMW Recompiled\" folder. For that Android asks for \"All files access\".\n\nAndroid restarts the app when it is granted: open it again afterwards.</string>
+    <string name="access_grant">Grant</string>
+    <string name="access_later">Not now</string>
+    <string name="export_title">Export the log</string>
+    <string name="export_nothing">There is no log to export yet</string>
+</resources>

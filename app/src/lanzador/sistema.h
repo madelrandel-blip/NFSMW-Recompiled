@@ -16,6 +16,10 @@ std::filesystem::path ElegirCarpeta(const std::filesystem::path& inicial);
 // Abre una URL en el navegador o una carpeta en el explorador.
 void Abrir(const std::string& destino);
 
+// Exports the game's logs: on Android through the share sheet (the complete logs and a crash report, as files);
+// elsewhere it opens the logs folder.
+void ExportarLog();
+
 // Lanza otra vez el ejecutable con `argumentos` (separados por espacios).
 // Devuelve false si no se pudo; el llamador sigue con el proceso actual.
 bool Relanzar(const std::string& argumentos);

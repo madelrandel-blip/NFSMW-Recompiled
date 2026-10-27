@@ -30,6 +30,8 @@
 
 #if REX_PLATFORM_WIN32
 #include <spdlog/sinks/msvc_sink.h>
+#elif REX_PLATFORM_ANDROID
+#include <spdlog/sinks/android_sink.h>
 #else
 #include <spdlog/sinks/stdout_sinks.h>
 #endif
@@ -215,6 +217,9 @@ void InitLoggingEarly() {
 
 #if REX_PLATFORM_WIN32
   auto sink = std::make_shared<spdlog::sinks::msvc_sink_mt>();
+#elif REX_PLATFORM_ANDROID
+  // Android has no stdout: logcat is the debug channel, and it keeps the lines of a process that died.
+  auto sink = std::make_shared<spdlog::sinks::android_sink_mt>("NFSMW");
 #else
   auto sink = std::make_shared<spdlog::sinks::stdout_sink_mt>();
 #endif
@@ -263,7 +268,8 @@ void InitLogging(const LogConfig& config) {
   //     apps and does not conflict with the stdout console sink, so keep it.
   //   Non-Windows: drop the early stdout sink unconditionally so file-only
   //     configs don't leak to stdout and console configs don't duplicate.
-#if !REX_PLATFORM_WIN32
+  //   Android: the early logcat sink stays, like the Windows one.
+#if !REX_PLATFORM_WIN32 && !REX_PLATFORM_ANDROID
   if (g_early_sink) {
     for (auto& entry : g_registry) {
       if (entry.logger)

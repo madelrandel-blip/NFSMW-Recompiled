@@ -1,0 +1,52 @@
+// The APK of NFSMW Recompiled. The native code is not built here: CMake builds it with the NDK into
+// out/android (see docs/android.md) and tools/android_package.sh copies the shared libraries into
+// out/android-jni, which this project packages as they are.
+plugins {
+    id 'com.android.application'
+}
+
+def sdlJava = "${rootDir}/../../sdk/thirdparty/sdl3/android-project/app/src/main/java"
+
+android {
+    namespace 'com.nfsmwrecomp'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.nfsmwrecomp'
+        minSdk 29
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.2'
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // A test build: signed with the debug key so it installs directly.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs = ['src/main/java', sdlJava]
+            jniLibs.srcDirs = ["${rootDir}/../../out/android-jni"]
+            // The touch controls' icons (the game's art, packed by tools/android_build.sh from outside the repository).
+            assets.srcDirs = ["${rootDir}/../../out/android-assets"]
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

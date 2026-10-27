@@ -90,7 +90,7 @@ elseif(UNIX)
         dynlib_posix.cpp
         exception_handler_posix.cpp
         filesystem_posix.cpp
-        fiber_posix.cpp
+        $<IF:$<BOOL:${ANDROID}>,fiber_switch.cpp,fiber_posix.cpp>  # Bionic has no ucontext: the aarch64 switch
         mapped_memory_posix.cpp
         math_gcc.cpp
         memory_posix.cpp
@@ -127,6 +127,9 @@ target_include_directories(rexcore PRIVATE
 
 if(APPLE)
     target_link_libraries(rexcore PRIVATE pthread)
+elseif(ANDROID)
+    # Bionic has threads and the realtime functions in libc; there is no libpthread or librt to link.
+    target_link_libraries(rexcore PRIVATE dl log)
 elseif(UNIX)
     target_link_libraries(rexcore PRIVATE pthread rt dl)
 endif()

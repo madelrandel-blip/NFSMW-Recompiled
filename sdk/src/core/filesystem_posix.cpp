@@ -11,6 +11,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <iostream>
@@ -124,6 +125,14 @@ std::filesystem::path GetExecutablePath() {
     return std::filesystem::path(path);
   }
   return {};
+#elif defined(__ANDROID__)
+  // The process is app_process: /proc/self/exe is /system/bin/app_process64, read-only and not ours. The Activity
+  // sets REX_ANDROID_DATA_DIR (its external files folder) before loading the native code, and that folder plays
+  // the role of the executable's: settings, logs, caches and the game copy live there.
+  if (const char* dir = std::getenv("REX_ANDROID_DATA_DIR"); dir && *dir) {
+    return std::filesystem::path(dir) / "nfsmw";
+  }
+  return {};
 #else
   char buff[FILENAME_MAX] = "";
   readlink("/proc/self/exe", buff, FILENAME_MAX);
@@ -137,7 +146,10 @@ std::filesystem::path GetExecutableFolder() {
 }
 
 std::filesystem::path GetUserFolder() {
-#if defined(__SWITCH__)
+#if defined(__ANDROID__)
+  // No HOME nor a usable user database: the app's own data folder (see GetExecutablePath).
+  return GetExecutableFolder();
+#elif defined(__SWITCH__)
   // Horizon has no XDG_DATA_HOME, no HOME and no user database. The branch below
   // would end up in pw->pw_dir with pw NULL and kill the process at startup:
   // rex_app.cpp calls it to decide the data folder. On Switch the data goes next
@@ -343,6 +355,18 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
   closedir(dir);
   return result;
 }
+
+#if defined(__ANDROID__)
+// content:// URIs (what Android's pickers return) are not supported: the game and its data live under real paths
+// in the app's folder (see GetExecutablePath), so a URI is never opened through a file descriptor here.
+bool IsAndroidContentUri(const std::string_view source) { return source.starts_with("content://"); }
+
+int OpenAndroidContentFileDescriptor(const std::string_view uri, const char* mode) {
+  (void)mode;
+  REXLOG_ERROR("Android content URIs are not supported: {}", uri);
+  return -1;
+}
+#endif
 
 }  // namespace filesystem
 }  // namespace rex

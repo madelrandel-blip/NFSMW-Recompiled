@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pick_need_access">Sin \"Acceso a todos los archivos\" el juego no puede leer la ISO. Cierra la app y ábrela de nuevo para concederlo</string>
+    <string name="pick_no_access">Sin acceso al almacenamiento el juego no puede abrir la ISO</string>
+    <string name="pick_not_a_path">Elígelo desde la memoria del teléfono o una tarjeta SD (Archivos, no una app ni la nube)</string>
+    <string name="access_title">Acceso al almacenamiento</string>
+    <string name="access_message">El juego lee la ISO directamente desde la memoria del teléfono y guarda sus datos en la carpeta \"NFSMW Recompiled\". Para eso Android pide \"Acceso a todos los archivos\".\n\nAl activarlo, Android reinicia la app: vuelve a abrirla después.</string>
+    <string name="access_grant">Conceder</string>
+    <string name="access_later">Ahora no</string>
+    <string name="export_title">Exportar el log</string>
+    <string name="export_nothing">Todavía no hay ningún log que exportar</string>
+</resources>

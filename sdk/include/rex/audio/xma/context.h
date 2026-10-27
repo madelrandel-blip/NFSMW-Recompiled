@@ -118,9 +118,10 @@ struct XMA_CONTEXT_DATA {
   // The PPC thread polls the context while the XMA worker writes PCM.
   // On ARM64, a plain load of the index does not acquire the samples it
   // announces. Keep 32-bit words in BE and publish with release/acquire.
+  // The __atomic built-ins instead of std::atomic_ref, which the Android NDK's libc++ lacks.
   static uint32_t LoadWord(const void* ptr, size_t index) {
-    auto* words = const_cast<uint32_t*>(static_cast<const uint32_t*>(ptr));
-    return rex::byte_swap(std::atomic_ref<uint32_t>(words[index]).load(std::memory_order_acquire));
+    const auto* words = static_cast<const uint32_t*>(ptr);
+    return rex::byte_swap(__atomic_load_n(&words[index], __ATOMIC_ACQUIRE));
   }
 
   explicit XMA_CONTEXT_DATA(const void* ptr) {
@@ -131,18 +132,17 @@ struct XMA_CONTEXT_DATA {
   }
 
   void Store(void* ptr) {
-    static_assert(std::atomic_ref<uint32_t>::is_always_lock_free);
-    static_assert(std::atomic_ref<uint32_t>::required_alignment <= alignof(uint32_t));
+    static_assert(__atomic_always_lock_free(sizeof(uint32_t), 0));
     auto* dest = static_cast<uint32_t*>(ptr);
     const auto* words = reinterpret_cast<const uint32_t*>(this);
     // Publish addresses and offsets before the valid bits and the write index.
     // This is not an atomic snapshot of the 64 bytes: changing the configuration
     // still requires disabling/locking the context.
     for (size_t i = 2; i < sizeof(XMA_CONTEXT_DATA) / 4; ++i) {
-      std::atomic_ref<uint32_t>(dest[i]).store(rex::byte_swap(words[i]), std::memory_order_relaxed);
+      __atomic_store_n(&dest[i], rex::byte_swap(words[i]), __ATOMIC_RELAXED);
     }
-    std::atomic_ref<uint32_t>(dest[1]).store(rex::byte_swap(words[1]), std::memory_order_release);
-    std::atomic_ref<uint32_t>(dest[0]).store(rex::byte_swap(words[0]), std::memory_order_release);
+    __atomic_store_n(&dest[1], rex::byte_swap(words[1]), __ATOMIC_RELEASE);
+    __atomic_store_n(&dest[0], rex::byte_swap(words[0]), __ATOMIC_RELEASE);
   }
 
   bool IsInputBufferValid(uint8_t buffer_index) const {
