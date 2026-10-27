@@ -131,7 +131,7 @@ REXCVAR_DEFINE_INT32(nfsmw_guardia_30_presupuesto_us, 31000, "NFSMW",
  * remove the hidden fraction of that, and without near-to-far draw order from the light it would only
  * catch about half of it. Realistic ceiling: 0.1-0.25 ms. In exchange TRANSFER_DST would have to be
  * removed from the map, which is what disqualifies it in the driver, and that costs the 1600x1600 swap
- * (2.36 ms measured). Net loss, 10 to 1. The details are in nfsmw_nativo_destinos.cpp, next to the
+ * (2.36 ms measured). Net loss, 10 to 1. The details are in the former native renderer, next to the
  * TRANSFER_DST decision. Not to be reopened without new data.
  * ---------------------------------------------------------------------------------------------
  *

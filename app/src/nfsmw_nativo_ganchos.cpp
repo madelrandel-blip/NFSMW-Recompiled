@@ -38,10 +38,13 @@ REXCVAR_DEFINE_BOOL(nfsmw_d3d_vegetacion_juego, true, "NFSMW",
                     "enteros en el hilo del juego: sin FlushState, DRAW_INDX ni registro. Empieza mirando (el anillo "
                     "comprueba el veredicto de cada dibujo) y se apaga solo al primer desacuerdo. false = como antes")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
-// The settings of the ring's vegetation discard (nfsmw_nativo_dibujos.cpp): the game side checks the
+// The settings of the ring's vegetation discard (the former native renderer): the game side checks the
 // same ones.
-REXCVAR_DECLARE(bool, nfsmw_nativo_ps_solo_alfa);
-REXCVAR_DECLARE(int32_t, nfsmw_nativo_ps_solo_alfa_alternar_s);
+REXCVAR_DEFINE_BOOL(nfsmw_nativo_ps_solo_alfa, true, "NFSMW",
+                    "Filtrar en el hilo del juego la vegetacion del mapa de sombras (nfsmw_d3d_vegetacion_juego): "
+                    "parte de las condiciones de RefrescarAjustesVegetacion");
+REXCVAR_DEFINE_INT32(nfsmw_nativo_ps_solo_alfa_alternar_s, 0, "NFSMW",
+                     "Prueba: con N > 0 alterna cada N segundos el filtro de vegetacion del hilo del juego");
 REXCVAR_DECLARE(bool, nfsmw_sombras_sin_vegetacion);
 
 namespace nfsmw::nativo {
@@ -639,7 +642,7 @@ const EntradaShader* Entrada(uint32_t objeto) {
   return memo.entrada;
 }
 
-// Dibujar's criterion up to its early discard (nfsmw_nativo_dibujos.cpp), with the state the ring will
+// Dibujar's criterion up to its early discard (the former native renderer), with the state the ring will
 // see.
 bool Estructura(const uint8_t* d, uint32_t& motivo) {
   const uint32_t objeto_ps = LeerBE(d + kDispositivoPs);

@@ -3,7 +3,7 @@
 // In the 216 frames over 45 ms of one console run almost nobody is working: the main thread waits for the
 // preparer's handoff, the PM4 ring runs out of work or waits for the GPU, and the preparer sleeps inside
 // sub_826E8EE8 (COM-style virtual calls, unidentified). Each wait adds its time here, and the "[tiron]" line
-// (nfsmw_nativo_destinos.cpp) writes how much each one took in that frame.
+// (the former native renderer) writes how much each one took in that frame.
 // It only costs two clock reads per wait, and those waits sleep anyway.
 
 #pragma once
@@ -51,7 +51,7 @@ inline std::atomic<uint64_t> g_texturas_creadas{0};
 // prepared data).
 inline std::atomic<uint64_t> g_ns_huella_cruda{0};
 inline std::atomic<uint64_t> g_ns_huella_datos{0};
-// How long the ring thread waits for the vertex copy thread (EsperarSubidas in nfsmw_nativo_dibujos.cpp:
+// How long the ring thread waits for the vertex copy thread (EsperarSubidas in the former native renderer:
 // before each submit and before returning the read pointer to the game), and how many times it really waits.
 // Previously this was only reported when the game closed. Only the ring thread writes it.
 inline std::atomic<uint64_t> g_ns_esperando_copias{0};
@@ -62,12 +62,12 @@ inline std::atomic<uint64_t> g_ns_ayudando_copias{0};
 inline std::atomic<uint64_t> g_copias_ayudadas{0};
 // What the ring spends creating textures (image, pool memory and view; "texturas X ms" starts after they
 // are created and did not include it), how long it waits for the binding thread and how many textures that
-// thread bound (nfsmw_nativo_texturas_enlace_hilo in nfsmw_nativo_dibujos.cpp). Only the ring thread writes it.
+// thread bound (nfsmw_nativo_texturas_enlace_hilo in the former native renderer). Only the ring thread writes it.
 inline std::atomic<uint64_t> g_ns_crear_texturas{0};
 inline std::atomic<uint64_t> g_ns_esperando_enlaces{0};
 inline std::atomic<uint64_t> g_texturas_enlazadas_hilo{0};
 // New textures with the fingerprint, the detiling and the byte order done on the fingerprint thread
-// (nfsmw_nativo_texturas_huella_hilo in nfsmw_nativo_dibujos.cpp): what the ring spends copying guest memory
+// (nfsmw_nativo_texturas_huella_hilo in the former native renderer): what the ring spends copying guest memory
 // (snapshots; counted inside "texturas"), how many the thread prepares and in how long, how many the ring
 // keeps for itself at submit time and in how long, and how long the ring waits for the thread. Only the ring
 // thread writes it (when planning and when collecting).

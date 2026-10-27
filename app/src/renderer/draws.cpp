@@ -27,7 +27,10 @@ REXCVAR_DEFINE_BOOL(nfsmw_recortar_pasadas, true, "Graficos",
                     "Renderizador Vulkan 1.1: el area de cada pasada cubre solo lo que el juego dibuja en sus "
                     "destinos (en una GPU de movil ahorra la carga y el guardado de lo que nadie dibuja); false = "
                     "la imagen entera");
-REXCVAR_DECLARE(bool, nfsmw_sombras_sin_vegetacion);
+REXCVAR_DEFINE_BOOL(nfsmw_sombras_sin_vegetacion, false, "NFSMW",
+                    "No dibujar en el mapa de sombras lo que lleva prueba de alfa: arboles, arbustos y vallas de "
+                    "alambre. Son el 55 % de los dibujos del pase. Los arboles dejan de proyectar sombra (lo "
+                    "encienden los perfiles bajo y medio)");
 REXCVAR_DEFINE_BOOL(nfsmw_perfil_dibujos, false, "NFSMW",
                     "Renderizador Vulkan 1.1 (analisis): mide el tiempo de CPU de cada dibujo por etapas (destinos, "
                     "indices, texturas, pasada, pipeline, constantes, vertices, comandos) y lo escribe en el log cada "

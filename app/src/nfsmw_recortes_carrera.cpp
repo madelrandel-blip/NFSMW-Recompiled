@@ -63,7 +63,7 @@
 //  that is 1.55 and 4.12 ms real (x1.627). Both labels are misleading:
 //
 //  1) "reflejo" is not the road reflection. The category is decided by the
-//     render target width (CategoriaDeDestino in nfsmw_nativo_dibujos.cpp):
+//     render target width (CategoriaDeDestino in the former native renderer):
 //     everything with a pitch between 640 and 1279 lands there. What really
 //     lands there is the 1024x576 output buffer (pitch 1040, height 576 =
 //     599,040 texels), two passes per frame: 2 x 599,040 = 1.20 Mtexels,

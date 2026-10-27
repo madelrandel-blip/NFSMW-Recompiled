@@ -52,7 +52,7 @@ constexpr uint32_t kVertexConstantRegisters = 256;
 constexpr uint32_t kPixelConstantRegisters = 224;
 // shader_common.h declares 23, but the 1/size of samplers 1-15 lives at bytes 368-487, past that array: the DXC
 // modules index it out of bounds. The renderer binds 31 registers (kUboBytesCompartidas in
-// nfsmw_nativo_dibujos.cpp), so declaring 31 here reads the same bytes with defined behavior.
+// the former native renderer), so declaring 31 here reads the same bytes with defined behavior.
 constexpr uint32_t kSharedConstantRegisters = 31;
 
 constexpr uint32_t kTemporaryRegisters = 32;

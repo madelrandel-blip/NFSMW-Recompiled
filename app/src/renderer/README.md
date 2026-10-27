@@ -1,8 +1,7 @@
 # Vulkan 1.1 renderer
 
-A from-scratch renderer for the native graphics path, selected with `nfsmw_renderer = "vulkan11"` in `nfsmw.toml`.
-The previous renderer (`nfsmw_nativo_destinos.cpp`, `nfsmw_nativo_dibujos.cpp`) stays the default until this one
-matches it.
+The game's renderer on PC and Android, written from scratch by Madeline_dev and Camille LaVey. It is the only one:
+the previous native renderer was removed.
 
 ## What it replaces and what it keeps
 

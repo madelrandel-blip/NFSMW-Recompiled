@@ -31,7 +31,7 @@
 #endif
 
 REXCVAR_DEFINE_STRING(nfsmw_msaa, "apagado", "Graficos",
-                      "MSAA de la escena con el renderizador Vulkan 1.1 (nfsmw_renderer = vulkan11): apagado, 2x, 4x u "
+                      "MSAA de la escena: apagado, 2x, 4x u "
                       "8x. La Xbox 360 dibujaba la escena con 4x. Cuesta GPU; se puede combinar con FXAA")
     .allowed({"apagado", "2x", "4x", "8x"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
@@ -41,13 +41,6 @@ REXCVAR_DEFINE_INT32(nfsmw_renderer_traza_s, 0, "NFSMW",
                      "en este segundo de vida del proceso (passes, sus destinos y dibujos, copias y borrados). 0 = nunca")
     .range(0, 3600);
 
-// On Android only this renderer fits: the original one needs descriptor indexing and buffer device addresses, which
-// many phone drivers lack.
-#if defined(__ANDROID__)
-#define NFSMW_RENDERER_DEFAULT "vulkan11"
-#else
-#define NFSMW_RENDERER_DEFAULT "legacy"
-#endif
 // Temporary, for the Android test builds: where the phone's GPU time goes (textures or geometry), measured on the
 // same route without the player doing anything.
 // Measured on the Mali-G68 (27/10): +2 LOD made no difference (44.0 vs 45.1 ms), textures are not its bottleneck.
@@ -62,11 +55,6 @@ REXCVAR_DEFINE_BOOL(nfsmw_diag_pixeles, false, "NFSMW",
                     "dibujo al cuarto superior izquierdo (la geometria entera, un cuarto de los pixeles); el log dice "
                     "en que modo va cada informe: la diferencia de tiempo de GPU es lo que cuestan los pixeles");
 
-REXCVAR_DEFINE_STRING(nfsmw_renderer, NFSMW_RENDERER_DEFAULT, "NFSMW",
-                      "Backend of the native renderer: legacy = the original one; vulkan11 = the Vulkan 1.1 "
-                      "renderer written from scratch (app/src/renderer)")
-    .allowed({"legacy", "vulkan11"})
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 namespace nfsmw::renderer {
 
@@ -560,8 +548,6 @@ FrameStats& Stats() {
   return stats;
 }
 
-bool VulkanRendererSelected() { return REXCVAR_GET(nfsmw_renderer) == "vulkan11"; }
-
 std::unique_ptr<nativo::DestinosNativos> CreateVulkanRenderer(const rex::ui::vulkan::VulkanDevice* device,
                                                               rex::memory::Memory* memory) {
   if (!device || !memory) {
@@ -578,7 +564,7 @@ std::unique_ptr<nativo::DestinosNativos> CreateVulkanRenderer(const rex::ui::vul
     REXLOG_ERROR("[renderer] Vulkan 1.1 renderer could not be initialized");
     return nullptr;
   }
-  REXLOG_INFO("[renderer] Vulkan 1.1 renderer (nfsmw_renderer = vulkan11)");
+  REXLOG_INFO("[renderer] Vulkan 1.1 renderer");
   return renderer;
 }
 

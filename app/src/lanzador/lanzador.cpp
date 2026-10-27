@@ -1032,8 +1032,6 @@ void Lanzador::DibujarGraficos() {
   {
     Tarjeta t(T("graf.imagen"));
     SegCvar(T("graf.aa"), "nfsmw_antialiasing", {{"@val.apagado", "apagado"}, {"FXAA", "fxaa"}});
-    ComboCvar(T("graf.aniso"), "nfsmw_nativo_anisotropico",
-              {{"@val.apagado", "0"}, {"2x", "2"}, {"4x", "4"}, {"8x", "8"}, {"16x", "16"}});
     SegCvar(T("graf.cielo"), "nfsmw_resplandor_cielo",
             {{"@val.original", "original"}, {"@val.natural", "natural"}, {"@val.suave", "suave"}});
     SegCvar(T("graf.filtro"), "nfsmw_tratamiento_visual",
@@ -1045,8 +1043,6 @@ void Lanzador::DibujarGraficos() {
   }
   {
     Tarjeta t(T("graf.detalle"));
-    // Sombras proyectadas: nfsmw_nativo_omitir_sombras quita el pase entero, siempre, sin mirar el rendimiento.
-    BoolCvar(T("graf.sombras"), "nfsmw_nativo_omitir_sombras", true);
     ComboCvar(T("graf.sombras_dist"), "nfsmw_sombras_corte",
               {{"@val.corta", "250"}, {"@val.media", "150"}, {"@val.normal", "100"}});
     SegCvar(T("graf.sombras_res"), "nfsmw_nativo_sombras_escala", {{"@val.media", "64"}, {"@val.alta", "100"}});

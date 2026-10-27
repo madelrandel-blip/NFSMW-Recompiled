@@ -139,7 +139,7 @@ void AnotarComprobacionDibujo(bool igual, uint32_t que, const RegistroDibujo* bu
  * Shadow map vegetation filtered on the game side (nfsmw_d3d_vegetacion_juego).
  * See DecidirVegetacion in nfsmw_nativo_ganchos.cpp. Every DrawVertices and DrawIndexedVertices carries the game's
  * verdict in its record (RegistroDibujo::vegetacion; in the phase 2b marker, in bits 8-23 of the function word),
- * and the ring compares it in Dibujar with its own (VeredictoVegetacion in nfsmw_nativo_dibujos.cpp).
+ * and the ring compares it in Dibujar with its own (VeredictoVegetacion in the former native renderer).
  */
 constexpr uint16_t kVegHay = 1u << 0;       // there is a verdict: the game has looked at this Draw*
 constexpr uint16_t kVegSi = 1u << 1;        // Dibujar's criterion, with the D3D mirror, says vegetation
@@ -197,7 +197,7 @@ struct EstadisticasGanchos {
 // While disabled the hooks only cost an atomic load.
 void ActivarGanchos(ShadersNativos* shaders);
 // The library that ActivarGanchos enabled (nullptr if none), from any thread. For pipeline prewarming
-// (nfsmw_nativo_dibujos.cpp).
+// (the former native renderer).
 const ShadersNativos* BibliotecaActiva();
 
 // From the Draw* hooks (nfsmw_d3d_trace.cpp), before the original.

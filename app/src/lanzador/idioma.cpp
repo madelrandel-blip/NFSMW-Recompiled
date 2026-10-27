@@ -314,7 +314,7 @@ constexpr Texto kTextos[] = {
                     "Recompilação estática nativa de Need for Speed: Most Wanted (2005) para Xbox 360. O código "
                     "PowerPC do jogo é traduzido para C++ antes de compilar e roda como código nativo: não é um "
                     "emulador."}},
-  {"acerca.base", {"Gracias a StevensND por el renderizador nativo en Vulkan (nfsmw-nx), base de este port. Construido sobre ReXGlue.", "Thanks to StevensND for the native Vulkan renderer (nfsmw-nx) this port is built on. Built on ReXGlue.", "Obrigado ao StevensND pelo renderizador nativo em Vulkan (nfsmw-nx), base deste port. Construído sobre o ReXGlue."}},
+  {"acerca.base", {"Renderizador Vulkan 1.1 escrito desde cero por Madeline_dev y Camille LaVey. Construido sobre ReXGlue.", "Vulkan 1.1 renderer written from scratch by Madeline_dev and Camille LaVey. Built on ReXGlue.", "Renderizador Vulkan 1.1 escrito do zero por Madeline_dev e Camille LaVey. Construído sobre o ReXGlue."}},
   {"acerca.legal", {"Necesitas tu propia copia del juego: este proyecto no incluye ni distribuye datos del juego. "
                     "Need for Speed y Most Wanted son marcas de Electronic Arts; este proyecto no está afiliado a "
                     "EA. Código bajo licencia GPLv3.",

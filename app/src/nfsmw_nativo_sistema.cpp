@@ -24,19 +24,17 @@
 //      Occlusion queries return 1000 samples, like the emulation.
 //
 // Where the rest is
-//   nfsmw_nativo_destinos.cpp does the copies (resolve and clear) and presents
-//   the resolved texture of each Swap, nfsmw_nativo_shaders.cpp identifies the
-//   shaders that reach the ring, and nfsmw_nativo_dibujos.cpp draws the
-//   geometry. See docs/native-renderer.md.
+//   app/src/renderer (the Vulkan 1.1 renderer, behind nfsmw_nativo_destinos.h)
+//   does the copies (resolve and clear), draws the geometry and presents the
+//   resolved texture of each Swap; nfsmw_nativo_shaders.cpp identifies the
+//   shaders that reach the ring.
 
 #include "nfsmw_nativo_sistema.h"
 #include "edicion.h"
 
 #include "nfsmw_esperas_tiron.h"
 #include "nfsmw_nativo_destinos.h"
-#if NFSMW_VK11_RENDERER
 #include "renderer/vulkan_renderer.h"
-#endif
 #include "nfsmw_nativo_ganchos.h"
 #include "nfsmw_nativo_shaders.h"
 
@@ -212,6 +210,9 @@ REXCVAR_DEFINE_BOOL(nfsmw_nativo_im_inmediato_cache, true, "NFSMW",
 extern std::atomic<uint64_t> g_nfsmw_fotogramas_juego;
 
 namespace nfsmw::nativo {
+
+// See nfsmw_nativo_dibujos.h: counted on the ring thread, read by the renderer.
+std::atomic<uint32_t> g_sincronizaciones_anillo{0};
 namespace {
 
 // The line queue and its thread. Created with the first line; it lives until exit.
@@ -486,7 +487,7 @@ constexpr uint32_t kBaseMmio = 0x7FC80000;
  */
 constexpr uint64_t kCronometroPaquetesCada = 128;  // packets per timed one (power of 2)
 /*
- * From 8 to 64. At 1 in 8, this timer and above all the stage timer in nfsmw_nativo_dibujos.cpp (about 20 clock
+ * From 8 to 64. At 1 in 8, this timer and above all the stage timer in the former native renderer (about 20 clock
  * reads per timed draw) added up to thousands of clock reads per frame in the alley, with 2,500-4,000 draws.
  * With 64 there are ~1,400 measured draws per second, plenty for a mean every 20 s. The "tiempos" line keeps
  * its scale: the measured time is multiplied by this same factor and divided by all the draws.
@@ -528,7 +529,7 @@ constexpr uint32_t kRegD1ModeViewportSize = 0x1961;
  * a single uint64 comparison.
  *
  * There are 32 fetch constants of 6 words each: the first 16 are used by textures (kRegFetch in
- * nfsmw_nativo_dibujos.cpp) and vertex fetches read theirs from the same block.
+ * the former native renderer) and vertex fetches read theirs from the same block.
  */
 constexpr uint32_t kRegFetchPrimero = 0x4800;  // SHADER_CONSTANT_FETCH_00_0
 constexpr uint32_t kRegFetchUltimo = 0x48BF;   // SHADER_CONSTANT_FETCH_31_5
@@ -1949,7 +1950,7 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
         /*
          * The guest has just waited for the GPU. It is the only point where it may legally rewrite
          * a vertex range it already referenced in this frame, so from here on upload deduplication
-         * cannot reuse anything recorded so far. See nfsmw_nativo_vertices_dedupe.h. Relaxed is
+         * cannot reuse anything recorded so far. See Draws::DropStaleCopies (src/renderer). Relaxed is
          * enough: the same thread reads it.
          */
         g_sincronizaciones_anillo.fetch_add(1, std::memory_order_relaxed);
@@ -2241,12 +2242,7 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
   bool AsegurarDestinos() {
     if (!destinos_ && !destinos_fallidos_) {
       const auto* device = provider_ ? provider_->vulkan_device() : nullptr;
-#if NFSMW_VK11_RENDERER
-      destinos_ = nfsmw::renderer::VulkanRendererSelected() ? nfsmw::renderer::CreateVulkanRenderer(device, memory_)
-                                                            : DestinosNativos::Crear(device, memory_);
-#else
-      destinos_ = DestinosNativos::Crear(device, memory_);
-#endif
+      destinos_ = nfsmw::renderer::CreateVulkanRenderer(device, memory_);
       if (!destinos_) {
         destinos_fallidos_ = true;
         REXLOG_ERROR("[nativo] No se pudieron crear los destinos nativos (C2)");
@@ -2633,7 +2629,7 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
   }
 
   // GetTiledOffset2D (graphics/pipeline/texture/util.cpp), same as DesplazamientoMosaico2D in
-  // nfsmw_nativo_dibujos.cpp; here only for the diagnostic. pitch in blocks.
+  // the former native renderer; here only for the diagnostic. pitch in blocks.
   static int32_t DesplazamientoMosaicoDiag(int32_t x, int32_t y, uint32_t pitch, uint32_t log2_bytes) {
     pitch = (pitch + 31) & ~uint32_t(31);
     const int32_t macro = ((x >> 5) + (y >> 5) * int32_t(pitch >> 5)) << (log2_bytes + 7);
@@ -4241,7 +4237,7 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
         }
         /*
          * The divisor is the number of recorded draws, not the number of incoming draws.
-         * `dibujados_cronometrados_` is incremented in nfsmw_nativo_dibujos.cpp:2440, right after
+         * `dibujados_cronometrados_` is incremented in the former native renderer, right after
          * vkCmdDraw/vkCmdDrawIndexed: it only counts recorded draws, never rejected ones.
          * Arithmetic check on a log (1 in 8 timed): sample 107,457 and recorded 859,614, and
          * 859,614/8 = 107,452 (exact). With the incoming draws it would have been 147,852.

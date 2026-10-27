@@ -28,7 +28,6 @@
 #endif
 #include "nfsmw_ajustes_graficos.h"
 #include "nfsmw_entorno_mesa.h"
-#include "nfsmw_nativo_captura.h"
 #include "nfsmw_nativo_sistema.h"
 #include "nfsmw_perfil_pc.h"
 #include "nfsmw_prueba_entrada.h"
@@ -315,14 +314,6 @@ class NfsmwApp : public rex::ReXApp {
     // Hang watchdog, see below.
     ArrancarVigilante();
 
-    // PNG captures for the native renderer tests (nfsmw_captura_cada_s;
-    // off by default). It works the same with emulation, for comparison.
-    nfsmw::captura::Arrancar([this]() -> rex::ui::Presenter* {
-      const auto* rt = runtime();
-      const auto* grafico = rt ? rt->graphics_system() : nullptr;
-      return grafico ? grafico->presenter() : nullptr;
-    });
-
     // Sampling CPU profiler, PC only (nfsmw_perfil_pc_desde_s; off by default).
     nfsmw::perfil_pc::Arrancar();
 
@@ -333,7 +324,6 @@ class NfsmwApp : public rex::ReXApp {
   void OnShutdown() override {
     nfsmw::trucos::Parar();
     nfsmw::perfil_pc::Parar();
-    nfsmw::captura::Parar();
     PararVigilante();
   }
 

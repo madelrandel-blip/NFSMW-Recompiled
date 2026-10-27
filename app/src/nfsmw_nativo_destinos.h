@@ -1,10 +1,6 @@
-// nfsmw - native renderer, part C2: render targets, copies (resolve and clear) and presentation of the
-// game's image.
-//
-// Measured on PC: each Swap presents the destination of the last copy (RB_COPY_DEST_BASE), and during the
-// videos and the title screen there are 2 copies per frame, both with a clear. This part does that without
-// EDRAM: a render target is one Vulkan image per (base, format, pitch), and a resolved texture is another
-// image per destination address, which is where the Swap looks it up through its fetch constant.
+// nfsmw - the interface between the native graphics system (nfsmw_nativo_sistema.cpp, which runs the game's GPU
+// ring) and the renderer: copies (resolve and clear), draws and presentation of the game's image. It is
+// implemented by app/src/renderer (Vulkan 1.1, CreateVulkanRenderer).
 
 #pragma once
 
@@ -55,9 +51,6 @@ struct TexturaSwap {
 
 class DestinosNativos {
  public:
-  // nullptr if the device is missing or presentation could not be set up.
-  static std::unique_ptr<DestinosNativos> Crear(const rex::ui::vulkan::VulkanDevice* dispositivo,
-                                                rex::memory::Memory* memoria);
   virtual ~DestinosNativos() = default;
 
   // Resolve and/or clear. false if it could not be done (each cause is logged once).

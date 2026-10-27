@@ -60,8 +60,8 @@ set(NFSMW_SOURCES
     # 1 = as the game does; it can be changed at run time from the settings menu).
     src/nfsmw_recorte_sombras.cpp
     src/nfsmw_sombras_lod.cpp
-    # Native renderer, part C1: the app's own graphics system (cvar
-    # nfsmw_renderizador, "xenos" by default). See docs/native-renderer.md.
+    # The native graphics system: runs the game's PM4 ring and hands draws, copies and swaps to the
+    # renderer (src/renderer).
     src/nfsmw_nativo_sistema.cpp
     # The game's D3D waits without spinning: sleeps until the PM4 ring thread advances
     # (cvar nfsmw_espera_anillo_bloqueante).
@@ -94,23 +94,12 @@ set(NFSMW_SOURCES
     # over the list that calls it (sub_82454B50) in native code, identical, keeping the game's cache hints
     # (dcbt), and checked at run time against a literal copy of the original (cvar nfsmw_pegamento_nativo).
     src/nfsmw_pegamento_nativo.cpp
-    # PNG captures of the game image for testing (cvar
-    # nfsmw_captura_cada_s, 0 = never).
-    src/nfsmw_nativo_captura.cpp
-    # Native renderer, part C2: render targets, copies (resolve and
-    # clear) and presentation of the game image.
-    src/nfsmw_nativo_destinos.cpp
-    # Native renderer, part C5a: identifies the shaders that reach the PM4 ring
+    # Identifies the shaders that reach the PM4 ring
     # in the NFSSPV library (nfsmw_shaders.nfsp next to the executable).
     src/nfsmw_nativo_shaders.cpp
     src/nfsmw_shader_library.cpp
-    # Native renderer, part C5b: VS and PS of each draw from the game
-    # thread (shader constructors and the D3D Draw* functions).
+    # VS and PS of each draw from the game thread (shader constructors and the D3D Draw* functions).
     src/nfsmw_nativo_ganchos.cpp
-    # Native renderer, parts C3-C6: textures, vertices, constants,
-    # pipelines and render passes with the shaders from the library.
-    src/nfsmw_nativo_dibujos.cpp
-    src/nfsmw_nativo_texturas_pool.cpp
     src/nfsmw_escenario_lod.cpp
     # The streamer requests the zone too late: facade popping and a hitch when entering a new
     # zone (hook on TrackStreamer::GetPredictedZone).
@@ -148,8 +137,7 @@ if(WIN32)
     # symbols, and all the code in anonymous namespaces shows up under the name of the preceding public symbol.
     # Debug info only; it does not change the generated code.
     set_source_files_properties(
-        src/nfsmw_nativo_sistema.cpp src/nfsmw_nativo_destinos.cpp src/nfsmw_nativo_dibujos.cpp
-        src/nfsmw_nativo_texturas_pool.cpp
+        src/nfsmw_nativo_sistema.cpp
         src/nfsmw_nativo_shaders.cpp src/nfsmw_nativo_ganchos.cpp src/nfsmw_espera_anillo.cpp
         src/nfsmw_espera_fotograma.cpp
         PROPERTIES COMPILE_OPTIONS "-g;-gcodeview")
@@ -197,17 +185,13 @@ if(NOT REXGLUE_PLATFORM_SWITCH AND TARGET renderdoc)
         $<TARGET_PROPERTY:renderdoc,INTERFACE_INCLUDE_DIRECTORIES>)
 endif()
 
-# Precompiled SPIR-V of the SDK presenter: nfsmw_nativo_destinos.cpp uses it to draw
-# the game image into the presenter output.
-target_include_directories(nfsmw PRIVATE "${REXSDK_DIR}/src/ui/shaders")
-
 # The SDK's xxHash: fingerprints for the shader library and the native renderer.
 find_path(NFSMW_XXHASH_INCLUDE xxhash.h HINTS "${REXSDK_DIR}/thirdparty/xxHash" NO_CMAKE_FIND_ROOT_PATH REQUIRED)
 target_include_directories(nfsmw PRIVATE "${NFSMW_XXHASH_INCLUDE}")
 
 # The launcher's shader library generator (src/lanzador/shaders.cpp): Xenos microcode straight to SPIR-V with
 # shaders/XenosRecomp/spirv_recompiler.cpp, built on the SDK's glslang SPIR-V builder. Neither HLSL nor DXC is
-# involved, so nothing has to be shipped next to the executable. PC and Android (Switch keeps the original renderer).
+# involved, so nothing has to be shipped next to the executable. PC and Android.
 if(WIN32 OR ANDROID)
     set(NFSMW_SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../shaders")
     set(NFSMW_GENERADOR_FUENTES src/lanzador/shaders.cpp "${NFSMW_SHADERS_DIR}/XenosRecomp/spirv_recompiler.cpp")
@@ -222,8 +206,8 @@ if(WIN32 OR ANDROID)
         "${REXSDK_DIR}/thirdparty" "${REXSDK_DIR}/thirdparty/glslang/SPIRV")
     target_link_libraries(nfsmw PRIVATE mspack fmt glslang::SPIRV)
 
-    # The Vulkan 1.1 renderer written from scratch (cvar nfsmw_renderer = vulkan11; see src/renderer/README.md).
-    # It translates shaders at run time with the same translator.
+    # The renderer (Vulkan 1.1, see src/renderer/README.md). It translates shaders at run time with the same
+    # translator.
     target_sources(nfsmw PRIVATE
         src/renderer/depth_resolve.cpp
         src/renderer/draws.cpp
@@ -237,8 +221,6 @@ if(WIN32 OR ANDROID)
         src/renderer/vertex_input.cpp
         src/renderer/vulkan_context.cpp
         src/renderer/vulkan_renderer.cpp)
-    # nfsmw_nativo_sistema.cpp offers it only where it is built.
-    target_compile_definitions(nfsmw PRIVATE NFSMW_VK11_RENDERER=1)
 endif()
 
 # Experimental library: the synthetic tests do not validate the full game.

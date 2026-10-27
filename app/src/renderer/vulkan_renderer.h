@@ -8,9 +8,6 @@
 
 namespace nfsmw::renderer {
 
-// true if the nfsmw_renderer cvar selects this renderer instead of the original native one.
-bool VulkanRendererSelected();
-
 // nullptr if the device lacks something the renderer needs (the reason is logged).
 std::unique_ptr<nativo::DestinosNativos> CreateVulkanRenderer(const rex::ui::vulkan::VulkanDevice* device,
                                                               rex::memory::Memory* memory);

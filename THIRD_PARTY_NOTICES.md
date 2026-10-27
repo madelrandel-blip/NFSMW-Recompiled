@@ -7,7 +7,7 @@ repository derived from it.
 
 | Project | Used for | License |
 |---|---|---|
-| [nfsmw-nx](https://github.com/StevensND/nfsmw-nx) by StevensND | The base of `app/`, `shaders/` and the changes in `sdk/`: the native Vulkan renderer, the game hooks and the shader pipeline | GPL-3.0 |
+| [nfsmw-nx](https://github.com/StevensND/nfsmw-nx) by StevensND | The base of `app/` (the native graphics system that runs the game's GPU ring, and the game hooks), of `shaders/` and of the changes in `sdk/`. The renderer (`app/src/renderer`) is not derived from it: Madeline_dev and Camille LaVey wrote it from scratch, and the previous native renderer was removed | GPL-3.0 |
 | [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk) by Tom Clay, with portions from [Xenia](https://xenia.jp) (Ben Vanik and the Xenia contributors) | `sdk/`: the recompiler, runtime and kernel | BSD-3-Clause |
 | [XenosRecomp](https://github.com/hedge-dev/XenosRecomp) by hedge-dev and contributors | `shaders/XenosRecomp`: Xenos microcode to HLSL translator, and the base of its direct SPIR-V translator (`spirv_recompiler.cpp`) | MIT |
 

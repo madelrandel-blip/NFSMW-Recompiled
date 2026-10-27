@@ -86,7 +86,7 @@ class ShadersNativos {
   const EntradaShader* IdentificarContenedor(std::span<const uint8_t> contenedor) const;
 
   // The entry with that number (its position in the library), or nullptr. Like IdentificarContenedor, from any
-  // thread once loaded: entries do not change after Cargar. Pipeline prewarming (nfsmw_nativo_dibujos.cpp) uses
+  // thread once loaded: entries do not change after Cargar. Pipeline prewarming (the former native renderer) uses
   // it to recreate the pipelines of the previous session.
   const EntradaShader* PorNumero(uint32_t numero) const;
 

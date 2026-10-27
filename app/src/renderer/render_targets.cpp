@@ -13,8 +13,15 @@
 #include <cstring>
 #include <utility>
 
-REXCVAR_DECLARE(int32_t, nfsmw_nativo_sombras_escala);
-REXCVAR_DECLARE(bool, nfsmw_nativo_resolver_sin_copia);
+REXCVAR_DEFINE_INT32(nfsmw_nativo_sombras_escala, 100, "NFSMW",
+                     "Los dos mapas de sombras de 1600x1600 del juego se dibujan y se resuelven a este porcentaje. "
+                     "100 = como la Xbox 360 (1600, que son 2000 de sus 2048 baldosas de EDRAM); 64 = como la "
+                     "version de PC de este mismo juego (1024). Se toma al crear el primer mapa")
+    .range(50, 100);
+REXCVAR_DEFINE_BOOL(nfsmw_nativo_resolver_sin_copia, true, "NFSMW",
+                    "Al resolver un destino entero a una textura del mismo tamano y formato, intercambiar las "
+                    "imagenes en vez de copiar los pixeles. La imagen no cambia; si el juego vuelve a dibujar en "
+                    "ese destino sin borrarlo antes, se restaura la copia");
 
 namespace nfsmw::renderer {
 
