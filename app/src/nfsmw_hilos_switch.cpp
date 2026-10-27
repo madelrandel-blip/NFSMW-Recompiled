@@ -24,6 +24,11 @@
 #include <windows.h>
 #endif
 
+#if defined(__ANDROID__)
+#include <sys/resource.h>
+#include <unistd.h>
+#endif
+
 namespace nfsmw::hilos {
 
 bool PrioridadHiloActual(int prioridad) {
@@ -34,6 +39,12 @@ bool PrioridadHiloActual(int prioridad) {
   // THREAD_PRIORITY_HIGHEST, above the other game threads.
   (void)prioridad;
   return SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST) != 0;
+#elif defined(__ANDROID__)
+  // Android: the niceness of its audio threads (THREAD_PRIORITY_AUDIO, -16), which an app may give its own
+  // threads; the game threads stay at 0. Without it the server lost its turn to them on a phone at its limit
+  // and half the packets came late (the output alternating ~10 ms of sound and ~10 ms of silence).
+  (void)prioridad;
+  return setpriority(PRIO_PROCESS, static_cast<id_t>(gettid()), -16) == 0;
 #else
   (void)prioridad;
   return false;

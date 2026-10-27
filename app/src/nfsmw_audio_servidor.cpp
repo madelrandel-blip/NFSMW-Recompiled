@@ -86,10 +86,12 @@ REXCVAR_DEFINE_INT32(nfsmw_audio_diag_retraso_servidor_us, 0, "NFSMW",
                      "Diagnostico: retrasa N microsegundos cada despertar del hilo servidor de "
                      "audio del juego, para imitar en el PC lo que tarda en volver a correr en la "
                      "Switch; 0 = nada");
-REXCVAR_DEFINE_INT32(nfsmw_audio_servidor_prioridad, REX_PLATFORM_SWITCH != 0 ? 0x2D : 0, "NFSMW",
+REXCVAR_DEFINE_INT32(nfsmw_audio_servidor_prioridad,
+                     (REX_PLATFORM_SWITCH != 0 || REX_PLATFORM_ANDROID != 0) ? 0x2D : 0, "NFSMW",
                      "Prioridad de Horizon del hilo servidor de audio del juego (0x1C-0x3A); 0 = la de los hilos "
-                     "del juego (0x3B). Por defecto 45 (0x2D) en la Switch, para que no espere su turno detras de "
-                     "ellos en los choques; en el PC cualquier valor lo sube a THREAD_PRIORITY_HIGHEST");
+                     "del juego (0x3B). Por defecto 45 (0x2D) en la Switch y en Android, para que no espere su turno "
+                     "detras de ellos; en el PC cualquier valor lo sube a THREAD_PRIORITY_HIGHEST y en Android a "
+                     "la de audio (nice -16)");
 REXCVAR_DEFINE_BOOL(nfsmw_audio_diag_anillo, false, "NFSMW",
                     "Diagnostico: cada 10 s anota cuantos paquetes tenia la voz del servidor de "
                     "audio en cada pasada, los fines de paquete y las entregas, y la CPU y los nucleos del "
@@ -100,7 +102,8 @@ REXCVAR_DEFINE_INT32(nfsmw_audio_diag_anillo_ms, 10000, "NFSMW",
 REXCVAR_DEFINE_DOUBLE(nfsmw_audio_diag_lentitud_mezcla, 0.0, "NFSMW",
                       "Diagnostico: tras cada mezcla del hilo servidor de audio espera activamente N veces lo que "
                       "ha tardado, antes de entregar el paquete; 3 imita una mezcla 4 veces mas lenta; 0 = nada");
-REXCVAR_DEFINE_INT32(nfsmw_audio_esperar_servidor_ms, REX_PLATFORM_SWITCH != 0 ? 30 : 0, "NFSMW",
+REXCVAR_DEFINE_INT32(nfsmw_audio_esperar_servidor_ms,
+                     (REX_PLATFORM_SWITCH != 0 || REX_PLATFORM_ANDROID != 0) ? 30 : 0, "NFSMW",
                      "Antes de cada trama, si la voz del servidor de audio del juego no tiene paquete y el "
                      "servidor esta en marcha, esperar como mucho N ms a que lo entregue (en vez de mezclar la "
                      "trama con esa voz en silencio); 0 = no esperar (por defecto 30 en la Switch y 0 en el PC). "

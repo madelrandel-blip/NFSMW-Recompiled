@@ -25,8 +25,10 @@
 #include <rex/thread.h>
 #include <rex/cvar.h>
 
+// Android: the cushion that lets the Audio Worker wait for a late packet of the game's audio server (NFSMW's
+// nfsmw_audio_esperar_servidor_ms, 30 ms) without the device running dry; 12 frames are 64 ms.
 REXCVAR_DEFINE_INT32(
-    audio_maxqframes, 8, "Audio",
+    audio_maxqframes, REX_PLATFORM_ANDROID ? 12 : 8, "Audio",
     "Max buffered audio frames (range 4-64). Lower reduces latency but may cause stuttering.");
 REXCVAR_DEFINE_BOOL(audio_diag_prioridad_critica, false, "Audio",
                     "Diagnostico (solo PC): Audio Worker y XMA Decoder a prioridad de tiempo critico, "
