@@ -9,7 +9,7 @@ repository derived from it.
 |---|---|---|
 | [nfsmw-nx](https://github.com/StevensND/nfsmw-nx) by StevensND | The base of `app/`, `shaders/` and the changes in `sdk/`: the native Vulkan renderer, the game hooks and the shader pipeline | GPL-3.0 |
 | [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk) by Tom Clay, with portions from [Xenia](https://xenia.jp) (Ben Vanik and the Xenia contributors) | `sdk/`: the recompiler, runtime and kernel | BSD-3-Clause |
-| [XenosRecomp](https://github.com/hedge-dev/XenosRecomp) by hedge-dev and contributors | `shaders/XenosRecomp`: Xenos microcode to HLSL translator | MIT |
+| [XenosRecomp](https://github.com/hedge-dev/XenosRecomp) by hedge-dev and contributors | `shaders/XenosRecomp`: Xenos microcode to HLSL translator, and the base of its direct SPIR-V translator (`spirv_recompiler.cpp`) | MIT |
 
 The changes in `sdk/` are under the SDK's BSD-3-Clause license and the changes in `shaders/` under its MIT license.
 The rest of this repository is GPL-3.0 (`LICENSE`).
@@ -38,9 +38,8 @@ Libraries used by the SDK, the executable and the code generator, fetched from t
 | [CLI11](https://github.com/CLIUtils/CLI11) | BSD-3-Clause |
 | AES-128 by LuoPeng (`thirdparty/aes_128`) | MIT |
 
-The launcher's shader generator loads [DirectXShaderCompiler](https://github.com/microsoft/DirectXShaderCompiler)
-(`dxcompiler.dll`, `dxil.dll`) at run time. It is distributed next to the executable under the University of
-Illinois/NCSA Open Source License, with LLVM's license terms.
+The launcher's shader generator translates the game's shaders straight to SPIR-V with glslang's SPIR-V builder.
+DirectXShaderCompiler is no longer used or distributed.
 
 ### FFmpeg and libmspack (LGPL)
 

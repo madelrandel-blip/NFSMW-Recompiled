@@ -6,8 +6,7 @@
 
 #include "../nfsmw_shader_library.h"
 #include "nfsmw_contenedor.h"
-#include "shader_recompiler.h"
-#include "shader_common_texto.h"  // generado por CMake: kShaderCommon con shaders/shader_common.h
+#include "spirv_recompiler.h"
 
 #include <rex/filesystem.h>
 #include <rex/logging.h>
@@ -31,15 +30,6 @@ extern "C" {
 // AES de la clave del XEX. Se incluye el .c como hace el propio SDK
 // (sdk/src/system/xex_module.cpp): la app solo compila C++.
 #include "crypto/rijndael-alg-fst.c"
-
-#if defined(_WIN32) && defined(NFSMW_CON_DXC)
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-#include <unknwn.h>  // IUnknown e IStream: WIN32_LEAN_AND_MEAN los deja fuera
-#include <objidl.h>
-#include <dxcapi.h>
-#endif
 
 namespace nfsmw::shaders {
 namespace {
@@ -313,30 +303,10 @@ std::vector<fs::path> FicherosConShaders(const fs::path& juego) {
   return rutas;
 }
 
-// ---- 4. Reescrituras de fuente (lib/shaders.js) ---------------------------------
+// ---- 3. Translation ------------------------------------------------------------
 
-size_t Contar(const std::string& texto, const std::string& aguja) {
-  size_t n = 0;
-  for (size_t i = texto.find(aguja); i != std::string::npos; i = texto.find(aguja, i + aguja.size())) ++n;
-  return n;
-}
-void Reemplazar(std::string& texto, const std::string& viejo, const std::string& nuevo) {
-  for (size_t i = texto.find(viejo); i != std::string::npos; i = texto.find(viejo, i + nuevo.size()))
-    texto.replace(i, viejo.size(), nuevo);
-}
-
-const std::string kSombraViejo = "tfetch2D(SHADOWMAP_SAMPLER_";
-const std::string kSombraNuevo = "tfetch2DSombra(SHADOWMAP_SAMPLER_";
-const std::string kMinViejo =
-    "tfetch2DSombra(SHADOWMAP_SAMPLER_Texture2DDescriptorIndex, SHADOWMAP_SAMPLER_SamplerDescriptorIndex,";
-const std::string kMinNuevo =
-    "tfetch2DSombraMin(SHADOWMAP_SAMPLER_Texture2DDescriptorIndex, SHADOWMAP_SAMPLER_Texture3DDescriptorIndex, "
-    "SHADOWMAP_SAMPLER_SamplerDescriptorIndex,";
-const std::string kDefine3d = "#define SHADOWMAP_SAMPLER_Texture3DDescriptorIndex";
-const std::string kDesenfoqueViejo = "r5.xyz = r5.xyz * r0.xxx + r3.xyz;";
-const std::string kDesenfoqueNuevo =
-    "r5.xyz = (g_SpecConstants() & SPEC_CONSTANT_SIN_DESENFOQUE) ? r3.xyz : (r5.xyz * r0.xxx + r3.xyz);";
-// El contenedor del VisualTreatment de carrera: cambia de nombre entre ediciones, no de contenido.
+// The race VisualTreatment container: its name changes between editions, its content does not. Its radial blur
+// blend gets the SPEC_CONSTANT_SIN_DESENFOQUE switch (SpirvRecompilerOptions::compositionBlurSwitch).
 constexpr const char* kComposicionSha256 = "e80cca037bd4becd8a192daa4583e3a3a9281e06436015746583f30701a296f9";
 constexpr uint32_t kMarcaSombra = 0x5E3B1A84;
 
@@ -351,70 +321,11 @@ bool TieneMarcaSombra(const std::vector<uint32_t>& w) {
   return false;
 }
 
-// ---- 5. DXC ------------------------------------------------------------------
+// Written next to the library once it is complete. A library without it, or with another value, was made by an
+// older generator (the HLSL + DXC one, before the Xenos multiply rule) and is generated again.
+constexpr const char* kGenerador = "nfsmw-spirv-direct 1";
 
-#if defined(_WIN32) && defined(NFSMW_CON_DXC)
-class Dxc {
- public:
-  Dxc() {
-    modulo_ = LoadLibraryW((rex::filesystem::GetExecutableFolder() / "dxcompiler.dll").wstring().c_str());
-    if (!modulo_) return;
-    auto crear = reinterpret_cast<DxcCreateInstanceProc>(GetProcAddress(modulo_, "DxcCreateInstance"));
-    if (!crear || FAILED(crear(CLSID_DxcCompiler, __uuidof(IDxcCompiler3), reinterpret_cast<void**>(&compilador_))))
-      compilador_ = nullptr;
-  }
-  ~Dxc() {
-    if (compilador_) compilador_->Release();
-    // dxcompiler.dll no se descarga: DXC no lo soporta bien en caliente.
-  }
-  bool Valido() const { return compilador_ != nullptr; }
-
-  // Mismos argumentos que dxc_web.cpp del instalador.
-  std::vector<uint32_t> Compilar(const std::string& nombre, const std::string& hlsl, bool vertice, std::string& error) {
-    const std::wstring wnombre(nombre.begin(), nombre.end());
-    std::vector<const wchar_t*> args = {wnombre.c_str(), L"-spirv", L"-T", vertice ? L"vs_6_6" : L"ps_6_6",
-                                        L"-E", L"main", L"-HV", L"2021", L"-fspv-target-env=vulkan1.2",
-                                        L"-fvk-use-dx-layout", L"-Werror=parameter-usage"};
-    if (vertice) args.push_back(L"-fvk-invert-y");
-    DxcBuffer fuente{hlsl.data(), hlsl.size(), DXC_CP_UTF8};
-    IDxcResult* resultado = nullptr;
-    std::vector<uint32_t> spirv;
-    if (FAILED(compilador_->Compile(&fuente, args.data(), UINT32(args.size()), nullptr, __uuidof(IDxcResult),
-                                    reinterpret_cast<void**>(&resultado))) ||
-        !resultado) {
-      error = "DXC no pudo compilar " + nombre;
-      return spirv;
-    }
-    HRESULT estado = S_OK;
-    resultado->GetStatus(&estado);
-    if (FAILED(estado)) {
-      IDxcBlobUtf8* errores = nullptr;
-      if (SUCCEEDED(resultado->GetOutput(DXC_OUT_ERRORS, __uuidof(IDxcBlobUtf8), reinterpret_cast<void**>(&errores),
-                                         nullptr)) &&
-          errores) {
-        error = nombre + ": " + std::string(errores->GetStringPointer(), errores->GetStringLength());
-        errores->Release();
-      } else {
-        error = "DXC rechazo " + nombre;
-      }
-    } else {
-      IDxcBlob* blob = nullptr;
-      if (SUCCEEDED(resultado->GetOutput(DXC_OUT_OBJECT, __uuidof(IDxcBlob), reinterpret_cast<void**>(&blob), nullptr)) &&
-          blob) {
-        const auto* p = static_cast<const uint32_t*>(blob->GetBufferPointer());
-        spirv.assign(p, p + blob->GetBufferSize() / 4);
-        blob->Release();
-      }
-    }
-    resultado->Release();
-    return spirv;
-  }
-
- private:
-  HMODULE modulo_ = nullptr;
-  IDxcCompiler3* compilador_ = nullptr;
-};
-#endif
+fs::path RutaSello(const fs::path& biblioteca) { return fs::path(biblioteca).concat(".generator"); }
 
 }  // namespace
 
@@ -428,20 +339,21 @@ std::string Sha256Fichero(const fs::path& ruta) {
 }
 
 bool PuedeGenerar() {
-#if defined(_WIN32) && defined(NFSMW_CON_DXC)
+  // The translator is built in: nothing has to be next to the executable.
+  return true;
+}
+
+bool BibliotecaActual(const fs::path& biblioteca) {
   std::error_code ec;
-  return fs::is_regular_file(rex::filesystem::GetExecutableFolder() / "dxcompiler.dll", ec);
-#else
-  return false;
-#endif
+  if (!fs::is_regular_file(biblioteca, ec)) return false;
+  std::ifstream f(RutaSello(biblioteca));
+  std::string sello;
+  std::getline(f, sello);
+  return sello == kGenerador;
 }
 
 std::string Generar(const fs::path& juego, const fs::path& salida, const Progreso& progreso,
                     const std::atomic<bool>& cancelar) try {
-#if !(defined(_WIN32) && defined(NFSMW_CON_DXC))
-  (void)juego, (void)salida, (void)progreso, (void)cancelar;
-  return "Esta compilacion no trae DXC: no puede generar los shaders.";
-#else
   auto avisar = [&](Fase f, int h, int t) {
     if (progreso) progreso(f, h, t);
   };
@@ -491,65 +403,37 @@ std::string Generar(const fs::path& juego, const fs::path& salida, const Progres
     if (Sha256(c.datos.data(), c.datos.size()) == kComposicionSha256) composicion = c.nombre;
   if (composicion.empty()) return "No se encuentra el shader de composicion: el juego no parece compatible.";
 
-  // 3. Traduccion a HLSL.
-  const std::string_view comun(kShaderCommon);
-  std::vector<std::string> hlsl(contenedores.size());
+  // 3. Microcode -> SPIR-V, directly (spirv_recompiler.h): no HLSL and no DXC. The shadow map samples become
+  // tfetch2DSombraMin and the composite gets its blur switch inside the translator.
+  SpirvRecompilerOptions opciones;
+  opciones.legacyMultiply = true;
+  opciones.sanitizeColorOutputs = true;
+  std::vector<nfsmw::native::Shader> paquete;
+  uint32_t sombras = 0, notas = 0;
   for (size_t i = 0; i < contenedores.size(); ++i) {
-    if (cancelar) return "Cancelado.";
+    if (cancelar) return "Cancelled.";
     avisar(Fase::kTraducir, int(i), int(contenedores.size()));
     const auto& datos = contenedores[i].datos;
     const uint32_t firma = Be32(datos.data()) & 0xFFFFFF00u;
-    if (firma != 0x102A0E00u && firma != 0x102A1100u)
-      return contenedores[i].nombre + ": firma de contenedor desconocida";
+    if (firma != 0x102A0E00u && firma != 0x102A1100u) return contenedores[i].nombre + ": unknown container signature";
     nfsmw::Flujo flujo;
     const Bytes conv = firma == 0x102A0E00u ? nfsmw::Convertir2005(datos, flujo) : datos;
-    ShaderRecompiler recompilador;
-    recompilador.recompile(conv.data(), comun);
-    if (recompilador.out.empty()) return contenedores[i].nombre + ": la traduccion no produjo nada";
-    hlsl[i] = std::move(recompilador.out);
-  }
-
-  // 4. Reescrituras.
-  size_t sombras = 0;
-  for (auto& t : hlsl) {
-    const size_t n = Contar(t, kSombraViejo);
-    if (n) sombras += n, Reemplazar(t, kSombraViejo, kSombraNuevo);
-  }
-  if (!sombras) return "No se reescribio ninguna lectura del mapa de sombras.";
-  size_t minimos = 0;
-  for (size_t i = 0; i < hlsl.size(); ++i) {
-    const size_t n = Contar(hlsl[i], kSombraNuevo);
-    if (!n) continue;
-    if (Contar(hlsl[i], kMinViejo) != n || hlsl[i].find(kDefine3d) == std::string::npos)
-      return contenedores[i].nombre + ": lectura de sombras con una forma inesperada";
-    Reemplazar(hlsl[i], kMinViejo, kMinNuevo);
-    minimos += n;
-  }
-  if (!minimos) return "No se reescribio ninguna lectura de sombra por minimo.";
-  for (size_t i = 0; i < hlsl.size(); ++i) {
-    if (contenedores[i].nombre != composicion) continue;
-    if (Contar(hlsl[i], kDesenfoqueViejo) != 1) return "No se encuentra la mezcla del desenfoque de la composicion.";
-    hlsl[i].replace(hlsl[i].find(kDesenfoqueViejo), kDesenfoqueViejo.size(), kDesenfoqueNuevo);
-  }
-
-  // 5. SPIR-V.
-  Dxc dxc;
-  if (!dxc.Valido()) return "No se pudo cargar dxcompiler.dll.";
-  std::vector<nfsmw::native::Shader> paquete;
-  for (size_t i = 0; i < contenedores.size(); ++i) {
-    if (cancelar) return "Cancelado.";
-    avisar(Fase::kCompilar, int(i), int(contenedores.size()));
-    std::string error;
-    const bool vertice = contenedores[i].nombre[0] == 'v';
-    auto spirv = dxc.Compilar(contenedores[i].nombre, hlsl[i], vertice, error);
-    if (spirv.empty()) return error.empty() ? contenedores[i].nombre + ": DXC no devolvio nada" : error;
-    if (hlsl[i].find("tfetch2DSombraMin(SHADOWMAP_SAMPLER_") != std::string::npos && !TieneMarcaSombra(spirv))
-      return contenedores[i].nombre + ": el SPIR-V no trae la marca de sombra por minimo";
+    opciones.compositionBlurSwitch = contenedores[i].nombre == composicion;
+    SpirvRecompileResult traducido = RecompileToSpirv(conv.data(), opciones);
+    if (traducido.spirv.empty()) return contenedores[i].nombre + ": " + traducido.error;
+    if (traducido.shadowFetches && !TieneMarcaSombra(traducido.spirv))
+      return contenedores[i].nombre + ": the SPIR-V lacks the shadow minimum marker";
+    sombras += traducido.shadowFetches;
+    notas += uint32_t(traducido.notes.size());
     nfsmw::native::Shader s;
-    s.original = contenedores[i].datos;
-    s.spirv = std::move(spirv);
+    s.original = datos;
+    s.spirv = std::move(traducido.spirv);
     paquete.push_back(std::move(s));
   }
+  if (!sombras) return "No shadow map sample was found to rewrite.";
+  REXLOG_INFO("[shaders] {} shaders translated to SPIR-V ({} shadow map samples; {} texture LOD or call instructions "
+              "skipped, as the HLSL path did)",
+              paquete.size(), sombras, notas);
 
   // 6. Empaquetado, con el mismo codigo que la carga el renderizador.
   avisar(Fase::kEmpaquetar, 0, 1);
@@ -565,9 +449,13 @@ std::string Generar(const fs::path& juego, const fs::path& salida, const Progres
   if (ec) return "No se pudo guardar " + salida.string() + ": " + ec.message();
   REXLOG_INFO("[shaders] biblioteca de {} bytes, SHA-256 {}", biblioteca.size(),
               Sha256(biblioteca.data(), biblioteca.size()));
+  {
+    // Last, so an interrupted generation leaves no stamp and is redone.
+    std::ofstream sello(RutaSello(salida), std::ios::trunc);
+    sello << kGenerador << '\n';
+  }
   avisar(Fase::kEmpaquetar, 1, 1);
   return {};
-#endif
 } catch (const std::exception& e) {
   return e.what();
 }

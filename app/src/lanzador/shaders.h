@@ -1,14 +1,10 @@
-// nfsmw - genera la biblioteca de shaders (nfsmw_shaders.nfsp) a partir del
-// juego, desde el lanzador.
+// nfsmw - generates the shader library (nfsmw_shaders.nfsp) from the game, in the launcher.
 //
-// Hace lo mismo y en el mismo orden que el instalador web de nfsmw-nx
-// (lib/installer.js y lib/shaders.js), para que el resultado sea identico:
-//   1. sacar la imagen PE del default.xex (descifrado AES y descompresion LZX);
-//   2. buscar los contenedores de shaders en NFS/*.BIN y en esa imagen;
-//   3. traducirlos a HLSL con XenosRecomp;
-//   4. las tres reescrituras de fuente (sombras, sombra por minimo, desenfoque);
-//   5. compilarlos a SPIR-V con DXC (dxcompiler.dll junto al ejecutable);
-//   6. empaquetarlos con el mismo codigo que los carga el renderizador.
+//   1. the PE image of default.xex (AES decryption and LZX decompression);
+//   2. the shader containers in NFS/*.BIN and in that image, in the same order as the nfsmw-nx web installer;
+//   3. each container translated straight from Xenos microcode to SPIR-V (shaders/XenosRecomp/spirv_recompiler.h),
+//      with the shadow map and composite blur changes built in. No HLSL and no DXC;
+//   4. packed with the same code the renderer loads it with.
 
 #pragma once
 
@@ -27,8 +23,12 @@ using Progreso = std::function<void(Fase fase, int hechos, int total)>;
 // Nombre de la biblioteca, que el renderizador busca junto al ejecutable.
 std::filesystem::path RutaBiblioteca();
 
-// Hay DXC para compilar (dxcompiler.dll junto al ejecutable).
+// The library can be generated (always, now that the translator is built in; kept for the callers).
 bool PuedeGenerar();
+
+// The library exists and was made by the current generator. One made by an older generator (the HLSL + DXC path,
+// without the Xenos multiply rule) counts as missing, so it is generated again.
+bool BibliotecaActual(const std::filesystem::path& biblioteca);
 
 // SHA-256 of a whole file, in lowercase hex. Empty if it cannot be read.
 std::string Sha256Fichero(const std::filesystem::path& ruta);
