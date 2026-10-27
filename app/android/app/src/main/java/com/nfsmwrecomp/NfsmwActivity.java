@@ -16,7 +16,11 @@ import android.system.Os;
 import android.util.Log;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -106,6 +110,40 @@ public class NfsmwActivity extends SDLActivity {
      * newest game logs (this session's and the previous one), complete, as files, plus the last minute of the game's
      * audio output (audio_salida.wav) if there is one.
      */
+    /**
+     * Called from a native thread (the launcher's new version check, never the UI thread): the body of an HTTPS GET
+     * of at most 1 MB, or null without network or on any error. The PC build does the same with WinHTTP.
+     */
+    public String httpGet(String address) {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(address).openConnection();
+            connection.setConnectTimeout(4000);
+            connection.setReadTimeout(4000);
+            connection.setRequestProperty("Accept", "application/vnd.github+json");
+            connection.setRequestProperty("User-Agent", "nfsmw-lanzador");
+            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                return null;
+            }
+            try (InputStream in = connection.getInputStream()) {
+                ByteArrayOutputStream body = new ByteArrayOutputStream();
+                byte[] chunk = new byte[8192];
+                int read;
+                while ((read = in.read(chunk)) > 0 && body.size() < (1 << 20)) {
+                    body.write(chunk, 0, read);
+                }
+                return new String(body.toByteArray(), StandardCharsets.UTF_8);
+            }
+        } catch (Exception e) {
+            Log.i(TAG, "version check: " + e);
+            return null;
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
     public void exportLogs() {
         final ArrayList<Uri> uris = new ArrayList<>();
         try {

@@ -2,6 +2,8 @@
 
 #include "actualizacion.h"
 
+#include "sistema.h"
+
 #include <rex/logging.h>
 
 #include <array>
@@ -52,6 +54,9 @@ std::string Descargar(const std::string& ruta) {
   if (peticion) WinHttpCloseHandle(peticion);
   if (conexion) WinHttpCloseHandle(conexion);
   WinHttpCloseHandle(sesion);
+#elif defined(__ANDROID__)
+  // There is no curl for an app: Java's HttpURLConnection through the activity.
+  cuerpo = sistema::DescargarTexto("https://api.github.com" + ruta);
 #else
   const std::string orden = "curl -fsSL --max-time 4 -H 'Accept: application/vnd.github+json' "
                             "'https://api.github.com" + ruta + "' 2>/dev/null";

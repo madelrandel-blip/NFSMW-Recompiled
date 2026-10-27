@@ -16,6 +16,10 @@ std::filesystem::path ElegirCarpeta(const std::filesystem::path& inicial);
 // Abre una URL en el navegador o una carpeta en el explorador.
 void Abrir(const std::string& destino);
 
+// Android: the body of an HTTPS GET through NfsmwActivity.httpGet (app/android), from any thread but the UI one;
+// empty without network or on any error. Other platforms do their own download (actualizacion.cpp): empty.
+std::string DescargarTexto(const std::string& url);
+
 // Exports the game's logs: on Android through the share sheet (the complete logs and a crash report, as files);
 // elsewhere it opens the logs folder.
 void ExportarLog();

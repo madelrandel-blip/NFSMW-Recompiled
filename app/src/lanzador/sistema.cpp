@@ -139,6 +139,38 @@ void Abrir(const std::string& destino) {
 #endif
 }
 
+std::string DescargarTexto(const std::string& url) {
+  std::string cuerpo;
+#if defined(__ANDROID__)
+  // SDL attaches this thread to the JVM if it is not yet (the launcher's version check runs on its own thread).
+  auto* env = static_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
+  auto activity = static_cast<jobject>(SDL_GetAndroidActivity());
+  if (!env || !activity) return cuerpo;
+  jclass clase = env->GetObjectClass(activity);
+  if (jmethodID metodo = env->GetMethodID(clase, "httpGet", "(Ljava/lang/String;)Ljava/lang/String;")) {
+    jstring direccion = env->NewStringUTF(url.c_str());
+    auto respuesta = static_cast<jstring>(env->CallObjectMethod(activity, metodo, direccion));
+    if (respuesta && !env->ExceptionCheck()) {
+      if (const char* texto = env->GetStringUTFChars(respuesta, nullptr)) {
+        cuerpo = texto;
+        env->ReleaseStringUTFChars(respuesta, texto);
+      }
+    }
+    if (respuesta) env->DeleteLocalRef(respuesta);
+    env->DeleteLocalRef(direccion);
+  }
+  if (env->ExceptionCheck()) {
+    env->ExceptionDescribe();
+    env->ExceptionClear();
+  }
+  env->DeleteLocalRef(clase);
+  env->DeleteLocalRef(activity);
+#else
+  (void)url;
+#endif
+  return cuerpo;
+}
+
 void ExportarLog() {
 #if defined(__ANDROID__)
   // NfsmwActivity.exportLogs (app/android) writes the report and opens the share sheet; it returns at once.
