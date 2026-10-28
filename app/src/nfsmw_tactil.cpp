@@ -63,19 +63,20 @@ constexpr in::DeviceId kMandoTactil = in::DeviceId(0x4E46534D57544354ull);  // "
 enum class Lado { kIzquierda, kDerecha, kCentro };
 enum class Borde { kArriba, kAbajo };
 
-enum class Accion { kBotones, kGirar, kAjustes };
+enum class Accion { kBotones, kEje, kAjustes };
 
 struct Control {
   const char* etiqueta;
   const char* icono;  // file name without extension, or nullptr
   Accion accion;
   uint32_t bits;      // X_INPUT_GAMEPAD bits; the triggers in bits 16 (LT) and 17 (RT)
-  int giro;           // kGirar: -1 left, +1 right (full left stick)
+  int giro;           // kEje: -1 or +1, the whole way along that axis (left/down or right/up)
   bool espejo;        // the icon flipped horizontally
   Lado lado;
   Borde borde;
   float x, y;         // center: distance from that side (kCentro: offset from the middle) and that edge
   float radio;
+  int eje = 0;        // kEje: 0 left stick X, 1 left stick Y, 2 right stick X, 3 right stick Y
 };
 
 constexpr uint32_t kLT = 1u << 16;
@@ -83,21 +84,34 @@ constexpr uint32_t kRT = 1u << 17;
 
 constexpr Control kControles[] = {
     // Steering: left and right only (the stick's horizontal axis).
-    {"<", "ARROW_SKINNIER", Accion::kGirar, 0, -1, false, Lado::kIzquierda, Borde::kAbajo, 0.17f, 0.24f, 0.115f},
-    {">", "ARROW_SKINNIER", Accion::kGirar, 0, +1, true, Lado::kIzquierda, Borde::kAbajo, 0.45f, 0.24f, 0.115f},
+    {"<", "XB360MW_LANALOG_LEFT", Accion::kEje, 0, -1, false, Lado::kIzquierda, Borde::kAbajo, 0.17f, 0.24f, 0.115f},
+    {">", "XB360MW_LANALOG_RIGHT", Accion::kEje, 0, +1, false, Lado::kIzquierda, Borde::kAbajo, 0.45f, 0.24f, 0.115f},
+    // The left stick's up and down (menus, the map), around the steering arrows.
+    {"L^", "XB360MW_LANALOG_UP", Accion::kEje, 0, +1, false, Lado::kIzquierda, Borde::kAbajo, 0.31f, 0.43f, 0.06f, 1},
+    {"Lv", "XB360MW_LANALOG_DOWN", Accion::kEje, 0, -1, false, Lado::kIzquierda, Borde::kAbajo, 0.31f, 0.07f, 0.06f, 1},
+    // D-pad, on the left half way up.
+    {"D^", "XB360MW_DPAD_UP", Accion::kBotones, 0x0001, 0, false, Lado::kIzquierda, Borde::kArriba, 0.20f, 0.31f, 0.045f},
+    {"Dv", "XB360MW_DPAD_DOWN", Accion::kBotones, 0x0002, 0, false, Lado::kIzquierda, Borde::kArriba, 0.20f, 0.49f, 0.045f},
+    {"D<", "XB360MW_DPAD_LEFT", Accion::kBotones, 0x0004, 0, false, Lado::kIzquierda, Borde::kArriba, 0.11f, 0.40f, 0.045f},
+    {"D>", "XB360MW_DPAD_RIGHT", Accion::kBotones, 0x0008, 0, false, Lado::kIzquierda, Borde::kArriba, 0.29f, 0.40f, 0.045f},
+    // Right stick (camera), to the left of the face buttons.
+    {"R^", "XB360MW_RANALOG_UP", Accion::kEje, 0, +1, false, Lado::kDerecha, Borde::kAbajo, 0.52f, 0.59f, 0.045f, 3},
+    {"Rv", "XB360MW_RANALOG_DOWN", Accion::kEje, 0, -1, false, Lado::kDerecha, Borde::kAbajo, 0.52f, 0.41f, 0.045f, 3},
+    {"R<", "XB360MW_RANALOG_LEFT", Accion::kEje, 0, -1, false, Lado::kDerecha, Borde::kAbajo, 0.61f, 0.50f, 0.045f, 2},
+    {"R>", "XB360MW_RANALOG_RIGHT", Accion::kEje, 0, +1, false, Lado::kDerecha, Borde::kAbajo, 0.43f, 0.50f, 0.045f, 2},
     // Gas, brake and the face buttons.
-    {"RT", "PERFORMANCE_ENGINE", Accion::kBotones, kRT, 0, false, Lado::kDerecha, Borde::kAbajo, 0.16f, 0.22f, 0.125f},
-    {"LT", "VISUAL_PART_BRAKE", Accion::kBotones, kLT, 0, false, Lado::kDerecha, Borde::kAbajo, 0.44f, 0.15f, 0.095f},
-    {"A", "ICON_WRONGWAY", Accion::kBotones, 0x1000, 0, false, Lado::kDerecha, Borde::kAbajo, 0.21f, 0.50f, 0.068f},
-    {"B", "PERFORMANCE_NITROUS", Accion::kBotones, 0x2000, 0, false, Lado::kDerecha, Borde::kAbajo, 0.08f, 0.62f, 0.068f},
-    {"X", "PERSUIT_ICON", Accion::kBotones, 0x4000, 0, false, Lado::kDerecha, Borde::kAbajo, 0.34f, 0.62f, 0.068f},
-    {"Y", "VISIBILITY_WORLDMAP", Accion::kBotones, 0x8000, 0, false, Lado::kDerecha, Borde::kAbajo, 0.21f, 0.74f, 0.068f},
+    {"RT", "XB360MW_RT", Accion::kBotones, kRT, 0, false, Lado::kDerecha, Borde::kAbajo, 0.16f, 0.22f, 0.125f},
+    {"LT", "XB360MW_LT", Accion::kBotones, kLT, 0, false, Lado::kDerecha, Borde::kAbajo, 0.44f, 0.15f, 0.095f},
+    {"A", "XB360MW_A", Accion::kBotones, 0x1000, 0, false, Lado::kDerecha, Borde::kAbajo, 0.21f, 0.50f, 0.068f},
+    {"B", "XB360MW_B", Accion::kBotones, 0x2000, 0, false, Lado::kDerecha, Borde::kAbajo, 0.08f, 0.62f, 0.068f},
+    {"X", "XB360MW_X", Accion::kBotones, 0x4000, 0, false, Lado::kDerecha, Borde::kAbajo, 0.34f, 0.62f, 0.068f},
+    {"Y", "XB360MW_Y", Accion::kBotones, 0x8000, 0, false, Lado::kDerecha, Borde::kAbajo, 0.21f, 0.74f, 0.068f},
     // Shoulders in the top corners.
-    {"LB", "WORLD_CARLOT", Accion::kBotones, 0x0100, 0, false, Lado::kIzquierda, Borde::kArriba, 0.13f, 0.14f, 0.075f},
-    {"RB", "MILESTONE_SPEEDTRAP", Accion::kBotones, 0x0200, 0, false, Lado::kDerecha, Borde::kArriba, 0.13f, 0.14f, 0.075f},
+    {"LB", "XB360MW_LB", Accion::kBotones, 0x0100, 0, false, Lado::kIzquierda, Borde::kArriba, 0.13f, 0.14f, 0.075f},
+    {"RB", "XB360MW_RB", Accion::kBotones, 0x0200, 0, false, Lado::kDerecha, Borde::kArriba, 0.13f, 0.14f, 0.075f},
     // Back (resets the car), Start and the settings nut, top center.
-    {"BACK", "IMPOUND_ICON", Accion::kBotones, 0x0020, 0, false, Lado::kCentro, Borde::kArriba, -0.15f, 0.09f, 0.058f},
-    {"START", "MAIN_ICON_OPTIONS", Accion::kBotones, 0x0010, 0, false, Lado::kCentro, Borde::kArriba, 0.15f, 0.09f, 0.058f},
+    {"BACK", "XB360MW_BACK", Accion::kBotones, 0x0020, 0, false, Lado::kCentro, Borde::kArriba, -0.15f, 0.09f, 0.058f},
+    {"START", "XB360MW_START", Accion::kBotones, 0x0010, 0, false, Lado::kCentro, Borde::kArriba, 0.15f, 0.09f, 0.058f},
     {"AJUSTES", nullptr, Accion::kAjustes, 0, 0, false, Lado::kCentro, Borde::kArriba, 0.0f, 0.09f, 0.045f},
 };
 constexpr size_t kNumControles = sizeof(kControles) / sizeof(kControles[0]);
@@ -107,10 +121,11 @@ struct Ajuste {
   bool movido = false;
   float fx = 0.0f, fy = 0.0f;  // center as a fraction of the screen
   float tam = 1.0f;            // times the overall size
+  bool oculto = false;         // hidden from the nut's panel: not drawn and takes no touches
 };
 using Disposicion = std::array<Ajuste, kNumControles>;
 
-// nfsmw_tactil_disposicion: NAME=x,y,size entries (by label) separated by ';'.
+// nfsmw_tactil_disposicion: NAME=x,y,size[,hidden] entries (by label) separated by ';'.
 Disposicion LeerDisposicion(const std::string& texto) {
   Disposicion d{};
   size_t inicio = 0;
@@ -123,7 +138,9 @@ Disposicion LeerDisposicion(const std::string& texto) {
     inicio = fin + 1;
     const size_t igual = entrada.find('=');
     float x = 0.0f, y = 0.0f, tam = 1.0f;
-    if (igual == std::string::npos || std::sscanf(entrada.c_str() + igual + 1, "%f,%f,%f", &x, &y, &tam) != 3) {
+    int oculto = 0;
+    if (igual == std::string::npos ||
+        std::sscanf(entrada.c_str() + igual + 1, "%f,%f,%f,%d", &x, &y, &tam, &oculto) < 3) {
       continue;
     }
     for (size_t i = 0; i < kNumControles; ++i) {
@@ -132,6 +149,7 @@ Disposicion LeerDisposicion(const std::string& texto) {
         d[i].fx = std::clamp(x, 0.0f, 1.0f);
         d[i].fy = std::clamp(y, 0.0f, 1.0f);
         d[i].tam = std::clamp(tam, 0.5f, 2.0f);
+        d[i].oculto = oculto != 0 && kControles[i].accion != Accion::kAjustes;
       }
     }
   }
@@ -141,11 +159,12 @@ Disposicion LeerDisposicion(const std::string& texto) {
 std::string EscribirDisposicion(const Disposicion& d) {
   std::string texto;
   for (size_t i = 0; i < kNumControles; ++i) {
-    if (!d[i].movido && d[i].tam == 1.0f) {
+    if (!d[i].movido && d[i].tam == 1.0f && !d[i].oculto) {
       continue;
     }
-    texto += fmt::format("{}{}={:.4f},{:.4f},{:.2f}", texto.empty() ? "" : ";", kControles[i].etiqueta,
-                         d[i].movido ? d[i].fx : -1.0f, d[i].movido ? d[i].fy : -1.0f, d[i].tam);
+    texto += fmt::format("{}{}={:.4f},{:.4f},{:.2f}{}", texto.empty() ? "" : ";", kControles[i].etiqueta,
+                         d[i].movido ? d[i].fx : -1.0f, d[i].movido ? d[i].fy : -1.0f, d[i].tam,
+                         d[i].oculto ? ",1" : "");
   }
   return texto;
 }
@@ -157,7 +176,8 @@ struct Tecla {
 };
 constexpr Tecla kTeclas[] = {
     {0x1000, 0x5800}, {0x2000, 0x5801}, {0x4000, 0x5802}, {0x8000, 0x5803}, {0x0200, 0x5804}, {0x0100, 0x5805},
-    {kLT, 0x5806},    {kRT, 0x5807},    {0x0010, 0x5814}, {0x0020, 0x5815},
+    {kLT, 0x5806},    {kRT, 0x5807},    {0x0001, 0x5810}, {0x0002, 0x5811}, {0x0004, 0x5812}, {0x0008, 0x5813},
+    {0x0010, 0x5814}, {0x0020, 0x5815},
 };
 
 float Escala() { return std::clamp(float(REXCVAR_GET(nfsmw_tactil_escala)), 0.6f, 1.6f); }
@@ -199,6 +219,9 @@ int ControlEn(float x, float y, float ancho, float alto, float escala, const Dis
   int mejor = -1;
   float mejor_distancia = 0.0f;
   for (size_t i = 0; i < kNumControles; ++i) {
+    if (disposicion[i].oculto) {
+      continue;
+    }
     const ImVec2 c = Centro(i, disposicion, ancho, alto, escala);
     const float d = std::hypot(x - c.x, y - c.y);
     // A little slack around each button for a thumb.
@@ -258,24 +281,26 @@ bool SDLCALL VigilarDedos(void*, SDL_Event* evento) {
 }
 
 // The pad as the fingers hold it now.
-void Leer(uint32_t& bits, int16_t& lx, int16_t& ly) {
+void Leer(uint32_t& bits, std::array<int16_t, 4>& ejes) {
   bits = 0;
-  lx = ly = 0;
+  ejes = {};
   std::lock_guard<std::mutex> cerrojo(g_estado.mutex);
   if (g_estado.mando_real || g_estado.ajustes) {
     return;
   }
-  int giro = 0;
+  std::array<int, 4> suma{};
   for (const auto& [id, control] : g_estado.dedos) {
     (void)id;
     const Control& c = kControles[control];
-    if (c.accion == Accion::kGirar) {
-      giro += c.giro;
+    if (c.accion == Accion::kEje) {
+      suma[size_t(c.eje)] += c.giro;
     } else {
       bits |= c.bits;
     }
   }
-  lx = int16_t(std::clamp(giro, -1, 1) * 32767);
+  for (size_t e = 0; e < 4; ++e) {
+    ejes[e] = int16_t(std::clamp(suma[e], -1, 1) * 32767);
+  }
 }
 
 class MandoTactil final : public in::InputDriver {
@@ -297,16 +322,18 @@ class MandoTactil final : public in::InputDriver {
       return X_ERROR_DEVICE_NOT_CONNECTED;
     }
     uint32_t bits;
-    int16_t lx, ly;
-    uint32_t paquete = Actualizar(bits, lx, ly);
+    std::array<int16_t, 4> ejes;
+    uint32_t paquete = Actualizar(bits, ejes);
     if (out_state) {
       std::memset(out_state, 0, sizeof(*out_state));
       out_state->packet_number = paquete;
       out_state->gamepad.buttons = uint16_t(bits & 0xFFFF);
       out_state->gamepad.left_trigger = (bits & kLT) ? 0xFF : 0;
       out_state->gamepad.right_trigger = (bits & kRT) ? 0xFF : 0;
-      out_state->gamepad.thumb_lx = lx;
-      out_state->gamepad.thumb_ly = ly;
+      out_state->gamepad.thumb_lx = ejes[0];
+      out_state->gamepad.thumb_ly = ejes[1];
+      out_state->gamepad.thumb_rx = ejes[2];
+      out_state->gamepad.thumb_ry = ejes[3];
     }
     return X_ERROR_SUCCESS;
   }
@@ -343,8 +370,8 @@ class MandoTactil final : public in::InputDriver {
       return X_ERROR_DEVICE_NOT_CONNECTED;
     }
     uint32_t bits;
-    int16_t lx, ly;
-    Actualizar(bits, lx, ly);
+    std::array<int16_t, 4> ejes;
+    Actualizar(bits, ejes);
     std::lock_guard<std::mutex> cerrojo(mutex_);
     if (teclas_.empty()) {
       return X_ERROR_EMPTY;
@@ -359,14 +386,19 @@ class MandoTactil final : public in::InputDriver {
  private:
   // Reads the fingers and queues a keystroke for every button that changed (the menus that read keystrokes
   // instead of the state). Returns the packet number, which changes with the state.
-  uint32_t Actualizar(uint32_t& bits, int16_t& lx, int16_t& ly) {
-    Leer(bits, lx, ly);
-    // The stick as four keys too, past half way: some dialogs only respond to it.
+  uint32_t Actualizar(uint32_t& bits, std::array<int16_t, 4>& ejes) {
+    Leer(bits, ejes);
+    const int16_t lx = ejes[0], ly = ejes[1], rx = ejes[2], ry = ejes[3];
+    // The sticks as four keys each too, past half way: some dialogs only respond to them.
     uint32_t teclas = bits;
     if (ly > 16000) teclas |= 1u << 18;
     if (ly < -16000) teclas |= 1u << 19;
     if (lx > 16000) teclas |= 1u << 20;
     if (lx < -16000) teclas |= 1u << 21;
+    if (ry > 16000) teclas |= 1u << 22;
+    if (ry < -16000) teclas |= 1u << 23;
+    if (rx > 16000) teclas |= 1u << 24;
+    if (rx < -16000) teclas |= 1u << 25;
     std::lock_guard<std::mutex> cerrojo(mutex_);
     const uint32_t cambios = teclas ^ anteriores_;
     if (cambios) {
@@ -377,12 +409,15 @@ class MandoTactil final : public in::InputDriver {
       Encolar(cambios, teclas, 1u << 19, 0x5821);  // VK_PAD_LTHUMB_DOWN
       Encolar(cambios, teclas, 1u << 20, 0x5822);  // VK_PAD_LTHUMB_RIGHT
       Encolar(cambios, teclas, 1u << 21, 0x5823);  // VK_PAD_LTHUMB_LEFT
+      Encolar(cambios, teclas, 1u << 22, 0x5830);  // VK_PAD_RTHUMB_UP
+      Encolar(cambios, teclas, 1u << 23, 0x5831);  // VK_PAD_RTHUMB_DOWN
+      Encolar(cambios, teclas, 1u << 24, 0x5832);  // VK_PAD_RTHUMB_RIGHT
+      Encolar(cambios, teclas, 1u << 25, 0x5833);  // VK_PAD_RTHUMB_LEFT
       anteriores_ = teclas;
     }
-    if (bits != bits_ || lx != lx_ || ly != ly_) {
+    if (bits != bits_ || ejes != ejes_) {
       bits_ = bits;
-      lx_ = lx;
-      ly_ = ly;
+      ejes_ = ejes;
       ++paquete_;
     }
     return paquete_;
@@ -402,11 +437,11 @@ class MandoTactil final : public in::InputDriver {
   std::deque<in::X_INPUT_KEYSTROKE> teclas_;
   uint32_t anteriores_ = 0;
   uint32_t bits_ = 0;
-  int16_t lx_ = 0, ly_ = 0;
+  std::array<int16_t, 4> ejes_{};
   uint32_t paquete_ = 0;
 };
 
-// A DDS image of the game (DXT1/3/5, the format of its UI textures) as RGBA8, or empty.
+// A DDS image of the game (DXT1/3/5 or uncompressed 32-bit BGRA, the formats of its UI textures) as RGBA8, or empty.
 std::vector<uint8_t> LeerDds(const std::vector<uint8_t>& dds, int& ancho, int& alto) {
   if (dds.size() < 128 || std::memcmp(dds.data(), "DDS ", 4) != 0) {
     return {};
@@ -416,6 +451,14 @@ std::vector<uint8_t> LeerDds(const std::vector<uint8_t>& dds, int& ancho, int& a
   alto = int(u32(12));
   ancho = int(u32(16));
   const uint32_t fourcc = u32(84);
+  if ((u32(80) & 0x40) && u32(88) == 32 && ancho > 0 && alto > 0 && ancho <= 4096 && alto <= 4096 &&
+      dds.size() >= 128 + size_t(ancho) * alto * 4) {
+    std::vector<uint8_t> rgba(dds.begin() + 128, dds.begin() + 128 + size_t(ancho) * alto * 4);
+    for (size_t i = 0; i < rgba.size(); i += 4) {
+      std::swap(rgba[i], rgba[i + 2]);
+    }
+    return rgba;
+  }
   const bool dxt1 = fourcc == 0x31545844, dxt3 = fourcc == 0x33545844, dxt5 = fourcc == 0x35545844;
   if ((!dxt1 && !dxt3 && !dxt5) || ancho <= 0 || alto <= 0 || ancho > 4096 || alto > 4096) {
     return {};
@@ -540,6 +583,9 @@ class Controles final : public rex::ui::ImGuiDialog {
 
     for (size_t i = 0; i < kNumControles; ++i) {
       const Control& c = kControles[i];
+      if (d[i].oculto) {
+        continue;
+      }
       const ImVec2 centro = Centro(i, d, ancho, alto, escala_dibujo);
       const bool pulsado = pulsados[i];
       // No backdrop: the icon is the button. Held, it lights up and grows a little.
@@ -672,6 +718,24 @@ class Controles final : public rex::ui::ImGuiDialog {
         ImGui::SliderFloat("##tam_boton", &disposicion_panel_[size_t(seleccionado_)].tam, 0.5f, 2.0f, "%.2f");
       } else {
         ImGui::TextDisabled("Toca un boton para su tamano / Tap a button for its size");
+      }
+      ImGui::Separator();
+      ImGui::TextUnformatted("Botones visibles / Visible buttons");
+      if (ImGui::BeginTable("##visibles", 4)) {
+        for (size_t i = 0; i < kNumControles; ++i) {
+          if (kControles[i].accion == Accion::kAjustes) {
+            continue;
+          }
+          ImGui::TableNextColumn();
+          bool visible = !disposicion_panel_[i].oculto;
+          if (ImGui::Checkbox(kControles[i].etiqueta, &visible)) {
+            disposicion_panel_[i].oculto = !visible;
+            if (!visible && seleccionado_ == int(i)) {
+              seleccionado_ = -1;
+            }
+          }
+        }
+        ImGui::EndTable();
       }
       ImGui::Spacing();
       const ImVec2 boton(-1.0f, ImGui::GetFrameHeight() * 1.6f);

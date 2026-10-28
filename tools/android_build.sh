@@ -45,9 +45,9 @@ for step in "${steps[@]}"; do
         "$ANDROID_NDK/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe" --strip-unneeded "$lib"
       done
       ls -la "$JNI"
-      # The touch controls' icons: the game's own DDS images, which stay out of the repository. From NFSMW_BOTONES
-      # (default: Documents/Buttons); without them the controls show text labels.
-      BOTONES="${NFSMW_BOTONES:-$USERPROFILE/Documents/Buttons}"
+      # The touch controls' icons: the Xbox 360 buttons of the Original Button Pack as DDS, which stay out of the
+      # repository. From NFSMW_BOTONES (default: Documents/BotonesOriginales); without them the controls show labels.
+      BOTONES="${NFSMW_BOTONES:-$USERPROFILE/Documents/BotonesOriginales}"
       rm -rf "$ROOT/out/android-assets" && mkdir -p "$ROOT/out/android-assets/botones"
       if [ -d "$BOTONES" ]; then
         cp "$BOTONES"/*.dds "$ROOT/out/android-assets/botones/" 2>/dev/null || true
