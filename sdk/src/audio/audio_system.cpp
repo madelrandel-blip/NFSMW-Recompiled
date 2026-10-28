@@ -26,9 +26,11 @@
 #include <rex/cvar.h>
 
 // Android: the cushion that lets the Audio Worker wait for a late packet of the game's audio server (NFSMW's
-// nfsmw_audio_esperar_servidor_ms, 30 ms) without the device running dry; 12 frames are 64 ms.
+// nfsmw_audio_esperar_servidor_ms, 30 ms) without the device running dry. 20 frames are 107 ms: on the AYN Thor
+// the server went up to 71 ms without a packet, more than the 64 ms of the 12 there were, and each time the
+// output got 5-21 ms of silence.
 REXCVAR_DEFINE_INT32(
-    audio_maxqframes, REX_PLATFORM_ANDROID ? 12 : 8, "Audio",
+    audio_maxqframes, REX_PLATFORM_ANDROID ? 20 : 8, "Audio",
     "Max buffered audio frames (range 4-64). Lower reduces latency but may cause stuttering.");
 REXCVAR_DEFINE_BOOL(audio_diag_prioridad_critica, false, "Audio",
                     "Diagnostico (solo PC): Audio Worker y XMA Decoder a prioridad de tiempo critico, "
