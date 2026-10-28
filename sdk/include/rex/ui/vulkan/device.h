@@ -108,6 +108,7 @@ class VulkanDevice {
     bool depthClamp = false;
     bool fillModeNonSolid = false;
     bool samplerAnisotropy = false;
+    bool textureCompressionBC = false;
     bool occlusionQueryPrecise = false;
     bool pipelineStatisticsQuery = false;
     bool vertexPipelineStoresAndAtomics = false;

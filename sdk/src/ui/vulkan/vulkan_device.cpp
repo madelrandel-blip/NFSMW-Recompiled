@@ -706,6 +706,8 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
         XE_UI_VULKAN_FEATURE(samplerAnisotropy)
         XE_UI_VULKAN_FEATURE(fullDrawIndexUint32)
       }
+      // BC (DXT) textures sampled directly; the feature must be enabled to use those formats at all.
+      XE_UI_VULKAN_FEATURE(textureCompressionBC)
     }
     XE_UI_VULKAN_FEATURE_2(features_1_2, imagelessFramebuffer);
   } else {
