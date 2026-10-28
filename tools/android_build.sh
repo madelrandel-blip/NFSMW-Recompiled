@@ -46,8 +46,9 @@ for step in "${steps[@]}"; do
       done
       ls -la "$JNI"
       # The touch controls' icons: the Xbox 360 buttons of the Original Button Pack as DDS, which stay out of the
-      # repository. From NFSMW_BOTONES (default: Documents/BotonesOriginales); without them the controls show labels.
-      BOTONES="${NFSMW_BOTONES:-$USERPROFILE/Documents/BotonesOriginales}"
+      # repository. From NFSMW_BOTONES (default: Documents/NFSMW Recomp/Recursos/BotonesOriginales); without them the
+      # controls show labels.
+      BOTONES="${NFSMW_BOTONES:-$USERPROFILE/Documents/NFSMW Recomp/Recursos/BotonesOriginales}"
       rm -rf "$ROOT/out/android-assets" && mkdir -p "$ROOT/out/android-assets/botones"
       if [ -d "$BOTONES" ]; then
         cp "$BOTONES"/*.dds "$ROOT/out/android-assets/botones/" 2>/dev/null || true
