@@ -1709,30 +1709,35 @@ void Lanzador::DibujarPartidas() {
     for (size_t i = 0; i < partidas_.size(); ++i) {
       const auto& p = partidas_[i];
       ImGui::PushID(int(i));
+      // Each row from the one above: name, then the date and size line (or the delete question), then the buttons,
+      // so nothing overlaps whatever the font size.
       const ImVec2 a = ImGui::GetCursorScreenPos();
-      const float alto = S(96);
+      const float y_nombre = a.y + S(14);
+      const float y_datos = y_nombre + S(18) * 1.3f + S(4);
+      const float y = y_datos + S(14) * 1.3f + S(12);
+      const float alto = y + tam.y + S(12) - a.y;
       dl->AddRectFilled(a, ImVec2(a.x + g_interior, a.y + alto), kCampo, S(4));
       dl->AddRect(a, ImVec2(a.x + g_interior, a.y + alto), kBorde, S(4));
       DibujarIcono(dl, Icono::kPartidas, ImVec2(a.x + S(30), a.y + S(30)), S(26), kTexto);
       Fuente(true, 18);
-      dl->AddText(ImVec2(a.x + S(58), a.y + S(14)), kTexto, p.perfil.c_str());
+      dl->AddText(ImVec2(a.x + S(58), y_nombre), kTexto, p.perfil.c_str());
       ImGui::PopFont();
       const std::string datos = std::string(T("part.fecha")) + ": " + p.fecha + "   ·   " + T("part.tam") + ": " +
                                 Tamano(p.bytes);
       Fuente(false, 14);
-      dl->AddText(ImVec2(a.x + S(58), a.y + S(40)), kSuave, datos.c_str());
+      if (borrar_ == int(i)) {
+        dl->AddText(ImVec2(a.x + S(58), y_datos), kAviso, T("part.confirmar"));
+      } else {
+        dl->AddText(ImVec2(a.x + S(58), y_datos), kSuave, datos.c_str());
+      }
       ImGui::PopFont();
       float x = a.x + S(58);
-      const float y = a.y + alto - tam.y - S(10);
       auto boton = [&](const char* texto, const char* id, bool primario, bool activo = true) {
         ImGui::SetCursorScreenPos(ImVec2(x, y));
         x += tam.x + S(8);
         return Boton(ConId(texto, id).c_str(), primario, tam, activo);
       };
       if (borrar_ == int(i)) {
-        Fuente(false, 14);
-        dl->AddText(ImVec2(x, y - S(20)), kAviso, T("part.confirmar"));
-        ImGui::PopFont();
         if (boton(T("btn.confirmar"), "si", true)) hecho(partidas::Borrar(p));
         if (boton(T("btn.cancelar"), "no", false)) borrar_ = -1;
       } else {
