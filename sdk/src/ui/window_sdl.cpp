@@ -520,8 +520,26 @@ void WindowSDL::HandleWindowEvent(SDL_Event& event) {
       OnMinimized(destruction_receiver);
       break;
     case SDL_EVENT_WINDOW_RESTORED:
-      OnRestored(destruction_receiver);
+    case SDL_EVENT_WINDOW_MAXIMIZED: {
+      // Restoring a minimized window that was maximized (or fullscreen) can arrive as MAXIMIZED instead.
+      if (event.type == SDL_EVENT_WINDOW_RESTORED) {
+        OnRestored(destruction_receiver);
+      }
+      if (destruction_receiver.IsWindowDestroyed()) {
+        break;
+      }
+      // Back from minimized: take the real size again (a change reconnects the presenter on its own) and, if it
+      // is the same, reconnect it anyway; then paint at once.
+      int pixel_width = 0, pixel_height = 0;
+      SDL_GetWindowSizeInPixels(sdl_window_, &pixel_width, &pixel_height);
+      if (!OnActualSizeUpdate(uint32_t(pixel_width), uint32_t(pixel_height), destruction_receiver)) {
+        ReconnectPresenterSurfaceAfterRestore();
+      }
+      if (!destruction_receiver.IsWindowDestroyed()) {
+        OnPaint(true);
+      }
       break;
+    }
     case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
       // SDL destroys nothing on its own; this is the veto point.
       if (SendCloseRequestToListeners(destruction_receiver)) {
