@@ -33,6 +33,10 @@ set(NFSMW_SOURCES
     # Measurement probe for the car engine sound (Ginsu): buffers, volumes and voices; it only
     # measures (cvar nfsmw_audio_sonda_motor).
     src/nfsmw_audio_motor_sonda.cpp
+    # Guards for null pointers the original code dereferences.
+    src/nfsmw_guardas.cpp
+    # The language number of the PAL editions that share the Spanish build (French, German, Italian).
+    src/nfsmw_idioma_edicion.cpp
     # Linear resamplers of the sound engine in native code, bit-identical
     # (cvar nfsmw_audio_remuestreo_nativo).
     src/nfsmw_audio_remuestreo.cpp
@@ -125,7 +129,10 @@ set(NFSMW_SOURCES
 )
 
 if(WIN32)
-    add_executable(nfsmw WIN32 ${NFSMW_SOURCES})
+    # The game is a module per edition, nfsmw_<edition>.dll, that the one nfsmw.exe loads (nfsmw_anfitrion below;
+    # see src/edicion.h). Its entry point is the SDK's wWinMain, exported by src/nfsmw_modulo_win.cpp.
+    add_library(nfsmw SHARED ${NFSMW_SOURCES} src/nfsmw_modulo_win.cpp)
+    set_target_properties(nfsmw PROPERTIES OUTPUT_NAME "nfsmw_${NFSMW_EDICION}")
     # PC build: masks again the floating-point exceptions that
     # rex::ppc::FPSCR can leave unmasked on x86 (see the file).
     target_sources(nfsmw PRIVATE src/nfsmw_pc_coma_flotante.cpp)
@@ -249,7 +256,7 @@ set(NFSMW_VERSION "1.0.2" CACHE STRING "NFSMW Recompiled version")
 set_source_files_properties(src/lanzador/actualizacion.cpp PROPERTIES COMPILE_DEFINITIONS "NFSMW_VERSION=\"${NFSMW_VERSION}\"")
 
 # Edition of the game this executable is built for (src/edicion.h): es, usa...
-set(NFSMW_EDICION "es" CACHE STRING "Game edition (es, usa)")
+set(NFSMW_EDICION "es" CACHE STRING "Game edition (es, usa, eu)")
 set_source_files_properties(src/edicion.cpp PROPERTIES COMPILE_DEFINITIONS "NFSMW_EDICION=\"${NFSMW_EDICION}\"")
 
 # Windows: the icon and version in both executables, and the "NFSMW Recomp.exe" starter that sits at the top of the
@@ -265,6 +272,10 @@ if(WIN32)
     set_source_files_properties(${NFSMW_RC} PROPERTIES
         INCLUDE_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR}/generado;${CMAKE_CURRENT_SOURCE_DIR}/resources")
     target_sources(nfsmw PRIVATE ${NFSMW_RC})
+    # nfsmw.exe: picks the edition's module and runs it (anfitrion/main.cpp).
+    add_executable(nfsmw_anfitrion WIN32 anfitrion/main.cpp ${NFSMW_RC})
+    set_target_properties(nfsmw_anfitrion PROPERTIES OUTPUT_NAME nfsmw)
+    target_link_libraries(nfsmw_anfitrion PRIVATE shell32)
     add_executable(nfsmw_inicio WIN32 stub/main.cpp ${NFSMW_RC})
     set_target_properties(nfsmw_inicio PROPERTIES OUTPUT_NAME "NFSMW Recomp")
 endif()
