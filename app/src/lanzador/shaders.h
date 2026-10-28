@@ -32,8 +32,10 @@ bool BibliotecaActual(const std::filesystem::path& biblioteca);
 
 // SHA-256 of a whole file, in lowercase hex. Empty if it cannot be read.
 std::string Sha256Fichero(const std::filesystem::path& ruta);
+// SHA-256 of some bytes, in lowercase hex.
+std::string Sha256Datos(const uint8_t* datos, size_t n);
 
-// Genera la biblioteca de la carpeta del juego `juego` en `salida`. Devuelve
+// Genera la biblioteca del juego `juego` (una carpeta extraida o la .iso) en `salida`. Devuelve
 // vacio si todo fue bien o el mensaje de error.
 std::string Generar(const std::filesystem::path& juego, const std::filesystem::path& salida,
                     const Progreso& progreso, const std::atomic<bool>& cancelar);
