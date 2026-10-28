@@ -3,6 +3,7 @@
 #include "shaders.h"
 
 #include "../edicion.h"
+#include "iso.h"
 
 #include "../nfsmw_shader_library.h"
 #include "nfsmw_contenedor.h"
@@ -282,25 +283,36 @@ class Buscador {
   Bytes arrastre_;
 };
 
+// A game file to scan: a whole file of an extracted copy, or its span inside the .iso.
+struct Origen {
+  std::string ruta;  // relative, lowercase, with '/'
+  fs::path fichero;  // the host file to read
+  int64_t offset = 0;
+  uint64_t tam = 0;
+};
+
 // Ficheros del disco con shaders: NFS/*.BIN (los datos, no los videos), en el
-// orden del instalador: ruta en minusculas, de la A a la Z.
-std::vector<fs::path> FicherosConShaders(const fs::path& juego) {
-  std::vector<std::pair<std::string, fs::path>> lista;
+// orden del instalador: ruta en minusculas, de la A a la Z. Igual de una carpeta que de una ISO, para que los
+// contenedores salgan con los mismos nombres.
+std::vector<Origen> FicherosConShaders(const fs::path& juego) {
+  std::vector<Origen> lista;
+  auto anadir = [&](std::string rel, fs::path fichero, int64_t offset, uint64_t tam) {
+    std::transform(rel.begin(), rel.end(), rel.begin(), [](unsigned char c) { return char(std::tolower(c)); });
+    if (rel.rfind("nfs/", 0) == 0 && rel.find('/', 4) == std::string::npos && rel.size() > 8 &&
+        rel.compare(rel.size() - 4, 4, ".bin") == 0 && tam >= 24 && tam <= (1ull << 30))
+      lista.push_back({std::move(rel), std::move(fichero), offset, tam});
+  };
   std::error_code ec;
-  for (const auto& e : fs::recursive_directory_iterator(juego, ec)) {
-    if (!e.is_regular_file(ec)) continue;
-    std::string rel = fs::relative(e.path(), juego, ec).generic_string();
-    std::string min = rel;
-    std::transform(min.begin(), min.end(), min.begin(), [](unsigned char c) { return char(std::tolower(c)); });
-    const auto tam = e.file_size(ec);
-    if (min.rfind("nfs/", 0) == 0 && min.find('/', 4) == std::string::npos && min.size() > 8 &&
-        min.compare(min.size() - 4, 4, ".bin") == 0 && tam >= 24 && tam <= (1ull << 30))
-      lista.push_back({min, e.path()});
+  if (fs::is_regular_file(juego, ec)) {
+    for (const auto& f : iso::Listar(juego)) anadir(f.ruta, juego, f.offset, f.tam);
+  } else {
+    for (const auto& e : fs::recursive_directory_iterator(juego, ec)) {
+      if (!e.is_regular_file(ec)) continue;
+      anadir(fs::relative(e.path(), juego, ec).generic_string(), e.path(), 0, e.file_size(ec));
+    }
   }
-  std::sort(lista.begin(), lista.end());
-  std::vector<fs::path> rutas;
-  for (auto& [_, ruta] : lista) rutas.push_back(ruta);
-  return rutas;
+  std::sort(lista.begin(), lista.end(), [](const Origen& a, const Origen& b) { return a.ruta < b.ruta; });
+  return lista;
 }
 
 // ---- 3. Translation ------------------------------------------------------------
@@ -330,6 +342,8 @@ fs::path RutaSello(const fs::path& biblioteca) { return fs::path(biblioteca).con
 }  // namespace
 
 fs::path RutaBiblioteca() { return edicion::BibliotecaPropia(); }
+
+std::string Sha256Datos(const uint8_t* datos, size_t n) { return Sha256(datos, n); }
 
 std::string Sha256Fichero(const fs::path& ruta) {
   std::ifstream in(ruta, std::ios::binary);
@@ -361,7 +375,11 @@ std::string Generar(const fs::path& juego, const fs::path& salida, const Progres
   // 1. Imagen del ejecutable.
   avisar(Fase::kImagen, 0, 1);
   Bytes xex;
-  {
+  std::error_code ec_juego;
+  if (fs::is_regular_file(juego, ec_juego)) {
+    xex = iso::LeerFichero(juego, "default.xex");
+    if (xex.empty()) return "No se encuentra default.xex en la imagen del juego.";
+  } else {
     std::ifstream f(juego / "default.xex", std::ios::binary);
     if (!f) return "No se encuentra default.xex en la carpeta del juego.";
     xex.assign(std::istreambuf_iterator<char>(f), {});
@@ -376,16 +394,16 @@ std::string Generar(const fs::path& juego, const fs::path& salida, const Progres
   std::vector<char> buf(64 << 20);
   for (size_t i = 0; i < ficheros.size(); ++i) {
     avisar(Fase::kBuscar, int(i), int(ficheros.size()));
-    std::ifstream f(ficheros[i], std::ios::binary);
-    std::error_code ec;
-    const uint64_t tam = fs::file_size(ficheros[i], ec);
+    std::ifstream f(ficheros[i].fichero, std::ios::binary);
+    f.seekg(ficheros[i].offset);
+    const uint64_t tam = ficheros[i].tam;
     buscador_disco.EmpezarFichero(tam);
     uint64_t leido = 0;
     while (leido < tam) {
       if (cancelar) return "Cancelado.";
       f.read(buf.data(), std::streamsize(std::min<uint64_t>(buf.size(), tam - leido)));
       const auto n = size_t(f.gcount());
-      if (!n) return "No se pudo leer " + ficheros[i].string();
+      if (!n) return "No se pudo leer " + ficheros[i].ruta;
       leido += n;
       buscador_disco.Anadir(reinterpret_cast<const uint8_t*>(buf.data()), n, leido >= tam, disco);
     }

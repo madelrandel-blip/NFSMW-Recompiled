@@ -92,7 +92,7 @@ REXCVAR_DEFINE_INT32(nfsmw_audio_servidor_prioridad,
                      "del juego (0x3B). Por defecto 45 (0x2D) en la Switch y en Android, para que no espere su turno "
                      "detras de ellos; en el PC cualquier valor lo sube a THREAD_PRIORITY_HIGHEST y en Android a "
                      "la de audio (nice -16)");
-REXCVAR_DEFINE_BOOL(nfsmw_audio_diag_anillo, false, "NFSMW",
+REXCVAR_DEFINE_BOOL(nfsmw_audio_diag_anillo, REX_PLATFORM_ANDROID != 0, "NFSMW",
                     "Diagnostico: cada 10 s anota cuantos paquetes tenia la voz del servidor de "
                     "audio en cada pasada, los fines de paquete y las entregas, y la CPU y los nucleos del "
                     "hilo servidor");

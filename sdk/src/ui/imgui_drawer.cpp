@@ -184,6 +184,11 @@ void ImGuiDrawer::Initialize() {
   platform_io.Platform_SetImeDataFn = PlatformSetImeData;
   platform_io.Platform_ImeUserData = this;
 
+  // The glyphs are rasterized at the size each text is drawn at (and at the screen's density, see Draw) instead of
+  // once at the loaded size and stretched, which blurred them.
+  io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+  platform_io.Renderer_TextureMaxWidth = platform_io.Renderer_TextureMaxHeight = 4096;
+
   // TODO(gibbed): disable imgui.ini saving for now,
   // imgui assumes paths are char* so we can't throw a good path at it on
   // Windows.
@@ -355,17 +360,44 @@ std::optional<ImGuiKey> ImGuiDrawer::VirtualKeyToImGuiKey(VirtualKey vkey) {
   }
 }
 
-void ImGuiDrawer::SetupFontTexture() {
-  if (font_texture_ || !immediate_drawer_) {
+void ImGuiDrawer::UpdateTextures(ImDrawData* data) {
+  if (!data->Textures) {
     return;
   }
-  ImGuiIO& io = GetIO();
-  unsigned char* pixels;
-  int width, height;
-  io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-  font_texture_ = immediate_drawer_->CreateTexture(width, height, ImmediateTextureFilter::kLinear,
-                                                   true, reinterpret_cast<uint8_t*>(pixels));
-  io.Fonts->TexID = reinterpret_cast<ImTextureID>(font_texture_.get());
+  for (ImTextureData* texture : *data->Textures) {
+    if (texture->Status != ImTextureStatus_OK) {
+      UpdateTexture(texture);
+    }
+  }
+}
+
+void ImGuiDrawer::UpdateTexture(ImTextureData* texture) {
+  if (texture->Status == ImTextureStatus_WantCreate || texture->Status == ImTextureStatus_WantUpdates) {
+    // The immediate drawer has no partial uploads: the whole texture is made again (new glyphs only, rare once the
+    // sizes in use are in). The old one is released after the GPU is done with it.
+    assert_true(texture->Format == ImTextureFormat_RGBA32);
+    std::unique_ptr<ImmediateTexture>& host = textures_[texture];
+    host = immediate_drawer_->CreateTexture(uint32_t(texture->Width), uint32_t(texture->Height),
+                                            ImmediateTextureFilter::kLinear, false,
+                                            static_cast<const uint8_t*>(texture->GetPixels()));
+    texture->SetTexID(reinterpret_cast<ImTextureID>(host.get()));
+    texture->SetStatus(ImTextureStatus_OK);
+  } else if (texture->Status == ImTextureStatus_WantDestroy) {
+    textures_.erase(texture);
+    texture->SetTexID(ImTextureID_Invalid);
+    texture->SetStatus(ImTextureStatus_Destroyed);
+  }
+}
+
+void ImGuiDrawer::DropTextures() {
+  // ImGui makes again those it still uses.
+  for (ImTextureData* texture : ImGui::GetPlatformIO().Textures) {
+    if (texture->Status != ImTextureStatus_Destroyed) {
+      texture->SetTexID(ImTextureID_Invalid);
+      texture->SetStatus(ImTextureStatus_Destroyed);
+    }
+  }
+  textures_.clear();
 }
 
 void ImGuiDrawer::SetPresenter(Presenter* new_presenter) {
@@ -389,18 +421,11 @@ void ImGuiDrawer::SetImmediateDrawer(ImmediateDrawer* new_immediate_drawer) {
   if (immediate_drawer_ == new_immediate_drawer) {
     return;
   }
-  if (immediate_drawer_) {
-    GetIO().Fonts->TexID = ImTextureID{};
-    font_texture_.reset();
+  if (immediate_drawer_ && internal_state_) {
+    ImGui::SetCurrentContext(internal_state_);
+    DropTextures();
   }
   immediate_drawer_ = new_immediate_drawer;
-  // Eagerly upload the font atlas only when a presenter is attached (SDK mode).
-  // In detached mode (presenter_ == nullptr) the app's renderer device may not
-  // exist yet at SetupPresentation, so defer to the idempotent Draw-time
-  // SetupFontTexture().
-  if (immediate_drawer_ && presenter_) {
-    SetupFontTexture();
-  }
 }
 
 void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
@@ -410,12 +435,6 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
     // A drawer target has been attached, but an immediate drawer hasn't yet.
     return;
   }
-
-  // In detached mode the app's immediate drawer (and the renderer device
-  // backing it) may only become usable on the first frame, after the guest
-  // creates its D3D device. Upload the font atlas lazily and idempotently;
-  // SetupFontTexture early-returns once font_texture_ is set.
-  SetupFontTexture();
 
   if (dialogs_.empty()) {
     return;
@@ -438,6 +457,8 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
   const float physical_to_logical = FisicoALogico(window_);
   io.DisplaySize.x = window_->GetActualPhysicalWidth() * physical_to_logical;
   io.DisplaySize.y = window_->GetActualPhysicalHeight() * physical_to_logical;
+  // Drawn in logical units but shown in physical pixels: the glyphs are rasterized at that density.
+  io.DisplayFramebufferScale = ImVec2(1.0f / physical_to_logical, 1.0f / physical_to_logical);
 
 #if REX_PLATFORM_SWITCH
   {
@@ -466,6 +487,7 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
   ImGui::Render();
   ImDrawData* draw_data = ImGui::GetDrawData();
   if (draw_data) {
+    UpdateTextures(draw_data);
     RenderDrawLists(draw_data, ui_draw_context);
   }
 

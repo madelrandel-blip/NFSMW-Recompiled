@@ -17,6 +17,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 #include <rex/ui/immediate_drawer.h>
@@ -78,7 +79,11 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
  private:
   void Initialize();
 
-  void SetupFontTexture();
+  // ImGui asks for its textures (the font atlas, rasterized at the sizes in use) to be created, updated and
+  // destroyed (ImGuiBackendFlags_RendererHasTextures); done before drawing each frame.
+  void UpdateTextures(ImDrawData* data);
+  void UpdateTexture(ImTextureData* texture);
+  void DropTextures();
 
   void RenderDrawLists(ImDrawData* data, UIDrawContext& ui_draw_context);
 
@@ -113,7 +118,7 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   ImmediateDrawer* immediate_drawer_ = nullptr;
   // Resources specific to an immediate drawer - must be destroyed before
   // detaching the presenter.
-  std::unique_ptr<ImmediateTexture> font_texture_;
+  std::unordered_map<ImTextureData*, std::unique_ptr<ImmediateTexture>> textures_;
 
   // If there's an active pointer, the ImGui mouse is controlled by this touch.
   // If it's TouchEvent::kPointerIDNone, the ImGui mouse is controlled by the

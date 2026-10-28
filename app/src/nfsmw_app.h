@@ -8,6 +8,7 @@
 #include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/rex_app.h>
+#include <rex/ui/keybinds.h>
 #include <rex/ui/overlay/debug_overlay.h>
 #include <rex/system/kernel_state.h>  // VIGILANTE DE CUELGUES
 #include <rex/system/xthread.h>       // VIGILANTE DE CUELGUES
@@ -34,6 +35,7 @@
 #include "nfsmw_tactil.h"
 #include "nfsmw_video_nativo.h"  // HANG WATCHDOG - cutscene frames with FFmpeg
 #include "lanzador/lanzador.h"
+#include "lanzador/sistema.h"
 #include "lanzador/trucos.h"
 
 class NfsmwApp : public rex::ReXApp {
@@ -89,6 +91,7 @@ class NfsmwApp : public rex::ReXApp {
     // The player sees the product name, not the SDK build stamp the window starts with.
     if (window() != nullptr) window()->SetTitle("NFSMW Recomp");
     const bool por_linea = rex::cvar::GetFlagSource("game_data_root") == rex::cvar::Source::kCommandLine;
+    juego_por_linea_ = por_linea;
     if (por_linea || !nfsmw::lanzador::DebeMostrarse() || imgui_drawer() == nullptr) {
       rex::PathConfig paths = defaults;
       if (!por_linea) {
@@ -318,6 +321,38 @@ class NfsmwApp : public rex::ReXApp {
 
     // Trucos activados en el lanzador (nfsmw_trucos.txt).
     nfsmw::trucos::Arrancar(runtime() ? runtime()->memory() : nullptr);
+
+    // From here closing the window, or F1, goes back to the launcher (OnWindowCloseRequested).
+    juego_en_marcha_ = true;
+    // RequestClose closes without asking OnWindowCloseRequested, so F1 starts the launcher itself first.
+    rex::ui::RegisterBind("bind_volver_lanzador", "F1", "Volver al lanzador", [this] {
+      VolverAlLanzador();
+      if (window() != nullptr) window()->RequestClose();
+    });
+  }
+
+  // Back to the launcher instead of quitting, when the game window is closed (or F1) during the game. The game
+  // cannot stop and start again in the same process (ReXApp::OnClosing ends it), so nfsmw.exe is started again
+  // without --nfsmw_lanzador_omitir, shows the launcher, and this process ends as always. Not with the launcher
+  // turned off or a game folder given on the command line, nor on Android, where an app cannot start itself again.
+  bool OnWindowCloseRequested() override {
+    VolverAlLanzador();
+    return true;
+  }
+
+  void VolverAlLanzador() {
+#if !defined(__ANDROID__)
+    if (!juego_en_marcha_ || juego_por_linea_ || volviendo_al_lanzador_ ||
+        rex::cvar::GetFlagByName("nfsmw_lanzador") == "false") {
+      return;
+    }
+    volviendo_al_lanzador_ = true;
+    if (nfsmw::sistema::Relanzar("")) {
+      REXLOG_INFO("[lanzador] partida cerrada: se vuelve al lanzador");
+    } else {
+      REXLOG_WARN("[lanzador] no se pudo volver al lanzador; el juego se cierra");
+    }
+#endif
   }
 
   void OnShutdown() override {
@@ -327,6 +362,9 @@ class NfsmwApp : public rex::ReXApp {
   }
 
  private:
+  bool juego_en_marcha_ = false;         // the launcher is done and the game set up
+  bool juego_por_linea_ = false;         // started with --game_data_root on the command line
+  bool volviendo_al_lanzador_ = false;   // the launcher was already started again
   static void PonerSiNadieLoPidio(const char* nombre, const char* valor) {
     if (rex::cvar::GetFlagInfo(nombre) == nullptr) {
       REXLOG_DEBUG("Ajuste '{}' no registrado todavia; no lo toco.", nombre);

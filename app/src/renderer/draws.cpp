@@ -5,7 +5,9 @@
 #include "shader_modules.h"
 
 #include "../nfsmw_nativo_dibujos.h"
+#include "../nfsmw_ajustes_graficos.h"
 #include "../nfsmw_nativo_shaders.h"
+#include "../nfsmw_shader_library.h"
 #include "spirv_recompiler.h"
 
 #include <rex/cvar.h>
@@ -48,6 +50,26 @@ namespace {
 
 constexpr uint32_t kVertexConstantBytes = 256 * 16;
 constexpr uint32_t kPixelConstantBytes = 224 * 16;
+
+// nfsmw_tratamiento_visual. The final composite (p_000139, the race VisualTreatment; the XXH3 of its container) tints
+// each channel with a polynomial curve (Coeffs0..3 = c6..c9, evaluated at MISCMAP1.w), mixes in a desaturated part and
+// adds a vignette (VisualEffectVignette.x = c1). A neutral curve (Coeffs0 = (0, 1, 1, 1), Coeffs1..3 = 0) and no
+// vignette leave the picture unfiltered; the glow (c4) and the fades (c10) stay the same. suave: halfway between the
+// game's values and the neutral ones (the curve is linear in its coefficients). The registers are those of the
+// microcode, the same in every edition.
+constexpr uint64_t kCompositeFingerprint = 0x19C0C358044A29BFull;
+constexpr uint32_t kTreatmentBytes = 11 * 16;  // c0 to c10
+void ApplyVisualTreatment(float* c, int mode) {
+  static constexpr float kNeutral[4][4] = {{0, 1, 1, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
+  const float f = mode == 2 ? 1.0f : 0.5f;
+  for (int k = 0; k < 4; ++k) {
+    for (int i = 0; i < 4; ++i) {
+      float& v = c[(6 + k) * 4 + i];
+      v += (kNeutral[k][i] - v) * f;
+    }
+  }
+  c[1 * 4 + 0] *= 1.0f - f;
+}
 constexpr uint32_t kMaxVerticesPerDraw = 1u << 20;
 constexpr uint64_t kGuestMemoryBytes = 0x20000000;
 constexpr uint32_t kShadowPitch = 1600;  // the game's two shadow maps (RenderTargets' kShadowSide)
@@ -327,6 +349,26 @@ bool Draws::BeginPass(VkCommandBuffer commands, const std::array<const Image*, k
                                       : pass;
   if (!begin_pass) {
     return false;
+  }
+
+  // A trimmed area only keeps what is outside it when aligned to the pass's render area granularity; otherwise the
+  // driver may load or store whole blocks across its edge. Mali reports 1x1 or tile-sized blocks that the 32 above
+  // already covers; Adreno's are larger, and its unaligned areas made the background behind the car flicker in the
+  // menus (AYN Thor).
+  if (area_width < width || area_height < height) {
+    VkExtent2D granularity{1, 1};
+    context_.fn().vkGetRenderAreaGranularity(context_.handle(), begin_pass, &granularity);
+    static bool anotada = false;
+    if (!anotada) {
+      anotada = true;
+      REXLOG_INFO("[renderer] render area granularity {}x{}", granularity.width, granularity.height);
+    }
+    if (granularity.width > 1) {
+      area_width = std::min(width, (area_width + granularity.width - 1) / granularity.width * granularity.width);
+    }
+    if (granularity.height > 1) {
+      area_height = std::min(height, (area_height + granularity.height - 1) / granularity.height * granularity.height);
+    }
   }
 
   VkRenderPassBeginInfo begin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -731,7 +773,25 @@ bool Draws::UploadConstants(const nativo::PeticionDibujo& request, const GuestRe
     vs_constants_bytes_ = vs_bytes;
   }
   const uint32_t ps_bytes = request.ps ? std::max(std::min(ConstantBytes(*request.ps), kPixelConstantBytes), 16u) : 16;
-  if (request.generacion_constantes_ps != ps_constants_generation_ || ps_bytes > ps_constants_bytes_) {
+  // The final composite with the color filter changed: its own copy of the constants, and the next draw uploads the
+  // game's again.
+  const int treatment = ajustes::TratamientoVisual();
+  if (treatment != 0 && request.ps && request.ps->shader && request.ps->shader->huella == kCompositeFingerprint &&
+      ps_bytes >= kTreatmentBytes) {
+    FrameRing::Allocation allocation;
+    if (!frames_.Allocate(kPixelConstantBytes, alignment, allocation)) {
+      return Reject(30, "upload memory full (constants)");
+    }
+    std::memcpy(allocation.data, r.data() + kPixelConstantsRegister, ps_bytes);
+    ApplyVisualTreatment(reinterpret_cast<float*>(allocation.data), treatment);
+    if (constants_buffer_ != allocation.buffer) {
+      vs_constants_generation_ = UINT64_MAX;
+      constants_buffer_ = allocation.buffer;
+    }
+    ps_constants_offset_ = allocation.offset;
+    ps_constants_generation_ = UINT64_MAX;
+    ps_constants_bytes_ = ps_bytes;
+  } else if (request.generacion_constantes_ps != ps_constants_generation_ || ps_bytes > ps_constants_bytes_) {
     if (!upload(r.data() + kPixelConstantsRegister, ps_bytes, kPixelConstantBytes, ps_constants_offset_)) {
       return Reject(30, "upload memory full (constants)");
     }

@@ -17,6 +17,7 @@
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
 #include <rex/logging.h>
+#include <rex/platform.h>
 #include <rex/ui/image_decode.h>
 
 #include <imgui.h>
@@ -46,6 +47,9 @@ namespace nfsmw::lanzador {
 using idioma::T;
 
 namespace {
+// The launcher art built into the module (app/CMakeLists.txt): kArteEmbebido.
+#include "arte_embebido.inc"
+
 
 // ---- Tema: negro puro, blanco y grises, como la interfaz del juego ------------
 constexpr ImU32 kFondo = IM_COL32(0, 0, 0, 255);
@@ -518,11 +522,32 @@ bool DebeMostrarse() {
   return REXCVAR_GET(nfsmw_lanzador);
 }
 
+// La ISO se juega tal cual (el runtime la monta) salvo en la Switch, que no puede mapearla y la extrae una vez.
+#if REX_PLATFORM_SWITCH
+constexpr bool kIsoDirecta = false;
+#else
+constexpr bool kIsoDirecta = true;
+#endif
+
+// La imagen tiene el juego. Se mira una vez por ruta y tamano: EstadoJuego se llama en cada fotograma.
+bool ImagenValida(const std::filesystem::path& imagen) {
+  static std::string clave;
+  static bool valida = false;
+  std::error_code ec;
+  const std::string actual = rex::path_to_utf8(imagen) + "|" + std::to_string(std::filesystem::file_size(imagen, ec));
+  if (actual != clave) {
+    clave = actual;
+    valida = iso::EsImagenDelJuego(imagen);
+  }
+  return valida;
+}
+
 std::filesystem::path CarpetaGuardada(const std::filesystem::path& por_defecto) {
   const std::string guardado = REXCVAR_GET(nfsmw_juego);
   const auto juego = guardado.empty() ? por_defecto : DesdeUtf8(guardado);
   if (juego.empty()) return {};
-  if (EsIso(juego)) return iso::CopiaValida(CarpetaExtraccion(), juego) ? CarpetaExtraccion() : juego;
+  if (EsIso(juego) && !kIsoDirecta)
+    return iso::CopiaValida(CarpetaExtraccion(), juego) ? CarpetaExtraccion() : juego;
   return juego;
 }
 
@@ -564,13 +589,20 @@ Lanzador::Estado Lanzador::EstadoJuego() const {
   if (juego.empty()) return Estado::kNinguno;
   std::error_code ec;
   if (!std::filesystem::exists(juego, ec)) return Estado::kFalta;
-  if (EsIso(juego)) return iso::CopiaValida(CarpetaExtraccion(), juego) ? Estado::kIsoLista : Estado::kIsoNueva;
+  if (EsIso(juego)) {
+    if (kIsoDirecta) return ImagenValida(juego) ? Estado::kIsoLista : Estado::kInvalida;
+    return iso::CopiaValida(CarpetaExtraccion(), juego) ? Estado::kIsoLista : Estado::kIsoNueva;
+  }
   return iso::EsCarpetaDelJuego(juego) ? Estado::kCarpeta : Estado::kInvalida;
 }
 
 std::filesystem::path Lanzador::CarpetaJuego() const {
   switch (EstadoJuego()) {
     case Estado::kIsoLista:
+      if (kIsoDirecta) {
+        const std::string guardado = REXCVAR_GET(nfsmw_juego);
+        return guardado.empty() ? juego_por_defecto_ : DesdeUtf8(guardado);
+      }
       return CarpetaExtraccion();
     case Estado::kCarpeta: {
       const std::string guardado = REXCVAR_GET(nfsmw_juego);
@@ -674,17 +706,24 @@ void Lanzador::Jugar() {
   }
 
   PonerCv("fullscreen", pantalla_completa_ ? "true" : "false");
+  // La biblioteca de shaders es la de la edicion de la copia, aunque la juegue el ejecutable de otra.
+  PonerCv("nfsmw_edicion_copia", ed);
   callbacks_.guardar();
-  // Copia de otra edicion: la juega su ejecutable, que esta al lado de este.
-  if (!ed.empty() && ed != edicion::Propia()) {
-    const auto exe = edicion::Ejecutable(ed);
+  // Copia que juega el modulo de otra edicion: en Windows se relanza este mismo nfsmw.exe con ese modulo; en
+  // los demas, su ejecutable, que esta al lado de este.
+  if (!ed.empty() && edicion::Familia(ed) != edicion::Propia()) {
+    const auto modulo = edicion::Modulo(edicion::Familia(ed));
     std::error_code ec;
-    if (!std::filesystem::is_regular_file(exe, ec)) {
+    if (!std::filesystem::is_regular_file(modulo, ec)) {
       std::lock_guard<std::mutex> l(mutex_);
-      error_ = std::string(T("ed.falta_exe")) + " " + rex::path_to_utf8(exe.filename());
+      error_ = std::string(T("ed.falta_exe")) + " " + rex::path_to_utf8(modulo.filename());
       return;
     }
-    if (sistema::Lanzar(exe, "--nfsmw_lanzador_omitir=true")) callbacks_.salir();
+#if defined(_WIN32)
+    if (sistema::Relanzar("--nfsmw_lanzador_omitir=true --nfsmw_modulo=" + edicion::Familia(ed))) callbacks_.salir();
+#else
+    if (sistema::Lanzar(modulo, "--nfsmw_lanzador_omitir=true")) callbacks_.salir();
+#endif
     return;
   }
   if (NecesitaReinicio()) {
@@ -707,7 +746,84 @@ void Lanzador::Jugar() {
 
 // ---- Dibujo -----------------------------------------------------------------
 
+// Mandos en el lanzador: ImGui no los lee por si solo, asi que cada fotograma se le pasan los botones y sticks de
+// todos los mandos que SDL reconoce (navegar con la cruceta o el stick, A acepta, B vuelve, LB/RB cambian de pestana).
+// Cada mando nuevo se apunta en el log, para saber que detecta SDL en cada dispositivo.
+static void PasarMandosAImGui(ImGuiIO& io) {
+  static bool iniciado = SDL_InitSubSystem(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD);
+  static std::vector<SDL_JoystickID> vistos;
+  static std::vector<SDL_Gamepad*> abiertos;
+  if (!iniciado) return;
+  SDL_UpdateGamepads();
+  int n = 0;
+  SDL_JoystickID* ids = SDL_GetJoysticks(&n);
+  for (int i = 0; ids && i < n; ++i) {
+    if (std::find(vistos.begin(), vistos.end(), ids[i]) != vistos.end()) continue;
+    vistos.push_back(ids[i]);
+    const char* nombre = SDL_GetJoystickNameForID(ids[i]);
+    const bool es_mando = SDL_IsGamepad(ids[i]);
+    REXLOG_INFO("[lanzador] dispositivo de juego: \"{}\" VID 0x{:04X} PID 0x{:04X} tipo {} -> {}", nombre ? nombre : "",
+                SDL_GetJoystickVendorForID(ids[i]), SDL_GetJoystickProductForID(ids[i]),
+                int(SDL_GetJoystickTypeForID(ids[i])), es_mando ? "mando" : "no reconocido como mando");
+    if (es_mando) {
+      if (SDL_Gamepad* g = SDL_OpenGamepad(ids[i])) abiertos.push_back(g);
+    }
+  }
+  SDL_free(ids);
+  abiertos.erase(std::remove_if(abiertos.begin(), abiertos.end(),
+                                [](SDL_Gamepad* g) {
+                                  if (SDL_GamepadConnected(g)) return false;
+                                  SDL_CloseGamepad(g);
+                                  return true;
+                                }),
+                 abiertos.end());
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+  if (abiertos.empty()) {
+    io.BackendFlags &= ~ImGuiBackendFlags_HasGamepad;
+    return;
+  }
+  io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
+  struct Boton {
+    ImGuiKey tecla;
+    SDL_GamepadButton boton;
+  };
+  static constexpr Boton kBotones[] = {
+      {ImGuiKey_GamepadFaceDown, SDL_GAMEPAD_BUTTON_SOUTH},       {ImGuiKey_GamepadFaceRight, SDL_GAMEPAD_BUTTON_EAST},
+      {ImGuiKey_GamepadFaceLeft, SDL_GAMEPAD_BUTTON_WEST},        {ImGuiKey_GamepadFaceUp, SDL_GAMEPAD_BUTTON_NORTH},
+      {ImGuiKey_GamepadDpadUp, SDL_GAMEPAD_BUTTON_DPAD_UP},       {ImGuiKey_GamepadDpadDown, SDL_GAMEPAD_BUTTON_DPAD_DOWN},
+      {ImGuiKey_GamepadDpadLeft, SDL_GAMEPAD_BUTTON_DPAD_LEFT},   {ImGuiKey_GamepadDpadRight, SDL_GAMEPAD_BUTTON_DPAD_RIGHT},
+      {ImGuiKey_GamepadL1, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER},     {ImGuiKey_GamepadR1, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER},
+      {ImGuiKey_GamepadStart, SDL_GAMEPAD_BUTTON_START},          {ImGuiKey_GamepadBack, SDL_GAMEPAD_BUTTON_BACK},
+  };
+  for (const Boton& b : kBotones) {
+    bool pulsado = false;
+    for (SDL_Gamepad* g : abiertos) pulsado |= SDL_GetGamepadButton(g, b.boton);
+    io.AddKeyEvent(b.tecla, pulsado);
+  }
+  // Stick izquierdo como cruceta analogica, con zona muerta.
+  auto eje = [&](SDL_GamepadAxis a, ImGuiKey menos, ImGuiKey mas) {
+    float v = 0.0f;
+    for (SDL_Gamepad* g : abiertos) {
+      const float x = SDL_GetGamepadAxis(g, a) / 32767.0f;
+      if (std::fabs(x) > std::fabs(v)) v = x;
+    }
+    const float muerta = 0.3f;
+    const float f = std::clamp((std::fabs(v) - muerta) / (1.0f - muerta), 0.0f, 1.0f);
+    io.AddKeyAnalogEvent(menos, v < 0 && f > 0, v < 0 ? f : 0.0f);
+    io.AddKeyAnalogEvent(mas, v > 0 && f > 0, v > 0 ? f : 0.0f);
+  };
+  eje(SDL_GAMEPAD_AXIS_LEFTX, ImGuiKey_GamepadLStickLeft, ImGuiKey_GamepadLStickRight);
+  eje(SDL_GAMEPAD_AXIS_LEFTY, ImGuiKey_GamepadLStickUp, ImGuiKey_GamepadLStickDown);
+  eje(SDL_GAMEPAD_AXIS_RIGHTX, ImGuiKey_GamepadRStickLeft, ImGuiKey_GamepadRStickRight);
+  eje(SDL_GAMEPAD_AXIS_RIGHTY, ImGuiKey_GamepadRStickUp, ImGuiKey_GamepadRStickDown);
+}
+
 void Lanzador::OnDraw(ImGuiIO& io) {
+  PasarMandosAImGui(io);
+  if (tarea_ == Tarea::kNinguna) {
+    if (ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false)) pagina_ = Pagina((pagina_ + kNumPaginas - 1) % kNumPaginas);
+    if (ImGui::IsKeyPressed(ImGuiKey_GamepadR1, false)) pagina_ = Pagina((pagina_ + 1) % kNumPaginas);
+  }
   if (tarea_terminada_.exchange(false)) {
     if (hilo_.joinable()) hilo_.join();
     tarea_ = Tarea::kNinguna;
@@ -729,7 +845,7 @@ void Lanzador::OnDraw(ImGuiIO& io) {
   // buttons too small for a finger. But the layout needs about 600 x 1100 units to fit, so the scale stops there.
   escala_ = std::clamp(std::min(io.DisplaySize.y / 600.0f, io.DisplaySize.x / 1100.0f), 1.0f, 3.5f);
 #else
-  escala_ = std::clamp(io.DisplaySize.y / 900.0f, 0.75f, 2.5f);
+  escala_ = std::clamp(io.DisplaySize.y / 780.0f, 0.85f, 2.9f);
 #endif
   g_escala = escala_;
 
@@ -937,21 +1053,13 @@ void Lanzador::DibujarPie(float ancho, float alto) {
 const Lanzador::Arte* Lanzador::LeerArte(const std::string& nombre, bool repetida) {
   auto [it, nuevo] = arte_.try_emplace(nombre);
   if (nuevo) {
-    std::vector<uint8_t> datos;
-    if (std::ifstream in(rex::filesystem::GetExecutableFolder() / "arte" / nombre, std::ios::binary); in) {
-      datos.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-    } else {
-      // Android: en los assets del APK (SDL lee de ahi las rutas relativas).
-      size_t tam = 0;
-      if (void* d = SDL_LoadFile(("arte/" + nombre).c_str(), &tam)) {
-        datos.assign(static_cast<uint8_t*>(d), static_cast<uint8_t*>(d) + tam);
-        SDL_free(d);
-      }
-    }
+    const ArteEmbebido* arte = nullptr;
+    for (const auto& a : kArteEmbebido)
+      if (nombre == a.nombre) arte = &a;
     auto* inmediato = imgui_drawer() ? imgui_drawer()->immediate_drawer() : nullptr;
     int w = 0, h = 0;
-    if (!datos.empty() && inmediato) {
-      const auto rgba = rex::ui::DecodeImageRGBA(datos.data(), datos.size(), w, h);
+    if (arte && inmediato) {
+      const auto rgba = rex::ui::DecodeImageRGBA(arte->datos, size_t(arte->tam), w, h);
       if (!rgba.empty()) {
         it->second.textura = inmediato->CreateTexture(uint32_t(w), uint32_t(h),
                                                       rex::ui::ImmediateTextureFilter::kLinear, repetida, rgba.data());
@@ -982,57 +1090,32 @@ void ImagenCubriendo(ImDrawList* dl, ImTextureID textura, int ancho_img, int alt
 
 }  // namespace
 
-// Cabecera del inicio. Las imagenes no van en el repositorio (son arte del juego): portada.png o portada.jpg junto
-// al ejecutable, o si no uno de los 15 de la Lista Negra con su nombre en grafiti; sin ninguno no se dibuja nada.
+// Cabecera del inicio: portada.png junto al ejecutable, si el jugador la pone (el decodificador solo lee PNG); sin
+// ella no se dibuja nada.
 void Lanzador::DibujarPortada() {
   if (!portada_leida_) {
     portada_leida_ = true;
     auto* inmediato = imgui_drawer() ? imgui_drawer()->immediate_drawer() : nullptr;
-    for (const char* nombre : {"portada.png", "portada.jpg"}) {
-      std::ifstream in(rex::filesystem::GetExecutableFolder() / nombre, std::ios::binary);
-      if (!in || !inmediato) continue;
+    std::ifstream in(rex::filesystem::GetExecutableFolder() / "portada.png", std::ios::binary);
+    if (in && inmediato) {
       const std::vector<uint8_t> datos((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
       int w = 0, h = 0;
       const auto rgba = rex::ui::DecodeImageRGBA(datos.data(), datos.size(), w, h);
-      if (rgba.empty()) continue;
-      portada_ = inmediato->CreateTexture(uint32_t(w), uint32_t(h), rex::ui::ImmediateTextureFilter::kLinear, false,
-                                          rgba.data());
-      portada_ancho_ = w;
-      portada_alto_ = h;
-      break;
-    }
-    if (!portada_) {
-      rival_ = 1 + int(SDL_GetTicksNS() % 15);  // uno distinto en cada arranque
+      if (!rgba.empty()) {
+        portada_ = inmediato->CreateTexture(uint32_t(w), uint32_t(h), rex::ui::ImmediateTextureFilter::kLinear,
+                                            false, rgba.data());
+        portada_ancho_ = w;
+        portada_alto_ = h;
+      }
     }
   }
-  char nombre[32];
-  std::snprintf(nombre, sizeof(nombre), "rival-%02d-fondo.jpg", rival_);
-  const Arte* fondo = portada_ ? nullptr : LeerArte(nombre);
-  if (!portada_ && !fondo) return;
+  if (!portada_) return;
   // Todo el ancho de la pagina, recortada por arriba y por abajo para llenarlo sin deformarse.
   const float ancho = ImGui::GetContentRegionAvail().x;
   const float alto = std::min(ancho * 0.32f, S(300));
   const ImVec2 p = ImGui::GetCursorScreenPos(), q(p.x + ancho, p.y + alto);
   ImDrawList* dl = ImGui::GetWindowDrawList();
-  if (portada_) {
-    ImagenCubriendo(dl, reinterpret_cast<ImTextureID>(portada_.get()), portada_ancho_, portada_alto_, p, q, S(6));
-  } else {
-    ImagenCubriendo(dl, reinterpret_cast<ImTextureID>(fondo->textura.get()), fondo->ancho, fondo->alto, p, q, S(6));
-    // Oscurecido hacia la izquierda, donde van el numero y el nombre.
-    dl->AddRectFilledMultiColor(p, ImVec2(p.x + ancho * 0.6f, q.y), IM_COL32(0, 0, 0, 190), IM_COL32(0, 0, 0, 0),
-                                IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 190));
-    char numero[8];
-    std::snprintf(numero, sizeof(numero), "#%d", rival_);
-    Fuente(true, 40);
-    dl->AddText(ImVec2(p.x + S(22), p.y + S(16)), IM_COL32(255, 255, 255, 220), numero);
-    ImGui::PopFont();
-    std::snprintf(nombre, sizeof(nombre), "rival-%02d-nombre.png", rival_);
-    if (const Arte* grafiti = LeerArte(nombre)) {
-      const float w = std::min(ancho * 0.42f, S(420)), h = w * float(grafiti->alto) / float(grafiti->ancho);
-      dl->AddImage(reinterpret_cast<ImTextureID>(grafiti->textura.get()), ImVec2(p.x + S(14), q.y - h - S(10)),
-                   ImVec2(p.x + S(14) + w, q.y - S(10)));
-    }
-  }
+  ImagenCubriendo(dl, reinterpret_cast<ImTextureID>(portada_.get()), portada_ancho_, portada_alto_, p, q, S(6));
   ImGui::Dummy(ImVec2(ancho, alto + S(10)));
 }
 
@@ -1069,7 +1152,7 @@ void Lanzador::DibujarInicio() {
       if (!elegida.empty()) PonerCv("nfsmw_juego", rex::path_to_utf8(elegida));
     }
     Separador();
-    Nota(T("juego.nota"));
+    Nota(T(kIsoDirecta ? "juego.nota_directa" : "juego.nota"));
 #if defined(__ANDROID__)
     // There is no other way to get the logs off a phone without a cable and a debugger.
     Separador();
@@ -1087,7 +1170,7 @@ void Lanzador::DibujarInicio() {
       case Estado::kFalta: texto = T("estado.falta"), color = kAviso; break;
       case Estado::kInvalida: texto = T("estado.invalida"), color = kAviso; break;
       case Estado::kIsoNueva: texto = T("estado.iso_nueva"), color = kSuave; break;
-      case Estado::kIsoLista: texto = T("estado.iso_lista"); break;
+      case Estado::kIsoLista: texto = T(kIsoDirecta ? "estado.iso_directa" : "estado.iso_lista"); break;
       case Estado::kCarpeta: texto = T("estado.carpeta"); break;
     }
     Fila(T("estado.juego"));
@@ -1177,14 +1260,17 @@ void Lanzador::DibujarGraficos() {
     SegCvar(T("graf.fsr"), "nfsmw_rcas",
             {{"@val.apagado", "apagado"}, {"@val.baja", "bajo"}, {"@val.media", "medio"}, {"@val.alta", "alto"}});
     Nota(T("graf.aa_nota"));
-    SegCvar(T("graf.cielo"), "nfsmw_resplandor_cielo",
-            {{"@val.original", "original"}, {"@val.natural", "natural"}, {"@val.suave", "suave"}});
+  }
+  {
+    // Color: los dos se aplican en vivo (la pasada de salida y la composicion final del juego).
+    Tarjeta t(T("graf.color"));
     SegCvar(T("graf.filtro"), "nfsmw_tratamiento_visual",
             {{"@val.original", "original"}, {"@val.suave", "suave"}, {"@val.apagado", "apagado"}});
     ComboCvar(T("graf.posproceso"), "nfsmw_posproceso",
               {{"@val.apagado", "apagado"}, {"@pp.cine", "cine"}, {"@pp.sepia", "sepia"}, {"@pp.noir", "noir"},
                {"@pp.frio", "frio"}, {"@pp.calido", "calido"}, {"@pp.vivo", "vivo"}, {"@pp.matrix", "matrix"},
                {"@pp.crt", "crt"}});
+    Nota(T("graf.color_nota"));
   }
   {
     Tarjeta t(T("graf.detalle"));
@@ -1623,30 +1709,35 @@ void Lanzador::DibujarPartidas() {
     for (size_t i = 0; i < partidas_.size(); ++i) {
       const auto& p = partidas_[i];
       ImGui::PushID(int(i));
+      // Each row from the one above: name, then the date and size line (or the delete question), then the buttons,
+      // so nothing overlaps whatever the font size.
       const ImVec2 a = ImGui::GetCursorScreenPos();
-      const float alto = S(96);
+      const float y_nombre = a.y + S(14);
+      const float y_datos = y_nombre + S(18) * 1.3f + S(4);
+      const float y = y_datos + S(14) * 1.3f + S(12);
+      const float alto = y + tam.y + S(12) - a.y;
       dl->AddRectFilled(a, ImVec2(a.x + g_interior, a.y + alto), kCampo, S(4));
       dl->AddRect(a, ImVec2(a.x + g_interior, a.y + alto), kBorde, S(4));
       DibujarIcono(dl, Icono::kPartidas, ImVec2(a.x + S(30), a.y + S(30)), S(26), kTexto);
       Fuente(true, 18);
-      dl->AddText(ImVec2(a.x + S(58), a.y + S(14)), kTexto, p.perfil.c_str());
+      dl->AddText(ImVec2(a.x + S(58), y_nombre), kTexto, p.perfil.c_str());
       ImGui::PopFont();
       const std::string datos = std::string(T("part.fecha")) + ": " + p.fecha + "   ·   " + T("part.tam") + ": " +
                                 Tamano(p.bytes);
       Fuente(false, 14);
-      dl->AddText(ImVec2(a.x + S(58), a.y + S(40)), kSuave, datos.c_str());
+      if (borrar_ == int(i)) {
+        dl->AddText(ImVec2(a.x + S(58), y_datos), kAviso, T("part.confirmar"));
+      } else {
+        dl->AddText(ImVec2(a.x + S(58), y_datos), kSuave, datos.c_str());
+      }
       ImGui::PopFont();
       float x = a.x + S(58);
-      const float y = a.y + alto - tam.y - S(10);
       auto boton = [&](const char* texto, const char* id, bool primario, bool activo = true) {
         ImGui::SetCursorScreenPos(ImVec2(x, y));
         x += tam.x + S(8);
         return Boton(ConId(texto, id).c_str(), primario, tam, activo);
       };
       if (borrar_ == int(i)) {
-        Fuente(false, 14);
-        dl->AddText(ImVec2(x, y - S(20)), kAviso, T("part.confirmar"));
-        ImGui::PopFont();
         if (boton(T("btn.confirmar"), "si", true)) hecho(partidas::Borrar(p));
         if (boton(T("btn.cancelar"), "no", false)) borrar_ = -1;
       } else {
@@ -1713,7 +1804,7 @@ void Lanzador::DibujarConfig() {
     Tarjeta t(T("cfg.idioma"));
     const float ancho = Fila(T("cfg.idioma"));
     const std::string actual = Cv("nfsmw_idioma");
-    static constexpr const char* kCodigos[idioma::kNumIdiomas] = {"es", "en", "pt"};
+    static constexpr const char* kCodigos[idioma::kNumIdiomas] = {"es", "en", "pt", "de", "it", "fr"};
     const char* mostrado = T("cfg.idioma_auto");
     for (int i = 0; i < idioma::kNumIdiomas; ++i)
       if (actual == kCodigos[i]) mostrado = idioma::Nombre(i);

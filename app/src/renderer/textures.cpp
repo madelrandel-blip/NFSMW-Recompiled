@@ -2,14 +2,22 @@
 
 #include "bc_decode.h"
 
+#include <rex/cvar.h>
 #include <rex/graphics/pipeline/texture/util.h>
 #include <rex/logging.h>
 #include <rex/memory.h>
+#include <rex/platform.h>
 
 #include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <vector>
+
+// For now off on Android: the AYN Thor (Adreno 740) showed visual glitches in the menus that the phones decoding
+// on the CPU (Mali) do not have.
+REXCVAR_DEFINE_BOOL(nfsmw_texturas_bc_gpu, REX_PLATFORM_ANDROID == 0, "Graficos",
+                    "Usar las texturas DXT (BC) tal cual en la GPU si las admite; si no, se descomprimen en la CPU "
+                    "al subirlas (la misma imagen)");
 
 // Same configuration as nfsmw_shader_library.cpp: byte reads through memcpy (see the comment there).
 #undef XXH_FORCE_MEMORY_ACCESS
@@ -276,6 +284,7 @@ bool TextureCache::Initialize() {
   {
     const auto& instance_fn = context_.device().vulkan_instance()->functions();
     constexpr VkFormatFeatureFlags kNeeded = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+    bc_supported_ = context_.device().properties().textureCompressionBC && REXCVAR_GET(nfsmw_texturas_bc_gpu);
     for (VkFormat bc : {VK_FORMAT_BC1_RGBA_UNORM_BLOCK, VK_FORMAT_BC3_UNORM_BLOCK, VK_FORMAT_BC5_UNORM_BLOCK}) {
       VkFormatProperties properties{};
       instance_fn.vkGetPhysicalDeviceFormatProperties(context_.device().physical_device(), bc, &properties);

@@ -177,6 +177,41 @@ std::string Extraer(const std::filesystem::path& imagen, const std::filesystem::
   return {};
 }
 
+std::vector<Fichero> Listar(const std::filesystem::path& imagen) {
+  std::ifstream f(imagen, std::ios::binary);
+  if (!f) return {};
+  const int64_t base = DetectarBase(f);
+  if (base < 0) return {};
+  const auto descriptor = LeerBloque(f, base + 32 * kSector, uint32_t(kSector));
+  if (descriptor.size() < size_t(kSector)) return {};
+  std::vector<Entrada> entradas;
+  Recorrer(f, base, Leer32(descriptor, 0x14), Leer32(descriptor, 0x18), "", entradas);
+  std::vector<Fichero> ficheros;
+  for (const auto& e : entradas)
+    if (!e.dir) ficheros.push_back({e.ruta, base + int64_t(e.sector) * kSector, e.tam});
+  return ficheros;
+}
+
+std::vector<uint8_t> LeerFichero(const std::filesystem::path& imagen, std::string_view ruta) {
+  for (const auto& e : Listar(imagen)) {
+    if (e.ruta.size() != ruta.size() ||
+        !std::equal(e.ruta.begin(), e.ruta.end(), ruta.begin(),
+                    [](char a, char b) { return std::tolower(a) == std::tolower(b); }))
+      continue;
+    std::ifstream f(imagen, std::ios::binary);
+    return LeerBloque(f, e.offset, uint32_t(e.tam));
+  }
+  return {};
+}
+
+bool EsImagenDelJuego(const std::filesystem::path& imagen) {
+  for (const auto& e : Listar(imagen))
+    if (e.ruta.size() == 11 && std::equal(e.ruta.begin(), e.ruta.end(), "default.xex",
+                                          [](char a, char b) { return std::tolower(a) == b; }))
+      return true;
+  return false;
+}
+
 bool EsCarpetaDelJuego(const std::filesystem::path& carpeta) {
   std::error_code ec;
   return std::filesystem::is_regular_file(carpeta / "default.xex", ec);
