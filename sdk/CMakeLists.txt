@@ -150,6 +150,10 @@ add_compile_options(
     $<$<CONFIG:RELEASE>:-DNDEBUG>
     -fno-char8_t
 )
+if(ANDROID)
+    # The NDK's libc++ keeps std::jthread and std::stop_token (timer_queue.cpp) behind this flag.
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fexperimental-library>)
+endif()
 
 # Platform detection (supports AMD64 and ARM64)
 set(REX_TARGET_PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}")
@@ -277,9 +281,9 @@ add_subdirectory(src/audio)
 add_subdirectory(src/graphics)
 add_subdirectory(src/system)
 add_subdirectory(src/kernel)
-if(NOT REXGLUE_PLATFORM_SWITCH)
-    # Host tools. Code generation runs on the PC; a Switch build compiles its
-    # output.
+if(NOT REXGLUE_PLATFORM_SWITCH AND NOT ANDROID)
+    # Host tools. Code generation runs on the PC; a Switch or Android build compiles
+    # its output.
     add_subdirectory(src/codegen)
     add_subdirectory(src/rexglue)
 endif()

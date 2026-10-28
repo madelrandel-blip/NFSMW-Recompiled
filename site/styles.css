@@ -25,6 +25,12 @@ body {
 
 a { color: inherit; }
 
+/* El cursor del juego en PC (PC_CURSOR, arte del HUD reescalado de LunicAura106), tambien sobre enlaces y botones.
+   La punta de la flecha esta en (7, 7). */
+html, body, a, button, summary, [role="menuitem"], .idioma-lista li {
+  cursor: url("assets/arte/cursor.png") 7 7, auto;
+}
+
 img { max-width: 100%; display: block; }
 
 /* ---- Barra superior ---- */
@@ -76,7 +82,6 @@ img { max-width: 100%; display: block; }
   padding: 6px 10px;
   font: inherit;
   font-size: 14px;
-  cursor: pointer;
 }
 
 .idioma-actual:hover,
@@ -112,7 +117,6 @@ img { max-width: 100%; display: block; }
   gap: 10px;
   padding: 8px 10px;
   border-radius: 5px;
-  cursor: pointer;
   color: var(--suave);
 }
 
@@ -139,45 +143,37 @@ img { max-width: 100%; display: block; }
   overflow: hidden;
 }
 
+/* La pantalla de inicio del juego (WS_XENON_SPLASHBACK, arte del HUD reescalado de LunicAura106). */
 .portada-fondo {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
+  background: url("assets/arte/portada.jpg") center / cover no-repeat;
+  filter: brightness(0.9);
   pointer-events: none;
-  filter: grayscale(0.35) brightness(0.55);
-  opacity: 0;
-  transition: opacity 0.8s;
-}
-
-.portada-fondo.listo { opacity: 1; }
-
-/* El reproductor de YouTube cubre la portada sin bandas, como object-fit: cover (video 16:9). */
-.portada-fondo iframe {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: max(100%, 177.78vh);
-  height: max(100%, 56.25vw);
-  transform: translate(-50%, -50%) scale(1.15);
-  border: 0;
-}
-
-/* Quien pide menos movimiento ve la imagen fija (el poster) en lugar del video. */
-@media (prefers-reduced-motion: reduce) {
-  .portada-fondo { display: none; }
-  .portada { background: url("assets/captura-3.jpg") center / cover; }
 }
 
 .portada::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 30%, #000 100%);
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.35) 45%, rgba(0, 0, 0, 0) 70%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0) 45%, #000 100%);
 }
 
-.portada-contenido { position: relative; z-index: 1; max-width: 720px; }
+/* El grano de los menus del juego (arte del HUD reescalado de LunicAura106) sobre la portada. */
+.portada::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: url("assets/arte/grano.png") center / 512px repeat;
+  mix-blend-mode: overlay;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.portada-contenido { position: relative; z-index: 2; max-width: 720px; }
 
 .antetitulo {
   margin: 0;
@@ -202,6 +198,26 @@ h1 span {
   color: var(--suave);
   letter-spacing: 0.05em;
   margin-top: 8px;
+}
+
+/* El logo del juego (MW_LOGO) en lugar del titulo en texto, y debajo "Recompiled". */
+.titulo-logo { margin: 0 0 16px; line-height: 1; }
+
+.titulo-logo img {
+  width: min(460px, 100%);
+  height: auto;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.75));
+}
+
+.titulo-logo span {
+  display: block;
+  margin: 10px 0 0 4px;
+  font-size: clamp(18px, 2.4vw, 24px);
+  font-weight: 700;
+  letter-spacing: 0.45em;
+  text-transform: uppercase;
+  color: var(--texto);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
 }
 
 .lema { font-size: 19px; color: var(--suave); margin: 0 0 28px; max-width: 560px; }
@@ -237,7 +253,6 @@ h1 span {
   font: inherit;
   font-weight: 600;
   color: var(--texto);
-  cursor: pointer;
 }
 
 .boton.primario { color: #000; font-weight: 800; }
@@ -325,6 +340,71 @@ h3 { margin: 0 0 6px; font-size: 18px; }
 
 .tarjeta p { margin: 0; color: var(--suave); }
 
+/* Iconos del menu principal del juego. */
+.tarjeta-icono { width: 44px; height: 44px; margin-bottom: 14px; opacity: 0.9; }
+
+.titulo-icono { width: 34px; height: 34px; }
+
+.intro { color: var(--suave); margin: -12px 0 24px; max-width: 720px; }
+
+/* ---- Lista Negra: fondo de cada rival, su numero y su nombre en grafiti ---- */
+.lista-negra {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.rival {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 2 / 1;
+  overflow: hidden;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  background: var(--tarjeta);
+}
+
+.rival-fondo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: brightness(0.8);
+  transition: transform 0.35s, filter 0.35s;
+}
+
+.rival::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 60%);
+  pointer-events: none;
+}
+
+.rival:hover .rival-fondo { transform: scale(1.05); filter: brightness(1); }
+
+.rival:hover { border-color: var(--resalte); }
+
+.rival-num {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  left: 14px;
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.85);
+}
+
+.rival-nombre {
+  position: absolute;
+  z-index: 1;
+  left: 10px;
+  bottom: 8px;
+  width: 52%;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.8));
+}
+
 .galeria {
   max-width: var(--ancho);
   margin: 0 auto;
@@ -386,7 +466,7 @@ details {
   margin-bottom: 10px;
 }
 
-summary { cursor: pointer; font-weight: 600; }
+summary { font-weight: 600; }
 
 details p { margin: 10px 0 0; color: var(--suave); }
 

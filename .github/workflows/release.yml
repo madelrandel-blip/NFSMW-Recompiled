@@ -147,12 +147,6 @@ jobs:
           ren app app_es || exit /b 1
           ren app_${{ matrix.edition }} app || exit /b 1
 
-      - name: DirectXShaderCompiler (the launcher's shader generator)
-        shell: pwsh
-        run: |
-          curl.exe -sfL -o dxc.zip https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2407/dxc_2024_07_31.zip
-          Expand-Archive dxc.zip dxc
-
       - name: Build
         shell: cmd
         run: |
@@ -163,7 +157,7 @@ jobs:
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ^
             -DCMAKE_C_FLAGS=-march=x86-64-v2 -DCMAKE_CXX_FLAGS=-march=x86-64-v2 ^
             -DREXSDK_DIR=%CD%\nx\sdk -DREXGLUE_USE_VULKAN=ON -DNFSMW_BUILD_LAUNCHER=OFF ^
-            -DNFSMW_DXC_DIR=%CD%/dxc -DNFSMW_EDICION=${{ matrix.edition }} -DNFSMW_VERSION=${{ inputs.version }} ^
+            -DNFSMW_EDICION=${{ matrix.edition }} -DNFSMW_VERSION=${{ inputs.version }} ^
             -DREXGLUE_RECOMP_DEBUG_INFO=none > configure.log 2>&1
           if errorlevel 1 ( powershell -Command "Get-Content configure.log -Tail 40" & exit /b 1 )
           cmake --build out\pc --target nfsmw nfsmw_inicio -j 2 > build.log 2>&1
@@ -183,6 +177,8 @@ jobs:
             Copy-Item (Get-ChildItem out/pc -Recurse -Filter 'NFSMW Recomp.exe' | Select-Object -First 1).FullName dist/
             Get-ChildItem $exe.DirectoryName -Filter *.dll | Copy-Item -Destination dist/
             Copy-Item nx/app/nfsmw.toml dist/nfsmw.toml
+            # The launcher's game art (the website's images: Blacklist, menu icons, grain).
+            Copy-Item -Recurse nx/site/assets/arte dist/arte
             $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
             Get-ChildItem "$vs\VC\Redist\MSVC" -Recurse -Filter *.dll -ErrorAction SilentlyContinue |
               Where-Object { $_.DirectoryName -match '\\x64\\Microsoft\.VC\d+\.CRT$' } |

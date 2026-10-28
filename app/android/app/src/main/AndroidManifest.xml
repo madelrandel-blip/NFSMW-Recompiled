@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    android:installLocation="auto">
+
+    <!-- The renderer is Vulkan 1.1 (app/src/renderer). -->
+    <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- The launcher asks GitHub whether a newer release exists (lanzador/actualizacion.cpp), as on the PC. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The visible data folder at the storage root (SetupActivity): all files access on Android 11+, the legacy
+         storage permission on Android 10. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true"
+        android:allowBackup="false"
+        android:hardwareAccelerated="true"
+        android:appCategory="game"
+        android:isGame="true"
+        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+        <!-- The exported logs, readable by the app they are shared with (LogProvider). -->
+        <provider
+            android:name="com.nfsmwrecomp.LogProvider"
+            android:authorities="com.nfsmwrecomp.logs"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+        <!-- Asks for storage access once, then starts the game. -->
+        <activity
+            android:name="com.nfsmwrecomp.SetupActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:screenOrientation="sensorLandscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="com.nfsmwrecomp.NfsmwActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:alwaysRetainTaskState="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
+            android:preferMinimalPostProcessing="true">
+            <!-- Game controllers connected over USB. -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

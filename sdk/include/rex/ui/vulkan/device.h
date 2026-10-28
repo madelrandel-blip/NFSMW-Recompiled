@@ -170,6 +170,10 @@ class VulkanDevice {
 
     bool dynamicRendering = false;
 
+    // VK_KHR_imageless_framebuffer (#109, promoted to 1.2)
+
+    bool imagelessFramebuffer = false;
+
     // VK_EXT_non_seamless_cube_map (#423)
 
     bool nonSeamlessCubeMap = false;
@@ -207,6 +211,8 @@ class VulkanDevice {
     bool ext_EXT_full_screen_exclusive = false;         // #256 (Windows)
     bool ext_1_1_KHR_dedicated_allocation = false;      // #128
     bool ext_EXT_shader_stencil_export = false;         // #141
+    // Has optional features not implied by this being true.
+    bool ext_1_2_KHR_imageless_framebuffer = false;     // #109
     bool ext_1_1_KHR_get_memory_requirements2 = false;  // #147
     bool ext_1_2_KHR_image_format_list = false;         // #148
     // Has optional features not implied by this being true.

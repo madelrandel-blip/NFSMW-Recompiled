@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="preload" as="image" href="assets/arte/portada.jpg">
+  <link rel="preload" as="image" href="assets/arte/logo-mw.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -19,9 +21,9 @@
     </a>
     <nav class="menu">
       <a href="#caracteristicas" data-t="nav.features">Características</a>
+      <a href="#lista-negra" data-t="nav.blacklist">Lista Negra</a>
       <a href="#jugar" data-t="nav.play">Cómo jugar</a>
       <a href="#requisitos" data-t="nav.req">Requisitos</a>
-      <a href="#faq" data-t="nav.faq">Preguntas</a>
     </nav>
     <div class="idiomas">
       <button class="idioma-actual" id="idioma-actual" aria-haspopup="listbox" aria-expanded="false"></button>
@@ -31,10 +33,12 @@
 
   <main>
     <section id="inicio" class="portada">
-      <div class="portada-fondo" aria-hidden="true"><div id="yt-fondo"></div></div>
+      <div class="portada-fondo" aria-hidden="true"></div>
       <div class="portada-contenido">
-        <p class="antetitulo">NEED FOR SPEED</p>
-        <h1>MOST WANTED<span>Recompiled</span></h1>
+        <h1 class="titulo-logo">
+          <img src="assets/arte/logo-mw.png" alt="Need for Speed: Most Wanted" width="1400" height="319">
+          <span>Recompiled</span>
+        </h1>
         <p class="lema" data-t="hero.tagline">El clásico de 2005 de Xbox 360, recompilado de forma nativa para PC con un renderizador Vulkan.</p>
         <div class="acciones">
           <div class="descarga">
@@ -51,10 +55,6 @@
               <a role="menuitem" id="descargar-android" href="https://github.com/victorgbd/NFSMW-Recompiled-Mobile/releases/latest" target="_blank" rel="noopener">
                 <svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4395 5.5586c-.675 1.1664-1.352 2.3318-2.0274 3.498-.0366-.0155-.0742-.0286-.1113-.043-1.8249-.6957-3.484-.8-4.42-.787-1.8551.0185-3.3544.4643-4.2597.8203-.084-.1494-1.7526-3.021-2.0215-3.4864a1.1451 1.1451 0 0 0-.1406-.1914c-.3312-.364-.9054-.4859-1.379-.203-.475.282-.7136.9361-.3886 1.5019 1.9466 3.3696-.0966-.2158 1.9473 3.3593.0172.031-.4946.2642-1.3926 1.0177C2.8987 12.176.452 14.772 0 18.9902h24c-.119-1.1108-.3686-2.099-.7461-3.0683-.7438-1.9118-1.8435-3.2928-2.7402-4.1836a12.1048 12.1048 0 0 0-2.1309-1.6875c.6594-1.122 1.312-2.2559 1.9649-3.3848.2077-.3615.1886-.7956-.0079-1.1191a1.1001 1.1001 0 0 0-.8515-.5332c-.5225-.0536-.9392.3128-1.0488.5449zm-.0391 8.461c.3944.5926.324 1.3306-.1563 1.6503-.4799.3197-1.188.0985-1.582-.4941-.3944-.5927-.324-1.3307.1563-1.6504.4727-.315 1.1812-.1086 1.582.4941zM7.207 13.5273c.4803.3197.5506 1.0577.1563 1.6504-.394.5926-1.1038.8138-1.584.4941-.48-.3197-.5503-1.0577-.1563-1.6504.4008-.6021 1.1087-.8106 1.584-.4941z" fill="currentColor"/></svg>
                 <span class="texto-menu"><strong>Android</strong><small>.apk · victorgbd</small></span>
-              </a>
-              <a role="menuitem" href="https://stevensnd.github.io/nfsmw-nx-installer/" target="_blank" rel="noopener">
-                <svg class="icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.176 24h3.674c3.376 0 6.15-2.774 6.15-6.15V6.15C24 2.775 21.226 0 17.85 0H14.1c-.074 0-.15.074-.15.15v23.7c-.001.076.075.15.226.15zm4.574-13.199c1.351 0 2.399 1.125 2.399 2.398 0 1.352-1.125 2.4-2.399 2.4-1.35 0-2.4-1.049-2.4-2.4-.075-1.349 1.05-2.398 2.4-2.398zM11.4 0H6.15C2.775 0 0 2.775 0 6.15v11.7C0 21.226 2.775 24 6.15 24h5.25c.074 0 .15-.074.15-.149V.15c.001-.076-.075-.15-.15-.15zM9.676 22.051H6.15c-2.326 0-4.201-1.875-4.201-4.201V6.15c0-2.326 1.875-4.201 4.201-4.201H9.6l.076 20.102zM3.75 7.199c0 1.275.975 2.25 2.25 2.25s2.25-.975 2.25-2.25c0-1.273-.975-2.25-2.25-2.25s-2.25.977-2.25 2.25z" fill="currentColor"/></svg>
-                <span class="texto-menu"><strong>Nintendo Switch</strong><small data-t="dl.switch">Instalador de StevensND</small></span>
               </a>
             </div>
           </div>
@@ -75,26 +75,32 @@
       <h2 data-t="features.title">Características</h2>
       <div class="rejilla">
         <article class="tarjeta">
+          <img class="tarjeta-icono" src="assets/arte/icono-options.png" alt="" width="48" height="48">
           <h3 data-t="f1.t">Código nativo</h3>
           <p data-t="f1.d">El código PowerPC del juego se traduce a C++ y se compila para tu PC. No es un emulador.</p>
         </article>
         <article class="tarjeta">
+          <img class="tarjeta-icono" src="assets/arte/icono-quick-race.png" alt="" width="48" height="48">
           <h3 data-t="f2.t">Renderizador Vulkan</h3>
           <p data-t="f2.d">Dibuja el juego directamente con Vulkan en lugar de emular la GPU de la Xbox 360: muchos más FPS.</p>
         </article>
         <article class="tarjeta">
+          <img class="tarjeta-icono" src="assets/arte/icono-profile-manager.png" alt="" width="48" height="48">
           <h3 data-t="f3.t">PAL España y USA</h3>
           <p data-t="f3.d">Elige tu .iso o carpeta y el lanzador detecta la edición y abre el ejecutable correcto.</p>
         </article>
         <article class="tarjeta">
+          <img class="tarjeta-icono" src="assets/arte/icono-customize-car.png" alt="" width="48" height="48">
           <h3 data-t="f4.t">Gráficos a tu gusto</h3>
           <p data-t="f4.d">Perfiles Bajo a Ultra, resolución hasta la de tu pantalla, 30/60/120 FPS, sombras, reflejos, FXAA y valores originales de Xbox 360.</p>
         </article>
         <article class="tarjeta">
+          <img class="tarjeta-icono" src="assets/arte/icono-car-select.png" alt="" width="48" height="48">
           <h3 data-t="f5.t">Teclado, mando y volante</h3>
           <p data-t="f5.d">Asigna teclas y botones desde el lanzador. Compatible con volantes, pedales y vibración.</p>
         </article>
         <article class="tarjeta">
+          <img class="tarjeta-icono" src="assets/arte/icono-rap-sheet.png" alt="" width="48" height="48">
           <h3 data-t="f6.t">Partidas y trucos</h3>
           <p data-t="f6.d">Exporta, importa y restaura tus partidas guardadas. Activa trucos desde un archivo de texto.</p>
         </article>
@@ -106,6 +112,88 @@
       <figure><img src="assets/captura-2.jpg" alt="Menú principal" loading="lazy"></figure>
       <figure><img src="assets/captura-3.jpg" alt="Carrera en la ciudad" loading="lazy"></figure>
       <figure><img src="assets/captura-4.jpg" alt="Carrera en circuito" loading="lazy"></figure>
+    </section>
+
+    <section id="lista-negra" class="seccion">
+      <h2><img class="titulo-icono" src="assets/arte/icono-top-15.png" alt="" width="36" height="36"><span data-t="bl.title">La Lista Negra</span></h2>
+      <p class="intro" data-t="bl.intro">Los 15 pilotos más buscados de Rockport. Gánales uno a uno, del 15 al 1, para recuperar tu BMW M3 GTR.</p>
+      <div class="lista-negra">
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-15-fondo.jpg" alt="#15 Sonny" width="1024" height="512" loading="lazy">
+          <span class="rival-num">15</span>
+          <img class="rival-nombre" src="assets/arte/rival-15-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-14-fondo.jpg" alt="#14 Taz" width="1024" height="512" loading="lazy">
+          <span class="rival-num">14</span>
+          <img class="rival-nombre" src="assets/arte/rival-14-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-13-fondo.jpg" alt="#13 Vic" width="1024" height="512" loading="lazy">
+          <span class="rival-num">13</span>
+          <img class="rival-nombre" src="assets/arte/rival-13-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-12-fondo.jpg" alt="#12 Izzy" width="1024" height="512" loading="lazy">
+          <span class="rival-num">12</span>
+          <img class="rival-nombre" src="assets/arte/rival-12-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-11-fondo.jpg" alt="#11 Big Lou" width="1024" height="512" loading="lazy">
+          <span class="rival-num">11</span>
+          <img class="rival-nombre" src="assets/arte/rival-11-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-10-fondo.jpg" alt="#10 Baron" width="1024" height="512" loading="lazy">
+          <span class="rival-num">10</span>
+          <img class="rival-nombre" src="assets/arte/rival-10-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-09-fondo.jpg" alt="#9 Earl" width="1024" height="512" loading="lazy">
+          <span class="rival-num">9</span>
+          <img class="rival-nombre" src="assets/arte/rival-09-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-08-fondo.jpg" alt="#8 Jewels" width="1024" height="512" loading="lazy">
+          <span class="rival-num">8</span>
+          <img class="rival-nombre" src="assets/arte/rival-08-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-07-fondo.jpg" alt="#7 Kaze" width="1024" height="512" loading="lazy">
+          <span class="rival-num">7</span>
+          <img class="rival-nombre" src="assets/arte/rival-07-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-06-fondo.jpg" alt="#6 Ming" width="1024" height="512" loading="lazy">
+          <span class="rival-num">6</span>
+          <img class="rival-nombre" src="assets/arte/rival-06-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-05-fondo.jpg" alt="#5 Webster" width="1024" height="512" loading="lazy">
+          <span class="rival-num">5</span>
+          <img class="rival-nombre" src="assets/arte/rival-05-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-04-fondo.jpg" alt="#4 JV" width="1024" height="512" loading="lazy">
+          <span class="rival-num">4</span>
+          <img class="rival-nombre" src="assets/arte/rival-04-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-03-fondo.jpg" alt="#3 Ronnie" width="1024" height="512" loading="lazy">
+          <span class="rival-num">3</span>
+          <img class="rival-nombre" src="assets/arte/rival-03-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-02-fondo.jpg" alt="#2 Bull" width="1024" height="512" loading="lazy">
+          <span class="rival-num">2</span>
+          <img class="rival-nombre" src="assets/arte/rival-02-nombre.png" alt="" loading="lazy">
+        </figure>
+        <figure class="rival">
+          <img class="rival-fondo" src="assets/arte/rival-01-fondo.jpg" alt="#1 Razor" width="1024" height="512" loading="lazy">
+          <span class="rival-num">1</span>
+          <img class="rival-nombre" src="assets/arte/rival-01-nombre.png" alt="" loading="lazy">
+        </figure>
+      </div>
     </section>
 
     <section id="jugar" class="seccion">
@@ -135,31 +223,12 @@
       <h2 data-t="req.title">Requisitos</h2>
       <ul class="lista">
         <li data-t="r1">Windows 10 u 11 de 64 bits</li>
-        <li data-t="r2">Tarjeta gráfica compatible con Vulkan 1.2</li>
+        <li data-t="r2">Tarjeta gráfica compatible con Vulkan 1.1</li>
         <li data-t="r3">Tu propia copia de Need for Speed: Most Wanted (Xbox 360), PAL España o USA</li>
         <li data-t="r4">Mando, teclado o volante</li>
       </ul>
     </section>
 
-    <section id="faq" class="seccion">
-      <h2 data-t="faq.title">Preguntas</h2>
-      <details>
-        <summary data-t="q1">¿Incluye el juego?</summary>
-        <p data-t="a1">No. Necesitas tu propia copia del juego de Xbox 360. Este proyecto no incluye ni distribuye datos del juego.</p>
-      </details>
-      <details>
-        <summary data-t="q2">¿Es un emulador?</summary>
-        <p data-t="a2">No. El código del juego se traduce a C++ antes de compilar y se ejecuta como un programa nativo de Windows.</p>
-      </details>
-      <details>
-        <summary data-t="q3">¿Qué ediciones funcionan?</summary>
-        <p data-t="a3">PAL España y USA. Cada región es un programa distinto; otras ediciones podrían llegar más adelante.</p>
-      </details>
-      <details>
-        <summary data-t="q4">¿Cómo me entero de las actualizaciones?</summary>
-        <p data-t="a4">El lanzador avisa automáticamente cuando hay una versión nueva. También puedes seguir el Discord.</p>
-      </details>
-    </section>
   </main>
 
   <footer class="pie">
@@ -169,10 +238,10 @@
         <strong>Madeline_dev</strong>
         <span data-t="cred.founder">Creación del proyecto</span>
       </a>
-      <a class="persona" href="https://github.com/StevensND" target="_blank" rel="noopener">
-        <img src="https://github.com/StevensND.png?size=160" alt="" width="72" height="72" loading="lazy">
-        <strong>StevensND</strong>
-        <span data-t="cred.founder">Creación del proyecto</span>
+      <a class="persona" href="https://github.com/CamilleLaVey" target="_blank" rel="noopener">
+        <img src="https://github.com/CamilleLaVey.png?size=160" alt="" width="72" height="72" loading="lazy">
+        <strong>Camille LaVey</strong>
+        <span data-t="cred.renderer">Renderizador Vulkan 1.1</span>
       </a>
       <a class="persona" href="https://github.com/victorgbd" target="_blank" rel="noopener">
         <img src="https://github.com/victorgbd.png?size=160" alt="" width="72" height="72" loading="lazy">
@@ -180,7 +249,8 @@
         <span data-t="cred.android">Port de Android</span>
       </a>
     </div>
-    <p data-t="foot.thanks">Construido sobre ReXGlue y el renderizador nativo en Vulkan de nfsmw-nx.</p>
+    <p data-t="foot.thanks">Renderizador Vulkan 1.1 de Madeline_dev y Camille LaVey. Construido sobre ReXGlue.</p>
+    <p class="legal"><span data-t="foot.art">Arte del juego: «NFSMW: Upscaled HUD» de LunicAura106</span> (<a href="https://nfsmods.xyz/mod/1096" target="_blank" rel="noopener">nfsmods.xyz</a>). <span data-t="foot.art_ea">Arte original © Electronic Arts.</span></p>
     <p class="legal" data-t="foot.legal">Need for Speed y Most Wanted son marcas de Electronic Arts. Este proyecto no está afiliado a EA ni a Microsoft. Código bajo licencia GPL-3.0.</p>
   </footer>
 

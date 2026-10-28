@@ -9,13 +9,18 @@ The game's [shaders](../docs/glossary.md#shader) (the small programs the GPU run
 ([Xenos](../docs/glossary.md#xenos)) [microcode](../docs/glossary.md#microcode). They are stored in containers (the
 files that hold them) inside the disc files and the executable. They are translated ahead of time into a
 [SPIR-V](../docs/glossary.md#spir-v) library, `nfsmw_shaders.nfsp` (the
-[shader library](../docs/glossary.md#shader-library)), which the renderer loads at startup. The steps are: find the
-containers, translate the microcode to [HLSL](../docs/glossary.md#hlsl), compile the HLSL to SPIR-V with
-[DXC](../docs/glossary.md#dxc), and pack the result into the library.
+[shader library](../docs/glossary.md#shader-library)), which the renderer loads at startup.
+
+On PC the launcher finds the containers, translates each one straight from microcode to SPIR-V
+(`XenosRecomp/spirv_recompiler.cpp`) and packs the result. The older path, still used by the Switch installer page,
+translates the microcode to [HLSL](../docs/glossary.md#hlsl) and compiles it with [DXC](../docs/glossary.md#dxc); both
+produce modules with the same interface, and `tests/nfsmw_spirv_check` checks that they compute the same values.
 
 | File | What it does |
 |---|---|
 | `XenosRecomp/` | [XenosRecomp](https://github.com/hedge-dev/XenosRecomp) (by hedge-dev), with this port's changes under `NFSMW_RECOMP`: it translates microcode to HLSL. |
+| `XenosRecomp/spirv_recompiler.cpp` | The direct translator: microcode straight to SPIR-V, with the same interface as the HLSL path compiled by DXC. The launcher uses it; it needs neither HLSL nor DXC. |
+| `tests/` | `nfsmw_spirv_check`: checks the direct translator against a DXC library (spirv-val, interface, and a GPU comparison of both modules). See [docs/building.md](../docs/building.md#checking-the-shader-translator). |
 | `shader_common.h` | The HLSL helpers every translated shader includes (texture fetches, specialization constants). |
 | `nfsmw_contenedor.h` ("container") | Reads the game's shader containers (the 2005 layout of this game). |
 | `nfsmw_buscar_contenedores.cpp` ("find containers") | Finds shader containers in the disc files. |

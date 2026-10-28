@@ -119,7 +119,7 @@ REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_mailbox, REX_VULKAN_ALLOW_UNSYNCED
 REXCVAR_DEFINE_BOOL(vulkan_allow_present_mode_fifo_relaxed, true, "UI/Vulkan",
                     "Allow FIFO relaxed present mode");
 
-#if REX_PLATFORM_SWITCH
+#if REX_PLATFORM_SWITCH || REX_PLATFORM_ANDROID
 #define REX_PRESENT_PERFIL_PINTADO_DEFAULT true
 #else
 #define REX_PRESENT_PERFIL_PINTADO_DEFAULT false

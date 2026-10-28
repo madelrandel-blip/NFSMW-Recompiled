@@ -599,6 +599,14 @@ class Window {
   bool OnActualSizeUpdate(uint32_t new_physical_width, uint32_t new_physical_height,
                           WindowDestructionReceiver& destruction_receiver);
   void OnDesiredFullscreenUpdate(bool new_fullscreen) { fullscreen_ = new_fullscreen; }
+  // After the window comes back from being minimized at the same size: the presenter dropped the surface
+  // connection while it had no area, and only a resize used to bring it back, so until then the window kept the
+  // old image and nothing it drew in answer to input showed. Treated like a resize, then painted.
+  void ReconnectPresenterSurfaceAfterRestore() {
+    if (presenter_surface_) {
+      presenter_->OnSurfaceResizeFromUIThread();
+    }
+  }
   void OnFocusUpdate(bool new_has_focus, WindowDestructionReceiver& destruction_receiver);
 
   // Pass true as force_paint in case the platform can't retain the image from

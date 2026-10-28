@@ -63,7 +63,7 @@
 //  that is 1.55 and 4.12 ms real (x1.627). Both labels are misleading:
 //
 //  1) "reflejo" is not the road reflection. The category is decided by the
-//     render target width (CategoriaDeDestino in nfsmw_nativo_dibujos.cpp):
+//     render target width (CategoriaDeDestino in the former native renderer):
 //     everything with a pitch between 640 and 1279 lands there. What really
 //     lands there is the 1024x576 output buffer (pitch 1040, height 576 =
 //     599,040 texels), two passes per frame: 2 x 599,040 = 1.20 Mtexels,
@@ -295,7 +295,9 @@ REXCVAR_DEFINE_BOOL(nfsmw_retrovisor_recorte, true, "NFSMW",
                     "juego le quita a el solo. Dibuja 415 objetos donde sus hermanas dibujan 6-95, y son el "
                     "19,6 % de los dibujos del fotograma");
 
-REXCVAR_DEFINE_INT32(nfsmw_cubemap_caras_siempre, REX_PLATFORM_SWITCH != 0 ? 4 : 0, "NFSMW",
+// 4 = face 2 (view 20), the rear-view mirror, on every platform: with the low and medium profiles
+// (nfsmw_cubemap_caras_max 1 and 2) it was otherwise refreshed 1 of every 6 frames, a mirror at ~4 FPS.
+REXCVAR_DEFINE_INT32(nfsmw_cubemap_caras_siempre, 4, "NFSMW",
                      "Caras del mapa de entorno que se actualizan todos los fotogramas aunque haya "
                      "limite (bit i = cara i de la tabla del juego; no cuentan para "
                      "nfsmw_cubemap_caras_max)")

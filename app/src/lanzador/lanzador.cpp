@@ -20,6 +20,7 @@
 #include <rex/ui/image_decode.h>
 
 #include <imgui.h>
+#include <imgui_internal.h>  // ImGui::ClearActiveID (DesplazarConDedo)
 
 #include <SDL3/SDL.h>
 
@@ -89,8 +90,7 @@ void PonerCv(const char* nombre, const std::string& valor) {
 // Los ajustes del lanzador que solo valen al reiniciar el juego: el
 // renderizador se crea antes del lanzador (kInitOnly), el limite de fps es
 // kRequiresRestart y la resolucion interna va al modo de video del arranque.
-constexpr const char* kAjustesConReinicio[] = {"nfsmw_renderizador", "nfsmw_limite_fps",
-                                               "nfsmw_resolucion_interna"};
+constexpr const char* kAjustesConReinicio[] = {"nfsmw_msaa", "nfsmw_limite_fps", "nfsmw_resolucion_interna"};
 
 std::filesystem::path DesdeUtf8(const std::string& s) { return std::u8string(s.begin(), s.end()); }
 
@@ -108,8 +108,7 @@ std::filesystem::path BibliotecaDe(const std::string& ed) {
 }
 
 bool HayBiblioteca(const std::string& ed) {
-  std::error_code ec;
-  return std::filesystem::is_regular_file(BibliotecaDe(ed), ec);
+  return shaders::BibliotecaActual(BibliotecaDe(ed));
 }
 
 // ---- Iconos ---------------------------------------------------------------------
@@ -409,8 +408,46 @@ void BoolCvar(const char* etiqueta, const char* cvar, bool invertir = false) {
 
 void Separador() { ImGui::Dummy(ImVec2(0, S(6))); }
 
+#if defined(__ANDROID__)
+// Desplazamiento tactil de la ventana actual: arrastrar el dedo en vertical la mueve, y al soltarlo sigue con
+// inercia. Si el arrastre empezo sobre un boton, se cancela su pulsacion (no se pulsa al soltar); los arrastres
+// horizontales siguen siendo de los controles (barras, selectores).
+void DesplazarConDedo() {
+  static bool arrastrando = false;
+  static float inercia = 0.0f;
+  const ImGuiIO& io = ImGui::GetIO();
+  if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+    if (!arrastrando) {
+      const ImVec2 d = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0.0f);
+      if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) &&
+          std::abs(d.y) > S(12) && std::abs(d.y) > std::abs(d.x) * 1.5f) {
+        arrastrando = true;
+        ImGui::ClearActiveID();
+      }
+    }
+    if (arrastrando) {
+      ImGui::SetScrollY(ImGui::GetScrollY() - io.MouseDelta.y);
+      inercia = io.MouseDelta.y;
+    }
+    return;
+  }
+  arrastrando = false;
+  if (std::abs(inercia) > 0.5f) {
+    ImGui::SetScrollY(ImGui::GetScrollY() - inercia);
+    inercia *= 0.92f;
+  } else {
+    inercia = 0.0f;
+  }
+}
+#endif
+
 constexpr Icono kIconos[] = {Icono::kInicio,   Icono::kGraficos, Icono::kControles, Icono::kAudio,
                              Icono::kPartidas, Icono::kTrucos,   Icono::kConfig,    Icono::kAcerca};
+// Iconos del menu principal del juego para cada pagina (arte/, ver LeerArte); sin ellos, los dibujados. Audio no
+// tiene equivalente en el juego.
+constexpr const char* kIconosArte[] = {"icono-career.png",          "icono-customize-car.png", "icono-quick-race.png",
+                                       nullptr,                     "icono-profile-manager.png", "icono-bounty.png",
+                                       "icono-options.png",         "icono-rap-sheet.png"};
 constexpr const char* kTitulos[] = {"nav.inicio",   "nav.graficos", "nav.controles", "nav.audio",
                                     "nav.partidas", "nav.trucos",   "nav.config",    "nav.acerca"};
 
@@ -435,6 +472,11 @@ void CargarFuentes(ImFontAtlas* atlas) {
   const char* windir = std::getenv("WINDIR");
   const std::filesystem::path fuentes = std::filesystem::path(windir ? windir : "C:\\Windows") / "Fonts";
   candidatas.push_back({fuentes / "segoeui.ttf", fuentes / "segoeuib.ttf"});
+#elif defined(__ANDROID__)
+  // Android's system fonts (Roboto since 4.0; DroidSans on older or trimmed builds).
+  candidatas.push_back({"/system/fonts/Roboto-Regular.ttf", "/system/fonts/Roboto-Bold.ttf"});
+  candidatas.push_back({"/system/fonts/Roboto-Regular.ttf", "/system/fonts/Roboto-Regular.ttf"});
+  candidatas.push_back({"/system/fonts/DroidSans.ttf", "/system/fonts/DroidSans-Bold.ttf"});
 #else
   candidatas.push_back({"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"});
@@ -456,8 +498,14 @@ int g_pantalla_completa_preferida = -1;  // -1: sin decidir aun; 0/1 lo que habi
 
 void PrepararVentana() {
   if (REXCVAR_GET(nfsmw_lanzador_omitir) || !REXCVAR_GET(nfsmw_lanzador)) return;  // arranca directo al juego
+#if defined(__ANDROID__)
+  // A phone has no windowed mode: full screen hides the system bars and gives the launcher the whole display.
+  g_pantalla_completa_preferida = 1;
+  rex::cvar::SetFlagByName("fullscreen", "true");
+#else
   g_pantalla_completa_preferida = Cv("fullscreen") == "true" ? 1 : 0;
   rex::cvar::SetFlagByName("fullscreen", "false");
+#endif
 }
 
 bool DebeMostrarse() {
@@ -489,7 +537,9 @@ Lanzador::Lanzador(rex::ui::ImGuiDrawer* drawer, std::filesystem::path juego_por
       pantalla_completa_(g_pantalla_completa_preferida >= 0 ? g_pantalla_completa_preferida == 1
                                                             : Cv("fullscreen") == "true") {
   for (const char* nombre : kAjustesConReinicio) valores_iniciales_.push_back(Cv(nombre));
+#if !defined(__ANDROID__)
   if (callbacks_.pantalla_completa) callbacks_.pantalla_completa(false);
+#endif
   // La consulta de version va aparte: sin red tarda lo que tarde el tiempo de espera.
   hilo_version_ = std::thread([this] {
     const auto r = actualizacion::Comprobar();
@@ -595,7 +645,9 @@ std::string Lanzador::EdicionJuego() const {
   std::error_code ec;
   const auto xex = carpeta / "default.xex";
   const std::string clave = rex::path_to_utf8(carpeta) + "|" +
-                            std::to_string(std::filesystem::last_write_time(xex, ec).time_since_epoch().count());
+                            // long long: libc++ counts file time in __int128, which to_string does not take.
+                            std::to_string(static_cast<long long>(
+                                std::filesystem::last_write_time(xex, ec).time_since_epoch().count()));
   if (clave != edicion_clave_) {
     edicion_clave_ = clave;
     edicion_juego_ = edicion::Detectar(carpeta);
@@ -672,7 +724,13 @@ void Lanzador::OnDraw(ImGuiIO& io) {
     }
   }
 
+#if defined(__ANDROID__)
+  // A phone packs ~1080 rows into 6-7 cm: the PC proportion (900 rows) would leave text about a millimetre tall and
+  // buttons too small for a finger. But the layout needs about 600 x 1100 units to fit, so the scale stops there.
+  escala_ = std::clamp(std::min(io.DisplaySize.y / 600.0f, io.DisplaySize.x / 1100.0f), 1.0f, 3.5f);
+#else
   escala_ = std::clamp(io.DisplaySize.y / 900.0f, 0.75f, 2.5f);
+#endif
   g_escala = escala_;
 
   ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -716,8 +774,17 @@ void Lanzador::OnDraw(ImGuiIO& io) {
       DibujarLateral(alto);
 
       ImGui::SetCursorScreenPos(ImVec2(lateral + S(36), S(30)));
+#if defined(__ANDROID__)
+      // En el movil la pagina se desplaza con el dedo (DesplazarConDedo): sin barra.
+      constexpr ImGuiWindowFlags kFlagsPagina = ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar;
+#else
+      constexpr ImGuiWindowFlags kFlagsPagina = ImGuiWindowFlags_NoBackground;
+#endif
       ImGui::BeginChild("##pagina", ImVec2(ancho - lateral - S(72), alto - pie - S(46)), ImGuiChildFlags_None,
-                        ImGuiWindowFlags_NoBackground);
+                        kFlagsPagina);
+#if defined(__ANDROID__)
+      DesplazarConDedo();
+#endif
       DibujarAviso(ancho - lateral - S(72));
       Fuente(true, 30);
       ImGui::TextUnformatted(T(kTitulos[pagina_]));
@@ -776,18 +843,34 @@ void Lanzador::DibujarLateral(float alto) {
   ImDrawList* dl = ImGui::GetWindowDrawList();
   const float ancho = AnchoLateral(ImGui::GetIO().DisplaySize.x);
   dl->AddRectFilled(ImVec2(0, 0), ImVec2(ancho, alto), kBarra);
+  // El grano de los menus del juego, muy suave.
+  if (const Arte* grano = LeerArte("grano.png", true)) {
+    const float lado = S(512);
+    dl->AddImage(reinterpret_cast<ImTextureID>(grano->textura.get()), ImVec2(0, 0), ImVec2(ancho, alto),
+                 ImVec2(0, 0), ImVec2(ancho / lado, alto / lado), IM_COL32(255, 255, 255, 22));
+  }
   dl->AddLine(ImVec2(ancho, 0), ImVec2(ancho, alto), kBorde);
 
-  // Titulo.
+  // Titulo: el logo del juego (arte/logo-mw.png) o, sin el, el nombre en texto.
   const float x = S(28);
-  Fuente(true, 14);
-  dl->AddText(ImVec2(x + S(1), S(34)), kSuave, "NEED FOR SPEED");
-  ImGui::PopFont();
-  Fuente(true, 30);
-  dl->AddText(ImVec2(x, S(52)), kTexto, "MOST WANTED");
-  ImGui::PopFont();
+#if defined(__ANDROID__)
+  const char* subtitulo = T("app.subtitulo_android");
+#else
+  const char* subtitulo = T("app.subtitulo");
+#endif
+  if (const Arte* logo = LeerArte("logo-mw.png")) {
+    const float w = ancho - 2 * S(22), h = w * float(logo->alto) / float(logo->ancho);
+    dl->AddImage(reinterpret_cast<ImTextureID>(logo->textura.get()), ImVec2(S(22), S(30)), ImVec2(S(22) + w, S(30) + h));
+  } else {
+    Fuente(true, 14);
+    dl->AddText(ImVec2(x + S(1), S(34)), kSuave, "NEED FOR SPEED");
+    ImGui::PopFont();
+    Fuente(true, 30);
+    dl->AddText(ImVec2(x, S(52)), kTexto, "MOST WANTED");
+    ImGui::PopFont();
+  }
   Fuente(false, 14);
-  dl->AddText(ImVec2(x, S(92)), kNota, T("app.subtitulo"));
+  dl->AddText(ImVec2(x, S(92)), kNota, subtitulo);
   ImGui::PopFont();
   dl->AddRectFilled(ImVec2(x, S(122)), ImVec2(x + S(36), S(124)), kResalte);
 
@@ -804,7 +887,14 @@ void Lanzador::DibujarLateral(float alto) {
     if (activa || encima) dl->AddRectFilled(a, b, activa ? kTarjeta : kHover, S(4));
     if (activa) dl->AddRectFilled(ImVec2(a.x, a.y + S(12)), ImVec2(a.x + S(3), b.y - S(12)), kResalte);
     const ImU32 color = activa || encima ? kTexto : kSuave;
-    DibujarIcono(dl, kIconos[i], ImVec2(a.x + S(34), a.y + S(25)), S(24), color);
+    const ImVec2 centro(a.x + S(34), a.y + S(25));
+    if (const Arte* icono = kIconosArte[i] ? LeerArte(kIconosArte[i]) : nullptr) {
+      const float m = S(14);
+      dl->AddImage(reinterpret_cast<ImTextureID>(icono->textura.get()), ImVec2(centro.x - m, centro.y - m),
+                   ImVec2(centro.x + m, centro.y + m), ImVec2(0, 0), ImVec2(1, 1), color);
+    } else {
+      DibujarIcono(dl, kIconos[i], centro, S(24), color);
+    }
     Fuente(activa, 17);
     dl->AddText(ImVec2(a.x + S(62), a.y + (S(50) - ImGui::GetFontSize()) * 0.5f), color, T(kTitulos[i]));
     ImGui::PopFont();
@@ -844,8 +934,56 @@ void Lanzador::DibujarPie(float ancho, float alto) {
   if (Boton(ConId(T("btn.salir"), "salir").c_str(), false, tam_salir)) callbacks_.salir();
 }
 
-// Cabecera del inicio. La imagen no va en el repositorio (es arte del juego): se lee de portada.png o
-// portada.jpg junto al ejecutable, y si no esta no se dibuja nada.
+const Lanzador::Arte* Lanzador::LeerArte(const std::string& nombre, bool repetida) {
+  auto [it, nuevo] = arte_.try_emplace(nombre);
+  if (nuevo) {
+    std::vector<uint8_t> datos;
+    if (std::ifstream in(rex::filesystem::GetExecutableFolder() / "arte" / nombre, std::ios::binary); in) {
+      datos.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    } else {
+      // Android: en los assets del APK (SDL lee de ahi las rutas relativas).
+      size_t tam = 0;
+      if (void* d = SDL_LoadFile(("arte/" + nombre).c_str(), &tam)) {
+        datos.assign(static_cast<uint8_t*>(d), static_cast<uint8_t*>(d) + tam);
+        SDL_free(d);
+      }
+    }
+    auto* inmediato = imgui_drawer() ? imgui_drawer()->immediate_drawer() : nullptr;
+    int w = 0, h = 0;
+    if (!datos.empty() && inmediato) {
+      const auto rgba = rex::ui::DecodeImageRGBA(datos.data(), datos.size(), w, h);
+      if (!rgba.empty()) {
+        it->second.textura = inmediato->CreateTexture(uint32_t(w), uint32_t(h),
+                                                      rex::ui::ImmediateTextureFilter::kLinear, repetida, rgba.data());
+        it->second.ancho = w;
+        it->second.alto = h;
+      }
+    }
+  }
+  return it->second.textura ? &it->second : nullptr;
+}
+
+namespace {
+
+// La imagen cubre el rectangulo sin deformarse: se recorta por los lados o por arriba y abajo.
+void ImagenCubriendo(ImDrawList* dl, ImTextureID textura, int ancho_img, int alto_img, ImVec2 a, ImVec2 b,
+                     float redondeo) {
+  const float aspecto_img = float(ancho_img) / float(alto_img), aspecto = (b.x - a.x) / (b.y - a.y);
+  ImVec2 uv0(0, 0), uv1(1, 1);
+  if (aspecto_img > aspecto) {
+    const float sobra = (1.0f - aspecto / aspecto_img) * 0.5f;
+    uv0.x = sobra, uv1.x = 1.0f - sobra;
+  } else {
+    const float sobra = (1.0f - aspecto_img / aspecto) * 0.5f;
+    uv0.y = sobra, uv1.y = 1.0f - sobra;
+  }
+  dl->AddImageRounded(textura, a, b, uv0, uv1, IM_COL32_WHITE, redondeo);
+}
+
+}  // namespace
+
+// Cabecera del inicio. Las imagenes no van en el repositorio (son arte del juego): portada.png o portada.jpg junto
+// al ejecutable, o si no uno de los 15 de la Lista Negra con su nombre en grafiti; sin ninguno no se dibuja nada.
 void Lanzador::DibujarPortada() {
   if (!portada_leida_) {
     portada_leida_ = true;
@@ -863,23 +1001,38 @@ void Lanzador::DibujarPortada() {
       portada_alto_ = h;
       break;
     }
+    if (!portada_) {
+      rival_ = 1 + int(SDL_GetTicksNS() % 15);  // uno distinto en cada arranque
+    }
   }
-  if (!portada_) return;
-  // Todo el ancho de la pagina; la imagen se recorta por arriba y por abajo para llenarlo sin deformarse.
+  char nombre[32];
+  std::snprintf(nombre, sizeof(nombre), "rival-%02d-fondo.jpg", rival_);
+  const Arte* fondo = portada_ ? nullptr : LeerArte(nombre);
+  if (!portada_ && !fondo) return;
+  // Todo el ancho de la pagina, recortada por arriba y por abajo para llenarlo sin deformarse.
   const float ancho = ImGui::GetContentRegionAvail().x;
   const float alto = std::min(ancho * 0.32f, S(300));
-  const float aspecto_img = float(portada_ancho_) / float(portada_alto_), aspecto = ancho / alto;
-  ImVec2 uv0(0, 0), uv1(1, 1);
-  if (aspecto_img > aspecto) {
-    const float sobra = (1.0f - aspecto / aspecto_img) * 0.5f;
-    uv0.x = sobra, uv1.x = 1.0f - sobra;
+  const ImVec2 p = ImGui::GetCursorScreenPos(), q(p.x + ancho, p.y + alto);
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  if (portada_) {
+    ImagenCubriendo(dl, reinterpret_cast<ImTextureID>(portada_.get()), portada_ancho_, portada_alto_, p, q, S(6));
   } else {
-    const float sobra = (1.0f - aspecto_img / aspecto) * 0.5f;
-    uv0.y = sobra, uv1.y = 1.0f - sobra;
+    ImagenCubriendo(dl, reinterpret_cast<ImTextureID>(fondo->textura.get()), fondo->ancho, fondo->alto, p, q, S(6));
+    // Oscurecido hacia la izquierda, donde van el numero y el nombre.
+    dl->AddRectFilledMultiColor(p, ImVec2(p.x + ancho * 0.6f, q.y), IM_COL32(0, 0, 0, 190), IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 190));
+    char numero[8];
+    std::snprintf(numero, sizeof(numero), "#%d", rival_);
+    Fuente(true, 40);
+    dl->AddText(ImVec2(p.x + S(22), p.y + S(16)), IM_COL32(255, 255, 255, 220), numero);
+    ImGui::PopFont();
+    std::snprintf(nombre, sizeof(nombre), "rival-%02d-nombre.png", rival_);
+    if (const Arte* grafiti = LeerArte(nombre)) {
+      const float w = std::min(ancho * 0.42f, S(420)), h = w * float(grafiti->alto) / float(grafiti->ancho);
+      dl->AddImage(reinterpret_cast<ImTextureID>(grafiti->textura.get()), ImVec2(p.x + S(14), q.y - h - S(10)),
+                   ImVec2(p.x + S(14) + w, q.y - S(10)));
+    }
   }
-  const ImVec2 p = ImGui::GetCursorScreenPos();
-  ImGui::GetWindowDrawList()->AddImageRounded(reinterpret_cast<ImTextureID>(portada_.get()), p,
-                                              ImVec2(p.x + ancho, p.y + alto), uv0, uv1, IM_COL32_WHITE, S(6));
   ImGui::Dummy(ImVec2(ancho, alto + S(10)));
 }
 
@@ -917,6 +1070,13 @@ void Lanzador::DibujarInicio() {
     }
     Separador();
     Nota(T("juego.nota"));
+#if defined(__ANDROID__)
+    // There is no other way to get the logs off a phone without a cable and a debugger.
+    Separador();
+    if (Boton(ConId(T("btn.exportar_log"), "exportar_log").c_str(), false, ImVec2(S(220), alto))) {
+      sistema::ExportarLog();
+    }
+#endif
   }
   {
     Tarjeta t(T("estado.titulo"));
@@ -945,13 +1105,11 @@ void Lanzador::DibujarInicio() {
     if (HayBiblioteca(EdicionJuego())) {
       TextoColor(kTexto, T("shaders.listos"));
     } else {
-      TextoColor(shaders::PuedeGenerar() ? kSuave : kAviso,
-                 shaders::PuedeGenerar() ? T("shaders.faltan") : T("shaders.sin_dxc"));
+      TextoColor(kSuave, T("shaders.faltan"));
     }
 
     const int perfil = perfiles::Detectar();
-    const std::string config = std::string(Cv("nfsmw_renderizador") == "nativo" ? T("graf.nativo") : T("graf.emulado")) +
-                               "  ·  " + Cv("nfsmw_resolucion_interna") + "  ·  " + Cv("nfsmw_limite_fps") +
+    const std::string config = Cv("nfsmw_resolucion_interna") + "  ·  " + Cv("nfsmw_limite_fps") +
                                " fps  ·  " + T(perfiles::Clave(perfil));
     Fila(T("estado.config"));
     TextoColor(kTexto, config.c_str());
@@ -981,21 +1139,28 @@ void Lanzador::DibujarGraficos() {
     Nota(T("graf.xbox360_nota"));
   }
   {
-    Tarjeta t(T("graf.motor"));
-    SegCvar(T("graf.renderizador"), "nfsmw_renderizador", {{"@graf.nativo", "nativo"}, {"@graf.emulado", "xenos"}});
-    Nota(T("graf.renderizador_nota"));
-  }
-  {
     Tarjeta t(T("graf.pantalla"));
     Interruptor("pantalla_completa", T("graf.completa"), &pantalla_completa_);
     {
-      // Hasta la de la pantalla: por encima solo se gasta GPU en pixeles que luego se encogen.
+      // Desde 360p hasta la de la pantalla: por encima solo se gasta GPU en pixeles que luego se encogen.
       static const sistema::Resolucion pantalla = sistema::ResolucionPantalla();
-      std::vector<Opcion> resoluciones = {{"1024 × 576", "1024x576"}, {"1280 × 720", "1280x720"},
-                                          {"1920 × 1080", "1920x1080"}};
-      if (pantalla.alto >= 1440) resoluciones.push_back({"2560 × 1440 (exp.)", "2560x1440"});
-      if (pantalla.alto >= 2160) resoluciones.push_back({"3840 × 2160 (exp.)", "3840x2160"});
+      struct Res {
+        const char* etiqueta;
+        const char* valor;
+        int alto;
+      };
+      static constexpr Res kResoluciones[] = {
+          {"640 × 360 (360p)", "640x360", 360},          {"1024 × 576 (576p)", "1024x576", 576},
+          {"1280 × 720 (720p)", "1280x720", 720},        {"1600 × 900 (900p)", "1600x900", 900},
+          {"1920 × 1080 (1080p)", "1920x1080", 1080},    {"2560 × 1440 (1440p, exp.)", "2560x1440", 1440},
+          {"3840 × 2160 (4K, exp.)", "3840x2160", 2160}};
+      std::vector<Opcion> resoluciones;
+      for (const Res& r : kResoluciones) {
+        // 720p siempre (la de la Xbox 360), aunque la pantalla sea mas pequena.
+        if (r.alto <= 720 || r.alto <= pantalla.alto) resoluciones.push_back({r.etiqueta, r.valor});
+      }
       ComboCvar(T("graf.resolucion"), "nfsmw_resolucion_interna", resoluciones);
+      Nota(T("graf.resolucion_baja_nota"));
       if (pantalla.alto >= 1440) Nota(T("graf.resolucion_nota"));
     }
     SegCvar(T("graf.limite"), "nfsmw_limite_fps",
@@ -1005,9 +1170,13 @@ void Lanzador::DibujarGraficos() {
   }
   {
     Tarjeta t(T("graf.imagen"));
+    // Antialiasing: MSAA en la escena (como la Xbox 360, que usaba 4x; pide reiniciar) y FXAA en la imagen final;
+    // se pueden combinar. Nitidez FSR1: el RCAS de AMD en la salida (no se usa con FXAA activo).
+    SegCvar(T("graf.msaa"), "nfsmw_msaa", {{"@val.apagado", "apagado"}, {"2x", "2x"}, {"4x", "4x"}, {"8x", "8x"}});
     SegCvar(T("graf.aa"), "nfsmw_antialiasing", {{"@val.apagado", "apagado"}, {"FXAA", "fxaa"}});
-    ComboCvar(T("graf.aniso"), "nfsmw_nativo_anisotropico",
-              {{"@val.apagado", "0"}, {"2x", "2"}, {"4x", "4"}, {"8x", "8"}, {"16x", "16"}});
+    SegCvar(T("graf.fsr"), "nfsmw_rcas",
+            {{"@val.apagado", "apagado"}, {"@val.baja", "bajo"}, {"@val.media", "medio"}, {"@val.alta", "alto"}});
+    Nota(T("graf.aa_nota"));
     SegCvar(T("graf.cielo"), "nfsmw_resplandor_cielo",
             {{"@val.original", "original"}, {"@val.natural", "natural"}, {"@val.suave", "suave"}});
     SegCvar(T("graf.filtro"), "nfsmw_tratamiento_visual",
@@ -1019,8 +1188,6 @@ void Lanzador::DibujarGraficos() {
   }
   {
     Tarjeta t(T("graf.detalle"));
-    // Sombras proyectadas: nfsmw_nativo_omitir_sombras quita el pase entero, siempre, sin mirar el rendimiento.
-    BoolCvar(T("graf.sombras"), "nfsmw_nativo_omitir_sombras", true);
     ComboCvar(T("graf.sombras_dist"), "nfsmw_sombras_corte",
               {{"@val.corta", "250"}, {"@val.media", "150"}, {"@val.normal", "100"}});
     SegCvar(T("graf.sombras_res"), "nfsmw_nativo_sombras_escala", {{"@val.media", "64"}, {"@val.alta", "100"}});

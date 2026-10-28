@@ -21,6 +21,11 @@ void Parar();
 // Dumps the stacks of every thread in the process except the caller. Used by the watchdog in nfsmw_app.h
 // when it sees the game stalled.
 void VolcarPilas(const char* motivo);
+#elif defined(__ANDROID__)
+inline void Arrancar() {}
+inline void Parar() {}
+// Same purpose, written to the log (nfsmw_pilas_android.cpp).
+void VolcarPilas(const char* motivo);
 #else
 inline void Arrancar() {}
 inline void Parar() {}

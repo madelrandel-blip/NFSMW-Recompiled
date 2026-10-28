@@ -24,7 +24,8 @@ REXCVAR_DEFINE_STRING(nfsmw_resolucion_interna, "automatico", "Graficos",
                       "Lo que ahorra es el posproceso, las copias y el cubo; la escena no se mueve. De 1280x720 a "
                       "1024x576 son 2,14 ms reales y el posproceso ya baja a 0,03, asi que por debajo queda poco "
                       "que rascar y el escalado si se ve")
-    .allowed({"automatico", "1280x720", "1920x1080", "2560x1440", "3840x2160", "1024x576", "640x360", "640x480"});
+    .allowed({"automatico", "640x360", "640x480", "1024x576", "1280x720", "1600x900", "1920x1080", "2560x1440",
+              "3840x2160"});
 
 /*
  * GPU MHz in handheld mode.
@@ -264,8 +265,8 @@ void AplicarAjustesGraficos() {
   // 720p, which is what is presented. Setting the video mode to 1920x1080 so that the game's front buffer
   // would grow with it was tried and does not work: the front buffer is registered earlier and stays at
   // 1280x720.
-  const bool interno_1080p = resolucion == "1920x1080" || resolucion == "2560x1440" || resolucion == "3840x2160" ||
-                             resolucion == "automatico";
+  uint32_t ancho_alto = 0, alto_alto = 0;
+  const bool interno_1080p = ResolucionAlta(resolucion, ancho_alto, alto_alto) || resolucion == "automatico";
   const std::string modo_video = interno_1080p ? std::string("1280x720") : resolucion;
   const size_t x = modo_video.find('x');
   if (x != std::string::npos) {

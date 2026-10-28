@@ -30,6 +30,8 @@
 
 #if REX_PLATFORM_WIN32
 #include <rex/ui/surface_win.h>
+#elif REX_PLATFORM_ANDROID
+#include <rex/ui/surface_android.h>
 #elif REX_PLATFORM_MAC
 #include <CoreFoundation/CoreFoundation.h>
 #include <SDL3/SDL_metal.h>
@@ -387,6 +389,16 @@ std::unique_ptr<Surface> WindowSDL::CreateSurfaceImpl(Surface::TypeFlags allowed
       return std::make_unique<Win32HwndSurface>(hinstance, hwnd);
     }
   }
+#elif REX_PLATFORM_ANDROID
+  // SDLActivity's surface. It goes away when the app is sent to the background and comes back as a new window.
+  if (allowed_types & Surface::kTypeFlag_AndroidNativeWindow) {
+    auto* window = static_cast<ANativeWindow*>(SDL_GetPointerProperty(
+        SDL_GetWindowProperties(sdl_window_), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr));
+    android_native_window_ = window;
+    if (window) {
+      return std::make_unique<AndroidNativeWindowSurface>(window);
+    }
+  }
 #elif REX_PLATFORM_MAC
   if (allowed_types & Surface::kTypeFlag_CAMetalLayer) {
     SDL_MetalView metal_view = SDL_Metal_CreateView(sdl_window_);
@@ -439,6 +451,27 @@ void WindowSDL::HandlePaintEvent() {
   OnPaint();
 }
 
+#if REX_PLATFORM_ANDROID
+void WindowSDL::CheckAndroidNativeWindow() {
+  if (!sdl_window_) {
+    return;
+  }
+  void* current = SDL_GetPointerProperty(SDL_GetWindowProperties(sdl_window_),
+                                         SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
+  if (current == android_native_window_) {
+    return;
+  }
+  REXLOG_INFO("Android native window changed ({} -> {}), recreating the surface", android_native_window_,
+              current);
+  android_native_window_ = current;
+  // Drops the surface of the dead window and, if there is a new one, attaches a surface made from it.
+  OnSurfaceChanged(current != nullptr);
+  if (current) {
+    OnPaint(true);
+  }
+}
+#endif
+
 void WindowSDL::HandleWindowEvent(SDL_Event& event) {
   WindowDestructionReceiver destruction_receiver(this);
   switch (event.type) {
@@ -487,8 +520,26 @@ void WindowSDL::HandleWindowEvent(SDL_Event& event) {
       OnMinimized(destruction_receiver);
       break;
     case SDL_EVENT_WINDOW_RESTORED:
-      OnRestored(destruction_receiver);
+    case SDL_EVENT_WINDOW_MAXIMIZED: {
+      // Restoring a minimized window that was maximized (or fullscreen) can arrive as MAXIMIZED instead.
+      if (event.type == SDL_EVENT_WINDOW_RESTORED) {
+        OnRestored(destruction_receiver);
+      }
+      if (destruction_receiver.IsWindowDestroyed()) {
+        break;
+      }
+      // Back from minimized: take the real size again (a change reconnects the presenter on its own) and, if it
+      // is the same, reconnect it anyway; then paint at once.
+      int pixel_width = 0, pixel_height = 0;
+      SDL_GetWindowSizeInPixels(sdl_window_, &pixel_width, &pixel_height);
+      if (!OnActualSizeUpdate(uint32_t(pixel_width), uint32_t(pixel_height), destruction_receiver)) {
+        ReconnectPresenterSurfaceAfterRestore();
+      }
+      if (!destruction_receiver.IsWindowDestroyed()) {
+        OnPaint(true);
+      }
       break;
+    }
     case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
       // SDL destroys nothing on its own; this is the veto point.
       if (SendCloseRequestToListeners(destruction_receiver)) {

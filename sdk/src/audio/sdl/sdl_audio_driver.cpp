@@ -13,7 +13,9 @@
 #include <array>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -27,6 +29,7 @@
 #include <rex/filesystem.h>
 #include <rex/logging.h>
 #include <rex/perf/counter.h>
+#include <rex/platform.h>
 #include <SDL3/SDL.h>
 
 REXCVAR_DEFINE_BOOL(audio_mute, false, "Audio", "Mute audio output");
@@ -42,6 +45,13 @@ REXCVAR_DEFINE_INT32(audio_volcado_salida_s, 0, "Audio",
                      "silencios por falta de tramas) que se guardan en audio_salida.wav; 0 = nada");
 REXCVAR_DEFINE_INT32(audio_volcado_salida_desde_s, 0, "Audio",
                      "Diagnostico: segundos de salida SDL que se saltan antes del volcado");
+// On Android the exported logs carry it (the launcher's "Exportar log"), so a report of bad sound comes with the
+// sound itself.
+REXCVAR_DEFINE_INT32(audio_volcado_continuo_s, REX_PLATFORM_ANDROID ? 60 : 0, "Audio",
+                     "Diagnostico: guarda siempre los ultimos N segundos de lo que el driver SDL entrega al "
+                     "dispositivo y reescribe logs/audio_salida.wav (16 bits) cada 15 s; 0 = nada")
+    .range(0, 120)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 namespace rex::audio::sdl {
 
@@ -58,7 +68,100 @@ uint64_t tramas_con_datos = 0;
 uint64_t tramas_de_silencio = 0;
 std::chrono::steady_clock::time_point ultimo_informe_salida{};
 
+// audio_volcado_continuo_s: the last seconds of the output in a ring (16 bits), which a thread of its own copies out
+// every 15 s and writes as logs/audio_salida.wav (to a temporary name first, then renamed: an app closed in the
+// middle of a write keeps the previous file whole). SDL's audio thread only appends, under a lock the writer holds
+// for the copy alone.
+class VolcadoContinuo {
+ public:
+  void Anadir(const float* datos, size_t muestras, uint32_t canales) {
+    std::lock_guard<std::mutex> cerrojo(mutex_);
+    if (anillo_.empty()) {
+      const int32_t segundos = REXCVAR_GET(audio_volcado_continuo_s);
+      if (segundos <= 0) {
+        return;
+      }
+      canales_ = canales;
+      anillo_.resize(size_t(segundos) * 48000 * canales);
+      std::thread([this] { Escribir(); }).detach();
+    }
+    if (canales != canales_) {
+      return;
+    }
+    for (size_t i = 0; i < muestras; ++i) {
+      anillo_[posicion_] = int16_t(std::clamp(datos[i], -1.0f, 1.0f) * 32767.0f);
+      posicion_ = (posicion_ + 1) % anillo_.size();
+    }
+    llenas_ = std::min(llenas_ + muestras, anillo_.size());
+  }
+
+ private:
+  void Escribir() {
+    const auto carpeta = rex::filesystem::GetExecutableFolder() / "logs";
+    bool avisado = false;
+    std::vector<int16_t> copia;
+    for (;;) {
+      std::this_thread::sleep_for(std::chrono::seconds(15));
+      uint32_t canales;
+      {
+        std::lock_guard<std::mutex> cerrojo(mutex_);
+        canales = canales_;
+        // Oldest first: from the write position on when the ring has wrapped.
+        copia.resize(llenas_);
+        const size_t inicio = llenas_ < anillo_.size() ? 0 : posicion_;
+        for (size_t i = 0; i < llenas_; ++i) {
+          copia[i] = anillo_[(inicio + i) % anillo_.size()];
+        }
+      }
+      if (copia.empty()) {
+        continue;
+      }
+      std::error_code error;
+      std::filesystem::create_directories(carpeta, error);
+      const auto temporal = carpeta / "audio_salida.wav.tmp";
+      {
+        std::ofstream fichero(temporal, std::ios::binary | std::ios::trunc);
+        if (!fichero) {
+          continue;
+        }
+        const uint32_t bytes_datos = uint32_t(copia.size() * sizeof(int16_t));
+        const auto u32 = [&](uint32_t v) { fichero.write(reinterpret_cast<const char*>(&v), 4); };
+        const auto u16 = [&](uint16_t v) { fichero.write(reinterpret_cast<const char*>(&v), 2); };
+        fichero.write("RIFF", 4);
+        u32(36 + bytes_datos);
+        fichero.write("WAVEfmt ", 8);
+        u32(16);
+        u16(1);  // PCM
+        u16(uint16_t(canales));
+        u32(48000);
+        u32(48000 * canales * 2);
+        u16(uint16_t(canales * 2));
+        u16(16);
+        fichero.write("data", 4);
+        u32(bytes_datos);
+        fichero.write(reinterpret_cast<const char*>(copia.data()), bytes_datos);
+      }
+      std::filesystem::rename(temporal, carpeta / "audio_salida.wav", error);
+      if (!avisado && !error) {
+        avisado = true;
+        REXAPU_INFO("[audio] volcado continuo de la salida SDL: los ultimos {} s, {} canales, en {}",
+                    copia.size() / canales / 48000, canales, (carpeta / "audio_salida.wav").string());
+      }
+    }
+  }
+
+  std::mutex mutex_;
+  std::vector<int16_t> anillo_;
+  size_t posicion_ = 0;
+  size_t llenas_ = 0;
+  uint32_t canales_ = 0;
+};
+VolcadoContinuo volcado_continuo;
+
 void GrabarSalida(const float* datos, int bytes, uint32_t canales) {
+  if (canales && bytes > 0) {
+    volcado_continuo.Anadir(datos, size_t(bytes) / sizeof(float), canales);
+  }
   const int32_t segundos = REXCVAR_GET(audio_volcado_salida_s);
   if (segundos <= 0 || volcado_salida.escrito || !canales || bytes <= 0) {
     return;
@@ -131,6 +234,14 @@ SDLAudioDriver::~SDLAudioDriver() {
 bool SDLAudioDriver::Initialize() {
   // Set audio category for proper OS audio handling
   SDL_SetHint(SDL_HINT_AUDIO_CATEGORY, "playback");
+#if REX_PLATFORM_ANDROID
+  // AAudio's low latency mode plays from a buffer of a few milliseconds, and a phone running the game at its limit
+  // misses those deadlines (clicks and dropouts that never show as missing frames here). A device buffer of 1024
+  // frames (21 ms at 48 kHz, four of our 256-frame frames) in the default mode rides through them; latency is
+  // still lower than the game's own audio buffering.
+  SDL_SetHint(SDL_HINT_ANDROID_LOW_LATENCY_AUDIO, "0");
+  SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "1024");
+#endif
 
   // Set app name for audio device identification
   SDL_SetAppMetadataProperty(SDL_PROP_APP_METADATA_NAME_STRING, "rexglue");
@@ -166,8 +277,11 @@ bool SDLAudioDriver::Initialize() {
   }
 
   // A 1-channel device gets the stereo fold too, then SDL collapses to mono.
-  // Handing it a 6ch stream instead would use SDL's own downmix.
-  if (obtained_spec.channels <= 2) {
+  // Handing it a 6ch stream instead would use SDL's own downmix. Android reports
+  // the 6 channels asked for whatever the output is (speaker, headphones and
+  // Bluetooth are stereo), and the system's downmix then drops the balance of
+  // ours, so it always gets the stereo fold.
+  if (obtained_spec.channels <= 2 || REX_PLATFORM_ANDROID) {
     SDL_DestroyAudioStream(sdl_stream_);
     sdl_stream_ = nullptr;
     desired_spec.channels = 2;

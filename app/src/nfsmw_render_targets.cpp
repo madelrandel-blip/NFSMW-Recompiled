@@ -63,6 +63,8 @@
 #include <cstring>
 #include <string>
 
+#include "nfsmw_ajustes_graficos.h"
+
 #include <rex/cvar.h>
 #include <rex/platform.h>
 #if REX_PLATFORM_SWITCH
@@ -127,15 +129,14 @@ constexpr uint32_t kOffRects = 100;
 constexpr uint32_t kBytesPorModoRects = 64;  // 4 D3DRECT de 16 bytes
 constexpr uint32_t kModoSinAa = 2;
 constexpr uint32_t kModo1080p = 4;  // its set becomes the 1920x1088 one
-// The high mode (4): 1920x1080 by default, or 2560x1440 / 3840x2160 on PC. The set height is rounded up to a
+// The high mode (4): 1920x1080 by default, or any size above 720p chosen on PC (1600x900 to 3840x2160). The set height is rounded up to a
 // multiple of 32, like its own 720 -> 736.
 struct TamanoAlto {
   uint32_t ancho, visible;
 };
 TamanoAlto TamanoModoAlto() {
-  const std::string r = REXCVAR_GET(nfsmw_resolucion_interna);
-  if (r == "2560x1440") return {2560, 1440};
-  if (r == "3840x2160") return {3840, 2160};
+  uint32_t ancho = 0, alto = 0;
+  if (nfsmw::ajustes::ResolucionAlta(REXCVAR_GET(nfsmw_resolucion_interna), ancho, alto)) return {ancho, alto};
   return {1920, 1080};
 }
 #define kAncho1080p (TamanoModoAlto().ancho)
@@ -331,7 +332,8 @@ uint32_t ModoQueToca() {
     return quiero;
   }
   const std::string r = REXCVAR_GET(nfsmw_resolucion_interna);
-  if (r == "1920x1080" || r == "2560x1440" || r == "3840x2160") {
+  uint32_t ancho = 0, alto = 0;
+  if (nfsmw::ajustes::ResolucionAlta(r, ancho, alto)) {
     return kModo1080p;
   }
   if (r == "automatico") {

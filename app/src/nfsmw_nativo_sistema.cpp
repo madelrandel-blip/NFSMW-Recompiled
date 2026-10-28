@@ -1,8 +1,7 @@
 ﻿// nfsmw - native renderer, part C1: the app's own graphics system.
 //
 // What it does
-//   Replaces the Xenos emulation plugin when nfsmw_renderizador is
-//   "nativo" (OnPreSetup in nfsmw_app.h decides it):
+//   Replaces the Xenos emulation plugin (OnPreSetup in nfsmw_app.h):
 //     - Presentation: the SDK's VulkanProvider + VulkanPresenter, same as
 //       the emulation. ReXApp sees presenter() and sets up F3, settings and
 //       the console the usual way (rex_app.cpp:386-398).
@@ -24,16 +23,17 @@
 //      Occlusion queries return 1000 samples, like the emulation.
 //
 // Where the rest is
-//   nfsmw_nativo_destinos.cpp does the copies (resolve and clear) and presents
-//   the resolved texture of each Swap, nfsmw_nativo_shaders.cpp identifies the
-//   shaders that reach the ring, and nfsmw_nativo_dibujos.cpp draws the
-//   geometry. See docs/native-renderer.md.
+//   app/src/renderer (the Vulkan 1.1 renderer, behind nfsmw_nativo_destinos.h)
+//   does the copies (resolve and clear), draws the geometry and presents the
+//   resolved texture of each Swap; nfsmw_nativo_shaders.cpp identifies the
+//   shaders that reach the ring.
 
 #include "nfsmw_nativo_sistema.h"
 #include "edicion.h"
 
 #include "nfsmw_esperas_tiron.h"
 #include "nfsmw_nativo_destinos.h"
+#include "renderer/vulkan_renderer.h"
 #include "nfsmw_nativo_ganchos.h"
 #include "nfsmw_nativo_shaders.h"
 
@@ -101,16 +101,14 @@ namespace nfsmw::escenario_lod {
 std::string Resumen();
 }  // namespace nfsmw::escenario_lod
 
+#ifdef _WIN32
+#include <windows.h>  // SetThreadPriority (nfsmw_nativo_anillo_prioridad_pc)
+#endif
+
 #if REX_PLATFORM_SWITCH
 // Only for RexSwitchSetCurrentThreadPriority. That header deliberately does not include switch.h.
 #include "../../sdk/src/core/threading_switch.h"
 #endif
-
-REXCVAR_DEFINE_STRING(nfsmw_renderizador, "nativo", "NFSMW",
-                      "nativo = renderizador nativo (Vulkan, mucho mas rapido); xenos = emulacion de la "
-                      "GPU de la Xbox 360, como alternativa si algo se ve mal")
-    .allowed({"xenos", "nativo"})
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 REXCVAR_DEFINE_BOOL(nfsmw_nativo_registros_vectoriales, true, "NFSMW",
                     "Renderizador nativo (24/09, build 164): los bloques de registros del anillo se copian de 4 en 4 "
@@ -205,6 +203,9 @@ REXCVAR_DEFINE_BOOL(nfsmw_nativo_im_inmediato_cache, true, "NFSMW",
 extern std::atomic<uint64_t> g_nfsmw_fotogramas_juego;
 
 namespace nfsmw::nativo {
+
+// See nfsmw_nativo_dibujos.h: counted on the ring thread, read by the renderer.
+std::atomic<uint32_t> g_sincronizaciones_anillo{0};
 namespace {
 
 // The line queue and its thread. Created with the first line; it lives until exit.
@@ -321,6 +322,13 @@ REXCVAR_DEFINE_INT32(nfsmw_nativo_anillo_prioridad, 0x2D, "NFSMW",
                      "defecto, un escalon por debajo del presentador (0x2C) y dos por debajo del "
                      "audio (0x2B). Subirlo a 0x2C devuelve el reparto de la compilacion 113, en el "
                      "que solo llegaba a la pantalla la mitad de los fotogramas");
+// Measured in the attract race on a 2-core Intel (13 intervals of 5 s each): 8.6 frames over 40 ms per interval at
+// 0, 5.8 at 1, 5.5 at 2. 1 keeps it below the time-critical class the audio and presentation may need.
+REXCVAR_DEFINE_INT32(nfsmw_nativo_anillo_prioridad_pc, 1, "NFSMW",
+                     "PC: prioridad relativa de Windows del hilo del anillo (-2 a 2; 1 = por encima de lo normal, "
+                     "por defecto; 2 = la mas alta; 0 = normal). Subirla evita que los hilos del juego lo desalojen")
+    .range(-2, 2)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 /*
  * Which core the ring starts on.
  *
@@ -371,6 +379,13 @@ REXCVAR_DEFINE_BOOL(nfsmw_nativo_anillo_nucleo_exclusivo, false, "NFSMW",
 REXCVAR_DEFINE_INT32(nfsmw_nativo_espera_regmem_us, 1000, "NFSMW",
                      "Renderizador nativo: pausa entre sondeos de WAIT_REG_MEM en microsegundos (en la "
                      "Switch es exacta; en Windows, por debajo de 1000 solo se cede el turno)");
+// On Windows rex::thread::Sleep rounds to whole milliseconds (measured: a 1000 us pause lasts 1.4 ms on average and up
+// to 3.7 ms) and below 1000 us only yields. The PC wait uses a high-resolution waitable timer instead, so the ring
+// sees the game's write within about this many microseconds without spinning.
+REXCVAR_DEFINE_INT32(nfsmw_nativo_espera_regmem_pc_us, 250, "NFSMW",
+                     "PC: pausa entre sondeos de WAIT_REG_MEM en microsegundos, con temporizador de alta resolucion "
+                     "(exacta). 0 = como en la Switch (nfsmw_nativo_espera_regmem_us)")
+    .range(0, 5000);
 REXCVAR_DEFINE_INT32(nfsmw_nativo_diag_fotograma_s, 0, "NFSMW",
                      "Renderizador nativo: pasados estos segundos, anota en el log cada dibujo y "
                      "cada copia de un fotograma entero (0 = no; solo pruebas)");
@@ -465,7 +480,7 @@ constexpr uint32_t kBaseMmio = 0x7FC80000;
  */
 constexpr uint64_t kCronometroPaquetesCada = 128;  // packets per timed one (power of 2)
 /*
- * From 8 to 64. At 1 in 8, this timer and above all the stage timer in nfsmw_nativo_dibujos.cpp (about 20 clock
+ * From 8 to 64. At 1 in 8, this timer and above all the stage timer in the former native renderer (about 20 clock
  * reads per timed draw) added up to thousands of clock reads per frame in the alley, with 2,500-4,000 draws.
  * With 64 there are ~1,400 measured draws per second, plenty for a mean every 20 s. The "tiempos" line keeps
  * its scale: the measured time is multiplied by this same factor and divided by all the draws.
@@ -507,7 +522,7 @@ constexpr uint32_t kRegD1ModeViewportSize = 0x1961;
  * a single uint64 comparison.
  *
  * There are 32 fetch constants of 6 words each: the first 16 are used by textures (kRegFetch in
- * nfsmw_nativo_dibujos.cpp) and vertex fetches read theirs from the same block.
+ * the former native renderer) and vertex fetches read theirs from the same block.
  */
 constexpr uint32_t kRegFetchPrimero = 0x4800;  // SHADER_CONSTANT_FETCH_00_0
 constexpr uint32_t kRegFetchUltimo = 0x48BF;   // SHADER_CONSTANT_FETCH_31_5
@@ -1668,6 +1683,14 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
       }
       nucleo_anillo_ = RexSwitchCurrentCore();
     }
+#elif defined(_WIN32)
+    // nfsmw_nativo_anillo_prioridad_pc: on PC the ring competes with the game's own threads, and when Windows
+    // preempts it that frame runs late. 0 leaves the default priority.
+    if (const int32_t prioridad = REXCVAR_GET(nfsmw_nativo_anillo_prioridad_pc); prioridad != 0) {
+      const BOOL puesto = SetThreadPriority(GetCurrentThread(), int(prioridad));
+      REXLOG_INFO("[nativo] hilo del anillo a prioridad {} de Windows ({})", prioridad,
+                  puesto ? "aceptada" : "rechazada");
+    }
 #endif
     uint32_t leido = 0;
     uint32_t generacion = 0;
@@ -1908,14 +1931,19 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
             }
             break;
           }
-          const int32_t pausa_us = REXCVAR_GET(nfsmw_nativo_espera_regmem_us);
-          rex::thread::Sleep(std::chrono::microseconds(pausa_us > 50 ? pausa_us : 50));
+          const auto antes_pausa = Reloj::now();
+          PausaRegMem();
+          // How long the pause really lasts (on Windows Sleep follows the timer resolution).
+          const uint64_t pausa_ns = NanosegundosDesde(antes_pausa);
+          pausas_regmem_ns_ += pausa_ns;
+          pausas_regmem_max_ns_ = std::max(pausas_regmem_max_ns_, pausa_ns);
+          ++pausas_regmem_;
           ++vueltas;
         }
         /*
          * The guest has just waited for the GPU. It is the only point where it may legally rewrite
          * a vertex range it already referenced in this frame, so from here on upload deduplication
-         * cannot reuse anything recorded so far. See nfsmw_nativo_vertices_dedupe.h. Relaxed is
+         * cannot reuse anything recorded so far. See Draws::DropStaleCopies (src/renderer). Relaxed is
          * enough: the same thread reads it.
          */
         g_sincronizaciones_anillo.fetch_add(1, std::memory_order_relaxed);
@@ -2206,7 +2234,8 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
   // Step C2: a draw in copy mode is a resolve and/or a clear.
   bool AsegurarDestinos() {
     if (!destinos_ && !destinos_fallidos_) {
-      destinos_ = DestinosNativos::Crear(provider_ ? provider_->vulkan_device() : nullptr, memory_);
+      const auto* device = provider_ ? provider_->vulkan_device() : nullptr;
+      destinos_ = nfsmw::renderer::CreateVulkanRenderer(device, memory_);
       if (!destinos_) {
         destinos_fallidos_ = true;
         REXLOG_ERROR("[nativo] No se pudieron crear los destinos nativos (C2)");
@@ -2593,7 +2622,7 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
   }
 
   // GetTiledOffset2D (graphics/pipeline/texture/util.cpp), same as DesplazamientoMosaico2D in
-  // nfsmw_nativo_dibujos.cpp; here only for the diagnostic. pitch in blocks.
+  // the former native renderer; here only for the diagnostic. pitch in blocks.
   static int32_t DesplazamientoMosaicoDiag(int32_t x, int32_t y, uint32_t pitch, uint32_t log2_bytes) {
     pitch = (pitch + 31) & ~uint32_t(31);
     const int32_t macro = ((x >> 5) + (y >> 5) * int32_t(pitch >> 5)) << (log2_bytes + 7);
@@ -3858,8 +3887,13 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
             e.mascara, e.veces, e.vueltas);
       }
       if (!detalle_esperas.empty()) {
-        NFSMW_INFORME_SEGUN(diferir_informe, "[nativo] WAIT_REG_MEM:{}", detalle_esperas);
+        NFSMW_INFORME_SEGUN(diferir_informe, "[nativo] WAIT_REG_MEM:{} | pausas: {}, media {:.2f} ms, maxima {:.2f} ms, "
+                            "{:.1f} ms en total",
+                            detalle_esperas, pausas_regmem_,
+                            pausas_regmem_ ? double(pausas_regmem_ns_) / 1e6 / double(pausas_regmem_) : 0.0,
+                            double(pausas_regmem_max_ns_) / 1e6, double(pausas_regmem_ns_) / 1e6);
       }
+      pausas_regmem_ = pausas_regmem_ns_ = pausas_regmem_max_ns_ = 0;
     }
     tiempo_anillo_ns_ = tiempo_dibujos_ns_ = tiempo_copias_ns_ = tiempo_presentar_ns_ = 0;
     dibujos_medidos_ = copias_medidas_ = presentaciones_medidas_ = 0;
@@ -4196,7 +4230,7 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
         }
         /*
          * The divisor is the number of recorded draws, not the number of incoming draws.
-         * `dibujados_cronometrados_` is incremented in nfsmw_nativo_dibujos.cpp:2440, right after
+         * `dibujados_cronometrados_` is incremented in the former native renderer, right after
          * vkCmdDraw/vkCmdDrawIndexed: it only counts recorded draws, never rejected ones.
          * Arithmetic check on a log (1 in 8 timed): sample 107,457 and recorded 859,614, and
          * 859,614/8 = 107,452 (exact). With the incoming draws it would have been 147,852.
@@ -4763,6 +4797,31 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
     uint32_t info = 0;
   };
   std::unordered_map<uint64_t, Espera> esperas_;
+  // One pause of the WAIT_REG_MEM poll. On PC a high-resolution waitable timer (rex::thread::Sleep rounds to whole
+  // milliseconds there), one per ring thread; elsewhere, or without that timer, the portable sleep.
+  void PausaRegMem() {
+#ifdef _WIN32
+    if (const int32_t us = REXCVAR_GET(nfsmw_nativo_espera_regmem_pc_us); us > 0) {
+      thread_local HANDLE temporizador =
+          CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+      if (temporizador) {
+        LARGE_INTEGER plazo;
+        plazo.QuadPart = -int64_t(us) * 10;  // relative, in 100 ns units
+        if (SetWaitableTimer(temporizador, &plazo, 0, nullptr, nullptr, FALSE)) {
+          WaitForSingleObject(temporizador, INFINITE);
+          return;
+        }
+      }
+    }
+#endif
+    const int32_t pausa_us = REXCVAR_GET(nfsmw_nativo_espera_regmem_us);
+    rex::thread::Sleep(std::chrono::microseconds(pausa_us > 50 ? pausa_us : 50));
+  }
+
+  // Real duration of the WAIT_REG_MEM pauses since the last report.
+  uint64_t pausas_regmem_ = 0;
+  uint64_t pausas_regmem_ns_ = 0;
+  uint64_t pausas_regmem_max_ns_ = 0;
   // Draw stages at the previous report (for the deltas).
   uint64_t dibujados_previos_ = 0;
   uint64_t cronometrados_previos_ = 0;
@@ -4882,9 +4941,8 @@ uint64_t SwapsNativos() {
   return g_swaps_nativos.load(std::memory_order_relaxed);
 }
 
-bool Activo() {
-  return REXCVAR_GET(nfsmw_renderizador) == "nativo";
-}
+// Always: the Xenos GPU emulation is no longer offered (the launcher dropped the choice).
+bool Activo() { return true; }
 
 std::unique_ptr<rex::system::IGraphicsSystem> CrearSistemaGrafico() {
   return std::make_unique<SistemaGraficoNativo>();

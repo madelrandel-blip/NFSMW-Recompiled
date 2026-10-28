@@ -31,7 +31,12 @@ std::string Fecha(const fs::path& p) {
   std::error_code ec;
   const auto t = fs::last_write_time(p, ec);
   if (ec) return {};
+#if defined(__ANDROID__)
+  // The NDK's libc++ has no clock_cast; its file_clock converts by itself.
+  const auto s = std::chrono::time_point_cast<std::chrono::system_clock::duration>(std::chrono::file_clock::to_sys(t));
+#else
   const auto s = std::chrono::clock_cast<std::chrono::system_clock>(t);
+#endif
   const std::time_t c = std::chrono::system_clock::to_time_t(s);
   std::tm tm{};
 #if defined(_WIN32)

@@ -17,6 +17,8 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdio>
+#include <string>
 
 namespace nfsmw::ajustes {
 
@@ -68,5 +70,15 @@ void AplicarAjustesGraficos();
 // With the native renderer, removes from the menu the FPS, resolution and graphics settings that do
 // nothing, and the video mode settings that the ones above replace.
 void OcultarAjustesSinEfecto();
+
+// An nfsmw_resolucion_interna above 720p ("WxH"): drawn through the game's high mode (nfsmw_render_targets.cpp)
+// with that size, while the video mode stays 1280x720. False for 720p and below, and for "automatico".
+inline bool ResolucionAlta(const std::string& valor, uint32_t& ancho, uint32_t& alto) {
+  unsigned w = 0, h = 0;
+  if (std::sscanf(valor.c_str(), "%ux%u", &w, &h) != 2 || h <= 720) return false;
+  ancho = w;
+  alto = h;
+  return true;
+}
 
 }  // namespace nfsmw::ajustes

@@ -28,11 +28,9 @@ struct Valor {
 constexpr Valor kValores[] = {
   {"nfsmw_resolucion_interna",     {"1024x576", "1280x720", "1280x720", "1920x1080"}},
   {"nfsmw_antialiasing",           {"apagado",  "apagado",  "fxaa",     "fxaa"}},
-  {"nfsmw_nativo_anisotropico",    {"0",        "0",        "4",        "16"}},
   {"nfsmw_sombras_corte",          {"250",      "150",      "100",      "100"}},
   {"nfsmw_nativo_sombras_escala",  {"64",       "100",      "100",      "100"}},
   {"nfsmw_sombras_sin_vegetacion", {"true",     "true",     "false",    "false"}},
-  {"nfsmw_nativo_pcf_barato",      {"true",     "true",     "false",    "false"}},
   {"nfsmw_reflejo_refresco",       {"8",        "4",        "2",        "1"}},
   {"nfsmw_cubemap_caras_max",      {"1",        "2",        "-1",       "-1"}},
   {"nfsmw_escena_detalle_minimo",  {"6",        "0",        "0",        "0"}},
@@ -59,16 +57,13 @@ void AplicarXbox360() {
       {"nfsmw_resolucion_interna", "1280x720"},  // la de la Xbox 360
       {"nfsmw_limite_fps", "30"},                // la consola va a 30
       {"nfsmw_antialiasing", "apagado"},
-      {"nfsmw_nativo_omitir_sombras", "false"},  // con sombras
       {"nfsmw_guardia_30", "false"},
-      {"nfsmw_nativo_anisotropico", "0"},        // trilineal, como la Xbox 360
       {"nfsmw_resplandor_cielo", "original"},
       {"nfsmw_tratamiento_visual", "original"},
       {"nfsmw_posproceso", "apagado"},
       {"nfsmw_sombras_corte", "100"},
       {"nfsmw_nativo_sombras_escala", "100"},    // 1600x1600, como la Xbox 360
       {"nfsmw_sombras_sin_vegetacion", "false"},
-      {"nfsmw_nativo_pcf_barato", "false"},      // el 3x3 del juego
       {"nfsmw_sombras_mapas", "2"},
       {"nfsmw_sombras_cada", "1"},
       {"nfsmw_reflejo_carretera", "true"},
@@ -79,7 +74,6 @@ void AplicarXbox360() {
       {"nfsmw_escenario_detalle", "0"},
       {"nfsmw_retrovisor_recorte", "false"},
       {"nfsmw_streaming_anticipacion", "100"},   // el streamer original
-      {"nfsmw_nativo_sin_desenfoque", "false"},  // con el desenfoque de velocidad
   };
   for (const auto& [cvar, valor] : kOriginal)
     if (rex::cvar::GetFlagInfo(cvar) != nullptr) rex::cvar::SetFlagByName(cvar, valor);

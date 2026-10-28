@@ -60,8 +60,8 @@ set(NFSMW_SOURCES
     # 1 = as the game does; it can be changed at run time from the settings menu).
     src/nfsmw_recorte_sombras.cpp
     src/nfsmw_sombras_lod.cpp
-    # Native renderer, part C1: the app's own graphics system (cvar
-    # nfsmw_renderizador, "xenos" by default). See docs/native-renderer.md.
+    # The native graphics system: runs the game's PM4 ring and hands draws, copies and swaps to the
+    # renderer (src/renderer).
     src/nfsmw_nativo_sistema.cpp
     # The game's D3D waits without spinning: sleeps until the PM4 ring thread advances
     # (cvar nfsmw_espera_anillo_bloqueante).
@@ -94,29 +94,19 @@ set(NFSMW_SOURCES
     # over the list that calls it (sub_82454B50) in native code, identical, keeping the game's cache hints
     # (dcbt), and checked at run time against a literal copy of the original (cvar nfsmw_pegamento_nativo).
     src/nfsmw_pegamento_nativo.cpp
-    # PNG captures of the game image for testing (cvar
-    # nfsmw_captura_cada_s, 0 = never).
-    src/nfsmw_nativo_captura.cpp
-    # Native renderer, part C2: render targets, copies (resolve and
-    # clear) and presentation of the game image.
-    src/nfsmw_nativo_destinos.cpp
-    # Native renderer, part C5a: identifies the shaders that reach the PM4 ring
+    # Identifies the shaders that reach the PM4 ring
     # in the NFSSPV library (nfsmw_shaders.nfsp next to the executable).
     src/nfsmw_nativo_shaders.cpp
     src/nfsmw_shader_library.cpp
-    # Native renderer, part C5b: VS and PS of each draw from the game
-    # thread (shader constructors and the D3D Draw* functions).
+    # VS and PS of each draw from the game thread (shader constructors and the D3D Draw* functions).
     src/nfsmw_nativo_ganchos.cpp
-    # Native renderer, parts C3-C6: textures, vertices, constants,
-    # pipelines and render passes with the shaders from the library.
-    src/nfsmw_nativo_dibujos.cpp
-    src/nfsmw_nativo_texturas_pool.cpp
     src/nfsmw_escenario_lod.cpp
     # The streamer requests the zone too late: facade popping and a hitch when entering a new
     # zone (hook on TrackStreamer::GetPredictedZone).
     src/nfsmw_streaming_anticipacion.cpp
     # Automated tests on PC: virtual gamepad driven by a script (nfsmw_prueba_botones).
     src/nfsmw_prueba_entrada.cpp
+    src/nfsmw_tactil.cpp
     # Internal resolution and FPS limit in the menu (F4) that work with the native renderer, with the
     # settings that have no effect taken out of the menu.
     src/nfsmw_ajustes_graficos.cpp
@@ -147,11 +137,16 @@ if(WIN32)
     # symbols, and all the code in anonymous namespaces shows up under the name of the preceding public symbol.
     # Debug info only; it does not change the generated code.
     set_source_files_properties(
-        src/nfsmw_nativo_sistema.cpp src/nfsmw_nativo_destinos.cpp src/nfsmw_nativo_dibujos.cpp
-        src/nfsmw_nativo_texturas_pool.cpp
+        src/nfsmw_nativo_sistema.cpp
         src/nfsmw_nativo_shaders.cpp src/nfsmw_nativo_ganchos.cpp src/nfsmw_espera_anillo.cpp
         src/nfsmw_espera_fotograma.cpp
         PROPERTIES COMPILE_OPTIONS "-g;-gcodeview")
+elseif(ANDROID)
+    # SDLActivity (app/android) loads the game as libmain.so and calls its SDL_main.
+    add_library(nfsmw SHARED ${NFSMW_SOURCES})
+    set_target_properties(nfsmw PROPERTIES OUTPUT_NAME main)
+    # Stack dump of every thread when the watchdog sees the game stalled.
+    target_sources(nfsmw PRIVATE src/nfsmw_pilas_android.cpp)
 else()
     add_executable(nfsmw ${NFSMW_SOURCES})
 endif()
@@ -172,6 +167,13 @@ endif()
 # argument is no longer needed; it can still be passed to change it.
 rexglue_setup_target(nfsmw GPU_PLUGINS xenos)
 
+# The launcher's game art (src/lanzador, LeerArte) next to the executable: the website's images (site/assets/arte).
+if(WIN32)
+    add_custom_command(TARGET nfsmw POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/../site/assets/arte"
+                "$<TARGET_FILE_DIR:nfsmw>/arte")
+endif()
+
 # The SDK's FFmpeg (WMV3 decoder) for the cutscenes: nfsmw_video_wmv3.cpp.
 target_link_libraries(nfsmw PRIVATE libavcodec)
 
@@ -190,48 +192,42 @@ if(NOT REXGLUE_PLATFORM_SWITCH AND TARGET renderdoc)
         $<TARGET_PROPERTY:renderdoc,INTERFACE_INCLUDE_DIRECTORIES>)
 endif()
 
-# Precompiled SPIR-V of the SDK presenter: nfsmw_nativo_destinos.cpp uses it to draw
-# the game image into the presenter output.
-target_include_directories(nfsmw PRIVATE "${REXSDK_DIR}/src/ui/shaders")
-
 # The SDK's xxHash: fingerprints for the shader library and the native renderer.
 find_path(NFSMW_XXHASH_INCLUDE xxhash.h HINTS "${REXSDK_DIR}/thirdparty/xxHash" NO_CMAKE_FIND_ROOT_PATH REQUIRED)
 target_include_directories(nfsmw PRIVATE "${NFSMW_XXHASH_INCLUDE}")
 
-# Generador de la biblioteca de shaders del lanzador (src/lanzador/shaders.cpp):
-# XenosRecomp traduce a HLSL, DXC compila a SPIR-V. DXC va como dxcompiler.dll
-# junto al ejecutable (NFSMW_DXC_DIR = carpeta del release oficial de
-# DirectXShaderCompiler, con inc/ y bin/x64/); sin ella el lanzador no genera.
-if(WIN32)
+# The launcher's shader library generator (src/lanzador/shaders.cpp): Xenos microcode straight to SPIR-V with
+# shaders/XenosRecomp/spirv_recompiler.cpp, built on the SDK's glslang SPIR-V builder. Neither HLSL nor DXC is
+# involved, so nothing has to be shipped next to the executable. PC and Android.
+if(WIN32 OR ANDROID)
     set(NFSMW_SHADERS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../shaders")
-    # shader_common.h va dentro de cada HLSL traducido: se incrusta como texto.
-    file(READ "${NFSMW_SHADERS_DIR}/XenosRecomp/shader_common.h" NFSMW_SHADER_COMMON)
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generado/shader_common_texto.h"
-         "#pragma once\ninline constexpr const char kShaderCommon[] = R\"NFSMWSC(${NFSMW_SHADER_COMMON})NFSMWSC\";\n")
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${NFSMW_SHADERS_DIR}/XenosRecomp/shader_common.h")
-
-    set(NFSMW_GENERADOR_FUENTES src/lanzador/shaders.cpp "${NFSMW_SHADERS_DIR}/XenosRecomp/shader_recompiler.cpp")
+    set(NFSMW_GENERADOR_FUENTES src/lanzador/shaders.cpp "${NFSMW_SHADERS_DIR}/XenosRecomp/spirv_recompiler.cpp")
     target_sources(nfsmw PRIVATE ${NFSMW_GENERADOR_FUENTES})
-    # Lo mismo que nfsmw_regenerar_biblioteca_pcf.sh: la cabecera minima de
-    # XenosRecomp y sus cambios para este juego (NFSMW_RECOMP). NOMINMAX porque
-    # esa cabecera incluye Windows.h.
+    # XenosRecomp's minimal header (big-endian fields, fmt) and this game's changes (NFSMW_RECOMP). NOMINMAX and
+    # WIN32_LEAN_AND_MEAN because that header includes Windows.h.
     set_source_files_properties(${NFSMW_GENERADOR_FUENTES} PROPERTIES
         COMPILE_OPTIONS "-include;${NFSMW_SHADERS_DIR}/pch_min.h;-Wno-switch;-Wno-unused-variable;-Wno-null-arithmetic"
-        COMPILE_DEFINITIONS "NFSMW_RECOMP;NOMINMAX;XXH_INLINE_ALL;_CRT_SECURE_NO_WARNINGS")
+        COMPILE_DEFINITIONS "NFSMW_RECOMP;NOMINMAX;WIN32_LEAN_AND_MEAN;XXH_INLINE_ALL;_CRT_SECURE_NO_WARNINGS")
     target_include_directories(nfsmw PRIVATE
         "${NFSMW_SHADERS_DIR}" "${NFSMW_SHADERS_DIR}/XenosRecomp"
-        "${CMAKE_CURRENT_BINARY_DIR}/generado" "${REXSDK_DIR}/thirdparty")
-    target_link_libraries(nfsmw PRIVATE mspack fmt)
+        "${REXSDK_DIR}/thirdparty" "${REXSDK_DIR}/thirdparty/glslang/SPIRV")
+    target_link_libraries(nfsmw PRIVATE mspack fmt glslang::SPIRV)
 
-    set(NFSMW_DXC_DIR "" CACHE PATH "Release de DirectXShaderCompiler (con inc/ y bin/x64/)")
-    if(NFSMW_DXC_DIR)
-        target_include_directories(nfsmw PRIVATE "${NFSMW_DXC_DIR}/inc")
-        target_compile_definitions(nfsmw PRIVATE NFSMW_CON_DXC=1)
-        add_custom_command(TARGET nfsmw POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${NFSMW_DXC_DIR}/bin/x64/dxcompiler.dll" "${NFSMW_DXC_DIR}/bin/x64/dxil.dll"
-                "$<TARGET_FILE_DIR:nfsmw>")
-    endif()
+    # The renderer (Vulkan 1.1, see src/renderer/README.md). It translates shaders at run time with the same
+    # translator.
+    target_sources(nfsmw PRIVATE
+        src/renderer/depth_resolve.cpp
+        src/renderer/draws.cpp
+        src/renderer/frame_ring.cpp
+        src/renderer/geometry_cache.cpp
+        src/renderer/output.cpp
+        src/renderer/pipelines.cpp
+        src/renderer/render_targets.cpp
+        src/renderer/shader_modules.cpp
+        src/renderer/textures.cpp
+        src/renderer/vertex_input.cpp
+        src/renderer/vulkan_context.cpp
+        src/renderer/vulkan_renderer.cpp)
 endif()
 
 # Experimental library: the synthetic tests do not validate the full game.
@@ -260,7 +256,9 @@ set_source_files_properties(src/edicion.cpp PROPERTIES COMPILE_DEFINITIONS "NFSM
 # release folder and runs data\nfsmw.exe (stub/main.cpp).
 if(WIN32)
     enable_language(RC)
-    string(REPLACE "." "," NFSMW_VERSION_COMAS "${NFSMW_VERSION}")
+    # The resource only takes numbers: a test build like 1.0.2-amd1 keeps 1.0.2.
+    string(REGEX REPLACE "-.*$" "" NFSMW_VERSION_NUM "${NFSMW_VERSION}")
+    string(REPLACE "." "," NFSMW_VERSION_COMAS "${NFSMW_VERSION_NUM}")
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generado/version_rc.h"
          "#define NFSMW_VERSION_RC ${NFSMW_VERSION_COMAS},0\n#define NFSMW_VERSION_STR \"${NFSMW_VERSION}\"\n")
     set(NFSMW_RC "${CMAKE_CURRENT_SOURCE_DIR}/resources/nfsmw.rc")

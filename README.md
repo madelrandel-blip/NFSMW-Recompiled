@@ -5,7 +5,7 @@
 
 **Website:** https://madelrandel-blip.github.io/NFSMW-Recompiled/
 
-A native PC port of the Xbox 360 version of **Need for Speed: Most Wanted** (2005), made by static recompilation:
+A native PC and Android port of the Xbox 360 version of **Need for Speed: Most Wanted** (2005), made by static recompilation:
 the game's PowerPC code is translated to C++ ahead of time and runs natively, with a Vulkan renderer that draws the
 game directly instead of emulating the Xbox 360 GPU.
 
@@ -24,13 +24,14 @@ starts the right executable.
 
 ## Features
 
-- **Native Vulkan renderer**, much faster than GPU emulation.
+- **Vulkan 1.1 renderer** written from scratch by Madeline_dev and Camille LaVey: it draws the game directly, much
+  faster than GPU emulation, on PC and on Android phones.
 - **Launcher** built into the game window, in English, Spanish and Portuguese:
   - pick the game as an `.iso` or an extracted folder;
   - generates the shader library (`nfsmw_shaders.nfsp`) from your own disc;
   - quality profiles (Low, Medium, High, Ultra) and a one-click "Xbox 360 defaults";
   - internal resolution up to your screen's (1440p and 4K are experimental), FPS limit 30/60/120/unlimited
-    (the last two are experimental), shadows, reflections, anti-aliasing, anisotropic filtering, post-processing;
+    (the last two are experimental), shadows, reflections, anti-aliasing, post-processing;
   - key remapping, controller button remapping and steering wheel support (axes, pedals, buttons);
   - save data manager (export, import, restore the previous save, delete);
   - cheats loaded from `nfsmw_trucos.txt`;
@@ -48,6 +49,13 @@ Settings are stored in `nfsmw.toml`, saves in the user folder, and a readable co
 ## Building
 
 See [docs/building.md](docs/building.md).
+
+## Credits
+
+- **[Madeline_dev](https://github.com/madelrandel-blip)**: project creator; Vulkan 1.1 renderer.
+- **[Camille LaVey](https://github.com/CamilleLaVey)**: Vulkan 1.1 renderer.
+
+Third-party code and the projects this one builds on are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 
