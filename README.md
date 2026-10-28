@@ -52,8 +52,8 @@ See [docs/building.md](docs/building.md).
 
 ## Credits
 
-- **Madeline_dev**: project creator; Vulkan 1.1 renderer.
-- **Camille LaVey**: Vulkan 1.1 renderer.
+- **[Madeline_dev](https://github.com/madelrandel-blip)**: project creator; Vulkan 1.1 renderer.
+- **[Camille LaVey](https://github.com/CamilleLaVey)**: Vulkan 1.1 renderer.
 
 Third-party code and the projects this one builds on are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 

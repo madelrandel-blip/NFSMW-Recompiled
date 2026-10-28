@@ -4,7 +4,7 @@ const REPO = "madelrandel-blip/NFSMW-Recompiled";
 
 const TEXTOS = {
   en: {
-    "nav.features": "Features", "nav.play": "How to play", "nav.req": "Requirements", "nav.faq": "FAQ",
+    "nav.features": "Features", "nav.play": "How to play", "nav.req": "Requirements", "nav.blacklist": "Blacklist",
     "hero.tagline": "The 2005 Xbox 360 classic, natively recompiled for PC with a Vulkan renderer.",
     "hero.download": "Download for Windows", "hero.download_one": "Download", "hero.android": "Download for Android", "hero.android_note": "Android: community port by", "hero.version": "Latest version",
     "features.title": "Features",
@@ -21,17 +21,13 @@ const TEXTOS = {
     "s4.t": "Press Play", "s4.d": "The first time, the shaders are built from your disc. It only happens once.",
     "play.av": "If your antivirus blocks the program, it is a false positive: the executables are not signed yet. Add the folder as an exclusion.",
     "req.title": "Requirements",
-    "r1": "Windows 10 or 11, 64-bit", "r2": "Graphics card with Vulkan 1.2", "r3": "Your own copy of Need for Speed: Most Wanted (Xbox 360), PAL Spain or USA", "r4": "Controller, keyboard or steering wheel",
-    "faq.title": "FAQ",
-    "q1": "Does it include the game?", "a1": "No. You need your own copy of the Xbox 360 game. This project does not include or distribute any game data.",
-    "q2": "Is it an emulator?", "a2": "No. The game's code is translated to C++ ahead of time and runs as a native Windows program.",
-    "q3": "Which editions work?", "a3": "PAL Spain and USA. Each region is a different program; other editions may come later.",
-    "q4": "How do I get updates?", "a4": "The launcher tells you when a new version is out. You can also follow the Discord.",
+    "r1": "Windows 10 or 11, 64-bit", "r2": "Graphics card with Vulkan 1.1", "r3": "Your own copy of Need for Speed: Most Wanted (Xbox 360), PAL Spain or USA", "r4": "Controller, keyboard or steering wheel",
     "cred.founder": "Project creator", "cred.android": "Android port", "cred.renderer": "Vulkan 1.1 renderer", "foot.thanks": "Vulkan 1.1 renderer by Madeline_dev and Camille LaVey. Built on ReXGlue.",
-    "foot.legal": "Need for Speed and Most Wanted are trademarks of Electronic Arts. This project is not affiliated with EA or Microsoft. Code under the GPL-3.0 license.",
+    "bl.title": "The Blacklist", "bl.intro": "Rockport's 15 most wanted drivers. Beat them one by one, from 15 to 1, to win back your BMW M3 GTR.", "foot.art": "Game art: “NFSMW: Upscaled HUD” by LunicAura106", "foot.art_ea": "Original art © Electronic Arts.",
+    "foot.legal": "Need for Speed and Most Wanted are trademarks of Electronic Arts. This project is not affiliated with EA or Microsoft. Code under the GPL-3.0 license."
   },
   fr: {
-    "nav.features": "Fonctionnalités", "nav.play": "Comment jouer", "nav.req": "Configuration", "nav.faq": "FAQ",
+    "nav.features": "Fonctionnalités", "nav.play": "Comment jouer", "nav.req": "Configuration", "nav.blacklist": "Liste noire",
     "hero.tagline": "Le classique Xbox 360 de 2005, recompilé nativement pour PC avec un moteur de rendu Vulkan.",
     "hero.download": "Télécharger pour Windows", "hero.download_one": "Télécharger", "hero.android": "Télécharger pour Android", "hero.android_note": "Android : portage communautaire par", "hero.version": "Dernière version",
     "features.title": "Fonctionnalités",
@@ -48,17 +44,13 @@ const TEXTOS = {
     "s4.t": "Appuyez sur Jouer", "s4.d": "La première fois, les shaders sont générés depuis votre disque. Cela n'arrive qu'une fois.",
     "play.av": "Si votre antivirus bloque le programme, c'est un faux positif : les exécutables ne sont pas encore signés. Ajoutez le dossier aux exclusions.",
     "req.title": "Configuration requise",
-    "r1": "Windows 10 ou 11, 64 bits", "r2": "Carte graphique compatible Vulkan 1.2", "r3": "Votre propre copie de Need for Speed: Most Wanted (Xbox 360), PAL Espagne ou USA", "r4": "Manette, clavier ou volant",
-    "faq.title": "FAQ",
-    "q1": "Le jeu est-il inclus ?", "a1": "Non. Vous avez besoin de votre propre copie du jeu Xbox 360. Ce projet n'inclut ni ne distribue aucune donnée du jeu.",
-    "q2": "Est-ce un émulateur ?", "a2": "Non. Le code du jeu est traduit en C++ à l'avance et s'exécute comme un programme Windows natif.",
-    "q3": "Quelles éditions fonctionnent ?", "a3": "PAL Espagne et USA. Chaque région est un programme différent ; d'autres éditions pourraient arriver plus tard.",
-    "q4": "Comment suivre les mises à jour ?", "a4": "Le lanceur vous prévient quand une nouvelle version sort. Vous pouvez aussi suivre le Discord.",
+    "r1": "Windows 10 ou 11, 64 bits", "r2": "Carte graphique compatible Vulkan 1.1", "r3": "Votre propre copie de Need for Speed: Most Wanted (Xbox 360), PAL Espagne ou USA", "r4": "Manette, clavier ou volant",
     "cred.founder": "Création du projet", "cred.android": "Portage Android", "cred.renderer": "Moteur de rendu Vulkan 1.1", "foot.thanks": "Moteur de rendu Vulkan 1.1 de Madeline_dev et Camille LaVey. Construit sur ReXGlue.",
-    "foot.legal": "Need for Speed et Most Wanted sont des marques d'Electronic Arts. Ce projet n'est affilié ni à EA ni à Microsoft. Code sous licence GPL-3.0.",
+    "bl.title": "La Liste noire", "bl.intro": "Les 15 pilotes les plus recherchés de Rockport. Battez-les un par un, du 15 au 1, pour récupérer votre BMW M3 GTR.", "foot.art": "Illustrations du jeu : « NFSMW: Upscaled HUD » de LunicAura106", "foot.art_ea": "Illustrations originales © Electronic Arts.",
+    "foot.legal": "Need for Speed et Most Wanted sont des marques d'Electronic Arts. Ce projet n'est affilié ni à EA ni à Microsoft. Code sous licence GPL-3.0."
   },
   it: {
-    "nav.features": "Caratteristiche", "nav.play": "Come giocare", "nav.req": "Requisiti", "nav.faq": "Domande",
+    "nav.features": "Caratteristiche", "nav.play": "Come giocare", "nav.req": "Requisiti", "nav.blacklist": "Lista nera",
     "hero.tagline": "Il classico Xbox 360 del 2005, ricompilato in modo nativo per PC con un renderer Vulkan.",
     "hero.download": "Scarica per Windows", "hero.download_one": "Scarica", "hero.android": "Scarica per Android", "hero.android_note": "Android: port della community di", "hero.version": "Ultima versione",
     "features.title": "Caratteristiche",
@@ -75,17 +67,13 @@ const TEXTOS = {
     "s4.t": "Premi Gioca", "s4.d": "La prima volta gli shader vengono generati dal tuo disco. Succede una sola volta.",
     "play.av": "Se l'antivirus blocca il programma, è un falso positivo: gli eseguibili non sono ancora firmati. Aggiungi la cartella alle esclusioni.",
     "req.title": "Requisiti",
-    "r1": "Windows 10 o 11 a 64 bit", "r2": "Scheda video compatibile con Vulkan 1.2", "r3": "La tua copia di Need for Speed: Most Wanted (Xbox 360), PAL Spagna o USA", "r4": "Controller, tastiera o volante",
-    "faq.title": "Domande",
-    "q1": "Il gioco è incluso?", "a1": "No. Ti serve la tua copia del gioco per Xbox 360. Questo progetto non include né distribuisce dati del gioco.",
-    "q2": "È un emulatore?", "a2": "No. Il codice del gioco viene tradotto in C++ in anticipo e gira come un programma Windows nativo.",
-    "q3": "Quali edizioni funzionano?", "a3": "PAL Spagna e USA. Ogni regione è un programma diverso; altre edizioni potrebbero arrivare in futuro.",
-    "q4": "Come resto aggiornato?", "a4": "Il launcher ti avvisa quando esce una nuova versione. Puoi anche seguire il Discord.",
+    "r1": "Windows 10 o 11 a 64 bit", "r2": "Scheda video compatibile con Vulkan 1.1", "r3": "La tua copia di Need for Speed: Most Wanted (Xbox 360), PAL Spagna o USA", "r4": "Controller, tastiera o volante",
     "cred.founder": "Creazione del progetto", "cred.android": "Port Android", "cred.renderer": "Renderer Vulkan 1.1", "foot.thanks": "Renderer Vulkan 1.1 di Madeline_dev e Camille LaVey. Basato su ReXGlue.",
-    "foot.legal": "Need for Speed e Most Wanted sono marchi di Electronic Arts. Questo progetto non è affiliato a EA né a Microsoft. Codice con licenza GPL-3.0.",
+    "bl.title": "La Lista nera", "bl.intro": "I 15 piloti più ricercati di Rockport. Battili uno a uno, dal 15 all'1, per riprenderti la tua BMW M3 GTR.", "foot.art": "Grafica del gioco: «NFSMW: Upscaled HUD» di LunicAura106", "foot.art_ea": "Grafica originale © Electronic Arts.",
+    "foot.legal": "Need for Speed e Most Wanted sono marchi di Electronic Arts. Questo progetto non è affiliato a EA né a Microsoft. Codice con licenza GPL-3.0."
   },
   de: {
-    "nav.features": "Funktionen", "nav.play": "So spielst du", "nav.req": "Systemanforderungen", "nav.faq": "FAQ",
+    "nav.features": "Funktionen", "nav.play": "So spielst du", "nav.req": "Systemanforderungen", "nav.blacklist": "Blacklist",
     "hero.tagline": "Der Xbox-360-Klassiker von 2005, nativ für den PC rekompiliert, mit einem Vulkan-Renderer.",
     "hero.download": "Für Windows herunterladen", "hero.download_one": "Herunterladen", "hero.android": "Für Android herunterladen", "hero.android_note": "Android: Community-Port von", "hero.version": "Neueste Version",
     "features.title": "Funktionen",
@@ -102,17 +90,13 @@ const TEXTOS = {
     "s4.t": "Auf Spielen drücken", "s4.d": "Beim ersten Start werden die Shader von deiner Disc erzeugt. Das passiert nur einmal.",
     "play.av": "Wenn dein Virenschutz das Programm blockiert, ist das ein Fehlalarm: Die Dateien sind noch nicht signiert. Füge den Ordner als Ausnahme hinzu.",
     "req.title": "Systemanforderungen",
-    "r1": "Windows 10 oder 11, 64 Bit", "r2": "Grafikkarte mit Vulkan 1.2", "r3": "Deine eigene Kopie von Need for Speed: Most Wanted (Xbox 360), PAL Spanien oder USA", "r4": "Controller, Tastatur oder Lenkrad",
-    "faq.title": "FAQ",
-    "q1": "Ist das Spiel enthalten?", "a1": "Nein. Du brauchst deine eigene Kopie des Xbox-360-Spiels. Dieses Projekt enthält und verbreitet keine Spieldaten.",
-    "q2": "Ist das ein Emulator?", "a2": "Nein. Der Code des Spiels wird vorab nach C++ übersetzt und läuft als natives Windows-Programm.",
-    "q3": "Welche Editionen funktionieren?", "a3": "PAL Spanien und USA. Jede Region ist ein eigenes Programm; weitere Editionen könnten später folgen.",
-    "q4": "Wie erfahre ich von Updates?", "a4": "Der Launcher meldet, wenn eine neue Version erscheint. Du kannst auch dem Discord folgen.",
+    "r1": "Windows 10 oder 11, 64 Bit", "r2": "Grafikkarte mit Vulkan 1.1", "r3": "Deine eigene Kopie von Need for Speed: Most Wanted (Xbox 360), PAL Spanien oder USA", "r4": "Controller, Tastatur oder Lenkrad",
     "cred.founder": "Projektgründung", "cred.android": "Android-Port", "cred.renderer": "Vulkan-1.1-Renderer", "foot.thanks": "Vulkan-1.1-Renderer von Madeline_dev und Camille LaVey. Basiert auf ReXGlue.",
-    "foot.legal": "Need for Speed und Most Wanted sind Marken von Electronic Arts. Dieses Projekt steht in keiner Verbindung zu EA oder Microsoft. Code unter der GPL-3.0-Lizenz.",
+    "bl.title": "Die Blacklist", "bl.intro": "Die 15 meistgesuchten Fahrer von Rockport. Besiege sie einen nach dem anderen, von 15 bis 1, und hol dir deinen BMW M3 GTR zurück.", "foot.art": "Spielgrafik: „NFSMW: Upscaled HUD“ von LunicAura106", "foot.art_ea": "Originalgrafik © Electronic Arts.",
+    "foot.legal": "Need for Speed und Most Wanted sind Marken von Electronic Arts. Dieses Projekt steht in keiner Verbindung zu EA oder Microsoft. Code unter der GPL-3.0-Lizenz."
   },
   ja: {
-    "nav.features": "特徴", "nav.play": "遊び方", "nav.req": "動作環境", "nav.faq": "よくある質問",
+    "nav.features": "特徴", "nav.play": "遊び方", "nav.req": "動作環境", "nav.blacklist": "ブラックリスト",
     "hero.tagline": "2005年のXbox 360の名作を、Vulkanレンダラーを使いPC向けにネイティブで再コンパイル。",
     "hero.download": "Windows版をダウンロード", "hero.download_one": "ダウンロード", "hero.android": "Android版をダウンロード", "hero.android_note": "Android版：コミュニティによる移植 —", "hero.version": "最新バージョン",
     "features.title": "特徴",
@@ -129,17 +113,13 @@ const TEXTOS = {
     "s4.t": "「プレイ」を押す", "s4.d": "初回のみ、ディスクからシェーダーが生成されます。",
     "play.av": "ウイルス対策ソフトがブロックする場合は誤検知です。実行ファイルはまだ署名されていません。フォルダーを除外に追加してください。",
     "req.title": "動作環境",
-    "r1": "Windows 10 / 11(64ビット)", "r2": "Vulkan 1.2 対応のグラフィックカード", "r3": "ご自身でお持ちの Need for Speed: Most Wanted(Xbox 360)、PAL スペイン版またはUSA版", "r4": "コントローラー、キーボード、またはハンドル",
-    "faq.title": "よくある質問",
-    "q1": "ゲーム本体は含まれていますか?", "a1": "いいえ。Xbox 360版のゲームをご自身でご用意ください。このプロジェクトはゲームデータを含まず、配布もしていません。",
-    "q2": "エミュレーターですか?", "a2": "いいえ。ゲームのコードは事前にC++へ変換され、ネイティブのWindowsプログラムとして動作します。",
-    "q3": "どのエディションに対応していますか?", "a3": "PAL(スペイン)とUSAです。地域ごとに別のプログラムで、今後ほかのエディションに対応する可能性があります。",
-    "q4": "アップデートはどう知ればいいですか?", "a4": "新しいバージョンが出るとランチャーがお知らせします。Discordもご覧ください。",
+    "r1": "Windows 10 / 11(64ビット)", "r2": "Vulkan 1.1 対応のグラフィックカード", "r3": "ご自身でお持ちの Need for Speed: Most Wanted(Xbox 360)、PAL スペイン版またはUSA版", "r4": "コントローラー、キーボード、またはハンドル",
     "cred.founder": "プロジェクト創設", "cred.android": "Android版の移植", "cred.renderer": "Vulkan 1.1 レンダラー", "foot.thanks": "Vulkan 1.1 レンダラーは Madeline_dev と Camille LaVey による。ReXGlue をベースに構築。",
-    "foot.legal": "Need for Speed および Most Wanted は Electronic Arts の商標です。本プロジェクトは EA および Microsoft とは関係ありません。コードは GPL-3.0 ライセンスです。",
+    "bl.title": "ブラックリスト", "bl.intro": "ロックポートで最も危険な15人のドライバー。15位から1位まで一人ずつ倒して、BMW M3 GTR を取り戻そう。", "foot.art": "ゲームアート: LunicAura106 による「NFSMW: Upscaled HUD」", "foot.art_ea": "オリジナルアート © Electronic Arts",
+    "foot.legal": "Need for Speed および Most Wanted は Electronic Arts の商標です。本プロジェクトは EA および Microsoft とは関係ありません。コードは GPL-3.0 ライセンスです。"
   },
   pt: {
-    "nav.features": "Recursos", "nav.play": "Como jogar", "nav.req": "Requisitos", "nav.faq": "Perguntas",
+    "nav.features": "Recursos", "nav.play": "Como jogar", "nav.req": "Requisitos", "nav.blacklist": "Lista Negra",
     "hero.tagline": "O clássico de 2005 do Xbox 360, recompilado de forma nativa para PC com um renderizador Vulkan.",
     "hero.download": "Baixar para Windows", "hero.download_one": "Baixar", "hero.android": "Baixar para Android", "hero.android_note": "Android: port da comunidade feito por", "hero.version": "Última versão",
     "features.title": "Recursos",
@@ -156,15 +136,11 @@ const TEXTOS = {
     "s4.t": "Aperte Jogar", "s4.d": "Na primeira vez, os shaders são gerados a partir do seu disco. Só acontece uma vez.",
     "play.av": "Se o antivírus bloquear o programa, é um falso positivo: os executáveis ainda não são assinados. Adicione a pasta como exclusão.",
     "req.title": "Requisitos",
-    "r1": "Windows 10 ou 11 de 64 bits", "r2": "Placa de vídeo compatível com Vulkan 1.2", "r3": "Sua própria cópia de Need for Speed: Most Wanted (Xbox 360), PAL Espanha ou USA", "r4": "Controle, teclado ou volante",
-    "faq.title": "Perguntas",
-    "q1": "Inclui o jogo?", "a1": "Não. Você precisa da sua própria cópia do jogo de Xbox 360. Este projeto não inclui nem distribui dados do jogo.",
-    "q2": "É um emulador?", "a2": "Não. O código do jogo é traduzido para C++ antes de compilar e roda como um programa nativo do Windows.",
-    "q3": "Quais edições funcionam?", "a3": "PAL Espanha e USA. Cada região é um programa diferente; outras edições podem chegar depois.",
-    "q4": "Como fico sabendo das atualizações?", "a4": "O iniciador avisa quando há uma versão nova. Você também pode acompanhar o Discord.",
+    "r1": "Windows 10 ou 11 de 64 bits", "r2": "Placa de vídeo compatível com Vulkan 1.1", "r3": "Sua própria cópia de Need for Speed: Most Wanted (Xbox 360), PAL Espanha ou USA", "r4": "Controle, teclado ou volante",
     "cred.founder": "Criação do projeto", "cred.android": "Port para Android", "cred.renderer": "Renderizador Vulkan 1.1", "foot.thanks": "Renderizador Vulkan 1.1 de Madeline_dev e Camille LaVey. Construído sobre o ReXGlue.",
-    "foot.legal": "Need for Speed e Most Wanted são marcas da Electronic Arts. Este projeto não é afiliado à EA nem à Microsoft. Código sob a licença GPL-3.0.",
-  },
+    "bl.title": "A Lista Negra", "bl.intro": "Os 15 pilotos mais procurados de Rockport. Vença um por um, do 15 ao 1, para recuperar seu BMW M3 GTR.", "foot.art": "Arte do jogo: «NFSMW: Upscaled HUD» de LunicAura106", "foot.art_ea": "Arte original © Electronic Arts.",
+    "foot.legal": "Need for Speed e Most Wanted são marcas da Electronic Arts. Este projeto não é afiliado à EA nem à Microsoft. Código sob a licença GPL-3.0."
+  }
 };
 
 // El espanol es el texto que ya trae el HTML: se guarda al cargar para poder volver a el.
@@ -183,7 +159,7 @@ const BANDERAS = {
   it: '<rect width="10" height="20" fill="#009246"/><rect x="10" width="10" height="20" fill="#fff"/><rect x="20" width="10" height="20" fill="#ce2b37"/>',
   de: '<rect width="30" height="7" fill="#000"/><rect y="6.6" width="30" height="7" fill="#dd0000"/><rect y="13.3" width="30" height="6.7" fill="#ffce00"/>',
   pt: '<rect width="30" height="20" fill="#009c3b"/><path d="M15 2.5L27.5 10 15 17.5 2.5 10z" fill="#ffdf00"/><circle cx="15" cy="10" r="4.3" fill="#002776"/>',
-  ja: '<rect width="30" height="20" fill="#fff"/><circle cx="15" cy="10" r="6" fill="#bc002d"/>',
+  ja: '<rect width="30" height="20" fill="#fff"/><circle cx="15" cy="10" r="6" fill="#bc002d"/>'
 };
 
 // Orden del desplegable, con el nombre de cada idioma en su propia lengua.
@@ -273,44 +249,6 @@ fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
     document.getElementById("version").textContent += ": " + versionActual;
   })
   .catch(() => { /* sin red: el boton sigue llevando a la pagina de releases */ });
-
-// Fondo de la portada: el trailer desde YouTube, sin sonido, en bucle y recortado como el archivo que
-// habia antes (sin los primeros 5,5 s ni los ultimos 15 s). YouTube solo corta en segundos enteros con el
-// enlace; con su API se salta al inicio exacto y se vuelve a el antes del final.
-const TRAILER = { id: "YWZaz8TcEnM", inicio: 5.5, fin: 53.24 };
-
-window.onYouTubeIframeAPIReady = () => {
-  const fondo = document.querySelector(".portada-fondo");
-  const player = new YT.Player("yt-fondo", {
-    videoId: TRAILER.id,
-    playerVars: {
-      autoplay: 1, mute: 1, controls: 0, disablekb: 1, fs: 0, playsinline: 1,
-      rel: 0, iv_load_policy: 3, modestbranding: 1, start: Math.floor(TRAILER.inicio),
-    },
-    events: {
-      onReady: (e) => {
-        e.target.mute();
-        e.target.seekTo(TRAILER.inicio, true);
-        e.target.playVideo();
-      },
-      onStateChange: (e) => {
-        // Se muestra cuando ya reproduce: asi no se ve la portada de YouTube ni su boton.
-        if (e.data === YT.PlayerState.PLAYING) fondo.classList.add("listo");
-        if (e.data === YT.PlayerState.ENDED) e.target.seekTo(TRAILER.inicio, true);
-      },
-    },
-  });
-  setInterval(() => {
-    if (player.getCurrentTime && player.getCurrentTime() >= TRAILER.fin) player.seekTo(TRAILER.inicio, true);
-  }, 200);
-};
-
-// Quien pide menos movimiento no carga el video: ve la imagen fija.
-if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-  const api = document.createElement("script");
-  api.src = "https://www.youtube.com/iframe_api";
-  document.head.appendChild(api);
-}
 
 // Android: el port de la comunidad de victorgbd. El boton apunta directo a su ultimo .apk.
 fetch("https://api.github.com/repos/victorgbd/NFSMW-Recompiled-Mobile/releases/latest")
