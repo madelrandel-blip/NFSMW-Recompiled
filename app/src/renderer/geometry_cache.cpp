@@ -1,15 +1,18 @@
 #include "geometry_cache.h"
 
 #include <rex/cvar.h>
+#include <rex/platform.h>
 #include <rex/logging.h>
 #include <rex/memory.h>
 
 #include <algorithm>
 
-// Off: measured on 27/10 it saved under 1 ms on the PC and cost ~20 ms on the Mali-G68 phone (watching pages takes
-// the SDK's global lock, contended by the game threads there, and every watched write is a SIGSEGV). Worth trying
-// again only with the pages protected from another thread and the copies validated by hash.
-REXCVAR_DEFINE_BOOL(nfsmw_geometria_persistente, false, "Graficos",
+// On only on Windows. On 28/10, on the PC (Intel Iris 540, unified memory), it halved the geometry work per draw and
+// cut the renderer's CPU per draw by ~13 %, with fewer frames over 40 ms. On the Mali-G68 phone it cost ~20 ms
+// (27/10: watching pages takes the SDK's global lock, contended by the game threads there, and every watched write is
+// a SIGSEGV). Worth trying again there only with the pages protected from another thread and the copies validated
+// by hash.
+REXCVAR_DEFINE_BOOL(nfsmw_geometria_persistente, REX_PLATFORM_WIN32 != 0, "Graficos",
                     "Renderizador Vulkan 1.1: los vertices e indices se convierten una vez y se quedan en la GPU "
                     "mientras el juego no reescribe su memoria (vigilada por paginas). Si alguna vez se viera "
                     "geometria congelada o estirada, false vuelve a convertirlos en cada fotograma")
