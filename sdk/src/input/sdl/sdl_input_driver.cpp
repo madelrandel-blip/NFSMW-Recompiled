@@ -210,6 +210,26 @@ void SDLInputDriver::OnWindowAvailable(rex::ui::Window* window) {
       }
       SDL_Gamepad_initialized_ = true;
 
+      // If something else (the launcher) brought the subsystem up first, the devices already connected
+      // posted their ADDED events before the watch above existed, so queue them here.
+      {
+        int count = 0;
+        SDL_JoystickID* ids = SDL_GetJoysticks(&count);
+        std::lock_guard<std::mutex> guard(event_queue_mutex_);
+        for (int i = 0; ids && i < count; ++i) {
+          SDL_Event added = {};
+          if (SDL_IsGamepad(ids[i])) {
+            added.type = SDL_EVENT_GAMEPAD_ADDED;
+            added.gdevice.which = ids[i];
+          } else {
+            added.type = SDL_EVENT_JOYSTICK_ADDED;
+            added.jdevice.which = ids[i];
+          }
+          pending_events_.push_back(added);
+        }
+        SDL_free(ids);
+      }
+
       // Load custom controller mappings if available
       if (!REXCVAR_GET(hid_mappings_file).empty()) {
         std::filesystem::path mappings_path(REXCVAR_GET(hid_mappings_file));
@@ -577,6 +597,9 @@ void SDLInputDriver::ProcessEventLocked(const SDL_Event& event) {
 }
 
 void SDLInputDriver::OnControllerDeviceAddedLocked(const SDL_Event& event) {
+  if (GetControllerIndexFromInstanceID(event.gdevice.which)) {
+    return;  // already open: queued at startup and also reported by SDL
+  }
   const auto controller = SDL_OpenGamepad(event.gdevice.which);
   if (!controller) {
     assert_always();
