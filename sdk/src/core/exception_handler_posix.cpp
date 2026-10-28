@@ -19,6 +19,7 @@
 
 #if REX_PLATFORM_LINUX || REX_PLATFORM_MAC
 
+#include <dlfcn.h>
 #include <signal.h>
 
 #include <cstdint>
@@ -416,6 +417,36 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
 #endif  // REX_ARCH
       return;
     }
+  }
+
+  // Nobody handled it. Returning would run the faulting instruction again and fault forever (the game froze with
+  // the log flooded), so say where it happened and hand the signal back to the original handler: the next fault
+  // then crashes normally, with the system's crash report.
+  Dl_info module = {};
+  const uintptr_t pc = uintptr_t(ex.pc());
+  if (dladdr(reinterpret_cast<void*>(pc), &module) && module.dli_fname) {
+    // The symbol is the nearest exported one, so its offset is what places the instruction.
+    REXLOG_ERROR("Unhandled signal {} at pc 0x{:X} ({}+0x{:X}, {}+0x{:X}), fault address 0x{:X}", signal_number, pc,
+                 module.dli_fname, pc - uintptr_t(module.dli_fbase), module.dli_sname ? module.dli_sname : "?",
+                 module.dli_saddr ? pc - uintptr_t(module.dli_saddr) : 0, uintptr_t(signal_info->si_addr));
+  } else {
+    REXLOG_ERROR("Unhandled signal {} at pc 0x{:X}, fault address 0x{:X}", signal_number, pc,
+                 uintptr_t(signal_info->si_addr));
+  }
+  switch (signal_number) {
+    case SIGILL:
+      sigaction(SIGILL, &original_sigill_handler_, nullptr);
+      break;
+    case SIGSEGV:
+      sigaction(SIGSEGV, &original_sigsegv_handler_, nullptr);
+      break;
+#if REX_PLATFORM_MAC
+    case SIGBUS:
+      sigaction(SIGBUS, &original_sigbus_handler_, nullptr);
+      break;
+#endif
+    default:
+      break;
   }
 }
 
