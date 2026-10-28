@@ -53,8 +53,6 @@ for step in "${steps[@]}"; do
         cp "$BOTONES"/*.dds "$ROOT/out/android-assets/botones/" 2>/dev/null || true
       fi
       ls "$ROOT/out/android-assets/botones"
-      # The launcher's game art: the website's images (site/assets/arte), read as APK assets.
-      cp -r "$ROOT/site/assets/arte" "$ROOT/out/android-assets/arte"
       ;;
     apk)
       (cd "$ROOT/app/android" && cmd //c "$(cygpath -w "$GRADLE")" --no-daemon assembleRelease)

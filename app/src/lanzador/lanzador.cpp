@@ -47,6 +47,9 @@ namespace nfsmw::lanzador {
 using idioma::T;
 
 namespace {
+// The launcher art built into the module (app/CMakeLists.txt): kArteEmbebido.
+#include "arte_embebido.inc"
+
 
 // ---- Tema: negro puro, blanco y grises, como la interfaz del juego ------------
 constexpr ImU32 kFondo = IM_COL32(0, 0, 0, 255);
@@ -1050,21 +1053,13 @@ void Lanzador::DibujarPie(float ancho, float alto) {
 const Lanzador::Arte* Lanzador::LeerArte(const std::string& nombre, bool repetida) {
   auto [it, nuevo] = arte_.try_emplace(nombre);
   if (nuevo) {
-    std::vector<uint8_t> datos;
-    if (std::ifstream in(rex::filesystem::GetExecutableFolder() / "arte" / nombre, std::ios::binary); in) {
-      datos.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-    } else {
-      // Android: en los assets del APK (SDL lee de ahi las rutas relativas).
-      size_t tam = 0;
-      if (void* d = SDL_LoadFile(("arte/" + nombre).c_str(), &tam)) {
-        datos.assign(static_cast<uint8_t*>(d), static_cast<uint8_t*>(d) + tam);
-        SDL_free(d);
-      }
-    }
+    const ArteEmbebido* arte = nullptr;
+    for (const auto& a : kArteEmbebido)
+      if (nombre == a.nombre) arte = &a;
     auto* inmediato = imgui_drawer() ? imgui_drawer()->immediate_drawer() : nullptr;
     int w = 0, h = 0;
-    if (!datos.empty() && inmediato) {
-      const auto rgba = rex::ui::DecodeImageRGBA(datos.data(), datos.size(), w, h);
+    if (arte && inmediato) {
+      const auto rgba = rex::ui::DecodeImageRGBA(arte->datos, size_t(arte->tam), w, h);
       if (!rgba.empty()) {
         it->second.textura = inmediato->CreateTexture(uint32_t(w), uint32_t(h),
                                                       rex::ui::ImmediateTextureFilter::kLinear, repetida, rgba.data());
@@ -1095,57 +1090,32 @@ void ImagenCubriendo(ImDrawList* dl, ImTextureID textura, int ancho_img, int alt
 
 }  // namespace
 
-// Cabecera del inicio. Las imagenes no van en el repositorio (son arte del juego): portada.png o portada.jpg junto
-// al ejecutable, o si no uno de los 15 de la Lista Negra con su nombre en grafiti; sin ninguno no se dibuja nada.
+// Cabecera del inicio: portada.png junto al ejecutable, si el jugador la pone (el decodificador solo lee PNG); sin
+// ella no se dibuja nada.
 void Lanzador::DibujarPortada() {
   if (!portada_leida_) {
     portada_leida_ = true;
     auto* inmediato = imgui_drawer() ? imgui_drawer()->immediate_drawer() : nullptr;
-    for (const char* nombre : {"portada.png", "portada.jpg"}) {
-      std::ifstream in(rex::filesystem::GetExecutableFolder() / nombre, std::ios::binary);
-      if (!in || !inmediato) continue;
+    std::ifstream in(rex::filesystem::GetExecutableFolder() / "portada.png", std::ios::binary);
+    if (in && inmediato) {
       const std::vector<uint8_t> datos((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
       int w = 0, h = 0;
       const auto rgba = rex::ui::DecodeImageRGBA(datos.data(), datos.size(), w, h);
-      if (rgba.empty()) continue;
-      portada_ = inmediato->CreateTexture(uint32_t(w), uint32_t(h), rex::ui::ImmediateTextureFilter::kLinear, false,
-                                          rgba.data());
-      portada_ancho_ = w;
-      portada_alto_ = h;
-      break;
-    }
-    if (!portada_) {
-      rival_ = 1 + int(SDL_GetTicksNS() % 15);  // uno distinto en cada arranque
+      if (!rgba.empty()) {
+        portada_ = inmediato->CreateTexture(uint32_t(w), uint32_t(h), rex::ui::ImmediateTextureFilter::kLinear,
+                                            false, rgba.data());
+        portada_ancho_ = w;
+        portada_alto_ = h;
+      }
     }
   }
-  char nombre[32];
-  std::snprintf(nombre, sizeof(nombre), "rival-%02d-fondo.jpg", rival_);
-  const Arte* fondo = portada_ ? nullptr : LeerArte(nombre);
-  if (!portada_ && !fondo) return;
+  if (!portada_) return;
   // Todo el ancho de la pagina, recortada por arriba y por abajo para llenarlo sin deformarse.
   const float ancho = ImGui::GetContentRegionAvail().x;
   const float alto = std::min(ancho * 0.32f, S(300));
   const ImVec2 p = ImGui::GetCursorScreenPos(), q(p.x + ancho, p.y + alto);
   ImDrawList* dl = ImGui::GetWindowDrawList();
-  if (portada_) {
-    ImagenCubriendo(dl, reinterpret_cast<ImTextureID>(portada_.get()), portada_ancho_, portada_alto_, p, q, S(6));
-  } else {
-    ImagenCubriendo(dl, reinterpret_cast<ImTextureID>(fondo->textura.get()), fondo->ancho, fondo->alto, p, q, S(6));
-    // Oscurecido hacia la izquierda, donde van el numero y el nombre.
-    dl->AddRectFilledMultiColor(p, ImVec2(p.x + ancho * 0.6f, q.y), IM_COL32(0, 0, 0, 190), IM_COL32(0, 0, 0, 0),
-                                IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 190));
-    char numero[8];
-    std::snprintf(numero, sizeof(numero), "#%d", rival_);
-    Fuente(true, 40);
-    dl->AddText(ImVec2(p.x + S(22), p.y + S(16)), IM_COL32(255, 255, 255, 220), numero);
-    ImGui::PopFont();
-    std::snprintf(nombre, sizeof(nombre), "rival-%02d-nombre.png", rival_);
-    if (const Arte* grafiti = LeerArte(nombre)) {
-      const float w = std::min(ancho * 0.42f, S(420)), h = w * float(grafiti->alto) / float(grafiti->ancho);
-      dl->AddImage(reinterpret_cast<ImTextureID>(grafiti->textura.get()), ImVec2(p.x + S(14), q.y - h - S(10)),
-                   ImVec2(p.x + S(14) + w, q.y - S(10)));
-    }
-  }
+  ImagenCubriendo(dl, reinterpret_cast<ImTextureID>(portada_.get()), portada_ancho_, portada_alto_, p, q, S(6));
   ImGui::Dummy(ImVec2(ancho, alto + S(10)));
 }
 
