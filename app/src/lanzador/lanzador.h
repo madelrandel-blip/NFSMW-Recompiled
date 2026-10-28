@@ -24,6 +24,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 struct ImFont;
@@ -123,11 +124,23 @@ class Lanzador : public rex::ui::ImGuiDialog {
   bool aviso_descartado_ = false;
   std::string version_nueva_, url_version_;
 
-  // Imagen de cabecera del inicio (portada.png o .jpg junto al ejecutable; sin ella no se dibuja nada).
+  // Imagen de cabecera del inicio: portada.png o .jpg junto al ejecutable; si no esta, uno de los 15 de la Lista
+  // Negra (arte del juego) elegido al abrir; sin ninguno no se dibuja nada.
   void DibujarPortada();
   std::unique_ptr<rex::ui::ImmediateTexture> portada_;
   int portada_ancho_ = 0, portada_alto_ = 0;
   bool portada_leida_ = false;
+  int rival_ = 0;  // 1-15, el de la portada sin portada.png
+
+  // Arte del juego (fondos de la Lista Negra, iconos del menu, grano): arte/<nombre> junto al ejecutable o en los
+  // assets del APK. No va en el codigo: el build lo copia de site/assets/arte. nullptr si no esta, y entonces se
+  // dibuja lo de siempre. `repetida`: para cubrir un area con la imagen en mosaico.
+  struct Arte {
+    std::unique_ptr<rex::ui::ImmediateTexture> textura;
+    int ancho = 0, alto = 0;
+  };
+  const Arte* LeerArte(const std::string& nombre, bool repetida = false);
+  std::unordered_map<std::string, Arte> arte_;  // tambien las buscadas y no encontradas (sin textura)
 
   // Gestor de partidas: lo que se ve, el resultado de la ultima accion y la partida a punto de borrarse.
   bool partidas_leidas_ = false;

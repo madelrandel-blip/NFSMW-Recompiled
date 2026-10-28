@@ -1,8 +1,7 @@
 ﻿// nfsmw - native renderer, part C1: the app's own graphics system.
 //
 // What it does
-//   Replaces the Xenos emulation plugin when nfsmw_renderizador is
-//   "nativo" (OnPreSetup in nfsmw_app.h decides it):
+//   Replaces the Xenos emulation plugin (OnPreSetup in nfsmw_app.h):
 //     - Presentation: the SDK's VulkanProvider + VulkanPresenter, same as
 //       the emulation. ReXApp sees presenter() and sets up F3, settings and
 //       the console the usual way (rex_app.cpp:386-398).
@@ -110,12 +109,6 @@ std::string Resumen();
 // Only for RexSwitchSetCurrentThreadPriority. That header deliberately does not include switch.h.
 #include "../../sdk/src/core/threading_switch.h"
 #endif
-
-REXCVAR_DEFINE_STRING(nfsmw_renderizador, "nativo", "NFSMW",
-                      "nativo = renderizador nativo (Vulkan, mucho mas rapido); xenos = emulacion de la "
-                      "GPU de la Xbox 360, como alternativa si algo se ve mal")
-    .allowed({"xenos", "nativo"})
-    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 REXCVAR_DEFINE_BOOL(nfsmw_nativo_registros_vectoriales, true, "NFSMW",
                     "Renderizador nativo (24/09, build 164): los bloques de registros del anillo se copian de 4 en 4 "
@@ -4948,9 +4941,8 @@ uint64_t SwapsNativos() {
   return g_swaps_nativos.load(std::memory_order_relaxed);
 }
 
-bool Activo() {
-  return REXCVAR_GET(nfsmw_renderizador) == "nativo";
-}
+// Always: the Xenos GPU emulation is no longer offered (the launcher dropped the choice).
+bool Activo() { return true; }
 
 std::unique_ptr<rex::system::IGraphicsSystem> CrearSistemaGrafico() {
   return std::make_unique<SistemaGraficoNativo>();

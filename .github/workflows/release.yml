@@ -177,6 +177,8 @@ jobs:
             Copy-Item (Get-ChildItem out/pc -Recurse -Filter 'NFSMW Recomp.exe' | Select-Object -First 1).FullName dist/
             Get-ChildItem $exe.DirectoryName -Filter *.dll | Copy-Item -Destination dist/
             Copy-Item nx/app/nfsmw.toml dist/nfsmw.toml
+            # The launcher's game art (the website's images: Blacklist, menu icons, grain).
+            Copy-Item -Recurse nx/site/assets/arte dist/arte
             $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
             Get-ChildItem "$vs\VC\Redist\MSVC" -Recurse -Filter *.dll -ErrorAction SilentlyContinue |
               Where-Object { $_.DirectoryName -match '\\x64\\Microsoft\.VC\d+\.CRT$' } |

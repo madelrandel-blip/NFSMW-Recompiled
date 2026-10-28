@@ -31,6 +31,7 @@ struct Texto {
 constexpr Texto kTextos[] = {
   // ---- General ----------------------------------------------------------------
   {"app.subtitulo", {"Recompilación nativa para PC", "Native PC recompilation", "Recompilação nativa para PC"}},
+  {"app.subtitulo_android", {"Recompilación nativa para Android", "Native Android recompilation", "Recompilação nativa para Android"}},
   {"nav.inicio", {"Inicio", "Home", "Início"}},
   {"nav.graficos", {"Gráficos", "Graphics", "Gráficos"}},
   {"nav.controles", {"Controles", "Controls", "Controles"}},
@@ -128,16 +129,6 @@ constexpr Texto kTextos[] = {
   {"perfil.nota", {"Elige un perfil y ajusta lo que quieras: al tocar cualquier opción pasa a Personalizado.",
                    "Pick a preset and tweak anything: changing any option switches to Custom.",
                    "Escolha um perfil e ajuste o que quiser: mudar qualquer opção passa para Personalizado."}},
-  {"graf.motor", {"Motor gráfico", "Graphics engine", "Motor gráfico"}},
-  {"graf.renderizador", {"Renderizador", "Renderer", "Renderizador"}},
-  {"graf.nativo", {"Nativo (recomendado)", "Native (recommended)", "Nativo (recomendado)"}},
-  {"graf.emulado", {"Emulación Xenos (lento)", "Xenos emulation (slow)", "Emulação Xenos (lento)"}},
-  {"graf.renderizador_nota", {"El nativo dibuja el juego directamente con Vulkan y es mucho más rápido. La "
-                              "emulación queda como alternativa si algo se ve mal.",
-                              "Native draws the game directly with Vulkan and is much faster. Emulation remains "
-                              "as a fallback if something looks wrong.",
-                              "O nativo desenha o jogo direto com Vulkan e é muito mais rápido. A emulação fica "
-                              "como alternativa se algo aparecer errado."}},
   {"graf.pantalla", {"Pantalla", "Display", "Tela"}},
   {"graf.completa", {"Pantalla completa", "Fullscreen", "Tela cheia"}},
   {"graf.resolucion", {"Resolución interna", "Internal resolution", "Resolução interna"}},
@@ -207,7 +198,20 @@ constexpr Texto kTextos[] = {
   {"tr.errores", {"Líneas no entendidas en el fichero", "Lines not understood in the file", "Linhas não entendidas no arquivo"}},
   {"tr.nota", {"Los trucos activos se aplican al jugar. Escriben en la memoria del juego: úsalos bajo tu responsabilidad y haz una copia de tu partida antes.", "Active cheats apply when you play. They write to the game's memory: use them at your own risk and back up your save first.", "As trapaças ativas valem ao jogar. Elas escrevem na memória do jogo: use por sua conta e faça uma cópia do seu jogo salvo antes."}},
   {"graf.imagen", {"Imagen", "Image", "Imagem"}},
-  {"graf.aa", {"Antialiasing", "Anti-aliasing", "Antisserrilhado"}},
+  {"graf.aa", {"FXAA", "FXAA", "FXAA"}},
+  {"graf.msaa", {"MSAA", "MSAA", "MSAA"}},
+  {"graf.fsr", {"Nitidez FSR1", "FSR1 sharpening", "Nitidez FSR1"}},
+  {"graf.aa_nota", {"MSAA suaviza los bordes de la escena (la Xbox 360 usaba 4x) y pide reiniciar; FXAA suaviza la "
+                    "imagen final y se puede combinar con MSAA. La nitidez FSR1 (RCAS de AMD) no se usa con FXAA.",
+                    "MSAA smooths the scene's edges (the Xbox 360 used 4x) and needs a restart; FXAA smooths the final "
+                    "image and can be combined with MSAA. FSR1 sharpening (AMD RCAS) is not used with FXAA.",
+                    "MSAA suaviza as bordas da cena (o Xbox 360 usava 4x) e pede reinício; FXAA suaviza a imagem "
+                    "final e pode ser combinado com MSAA. A nitidez FSR1 (RCAS da AMD) não é usada com FXAA."}},
+  {"val.baja", {"Baja", "Low", "Baixa"}},
+  {"graf.resolucion_baja_nota", {"Por debajo de 720p bajan el posproceso y las copias; la escena se sigue dibujando "
+                                 "a 720p.", "Below 720p, post-processing and copies are reduced; the scene is still "
+                                 "drawn at 720p.", "Abaixo de 720p, o pós-processamento e as cópias são reduzidos; a "
+                                 "cena continua sendo desenhada em 720p."}},
   {"graf.aniso", {"Filtrado anisotrópico", "Anisotropic filtering", "Filtragem anisotrópica"}},
   {"graf.cielo", {"Resplandor del cielo", "Sky glow", "Brilho do céu"}},
   {"graf.filtro", {"Filtro de color del juego", "Game color filter", "Filtro de cor do jogo"}},

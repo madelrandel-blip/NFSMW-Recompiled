@@ -49,10 +49,9 @@ class NfsmwApp : public rex::ReXApp {
   // ==========================================================================
   //  0. NATIVE RENDERER
   //
-  //  With nfsmw_renderizador = "nativo" the graphics system is the app's own
-  //  (nfsmw_nativo_sistema.cpp) and the emulation plugin is not loaded:
+  //  The graphics system is the app's own (nfsmw_nativo_sistema.cpp, with the
+  //  renderer in src/renderer) and the emulation plugin is not loaded:
   //  ReXApp::SetupPresentation only loads it if config.graphics is empty.
-  //  The code default is still emulation. See docs/native-renderer.md.
   // ==========================================================================
   void OnPreSetup(rex::RuntimeConfig& config) override {
     if (nfsmw::nativo::Activo()) {

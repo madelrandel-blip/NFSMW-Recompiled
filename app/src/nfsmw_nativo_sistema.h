@@ -1,8 +1,6 @@
 // nfsmw - native renderer, step C1: the app's own graphics system.
 //
-// With nfsmw_renderizador = "nativo", OnPreSetup puts this system in
-// config.graphics and the Xenos emulation plugin is not loaded. Details are
-// in docs/native-renderer.md.
+// OnPreSetup puts this system in config.graphics and the Xenos emulation plugin is not loaded.
 
 #pragma once
 
@@ -14,7 +12,7 @@
 
 namespace nfsmw::nativo {
 
-// true if the nfsmw_renderizador cvar asks for the native path.
+// Always true: the native path is the only one (the Xenos emulation is no longer offered).
 bool Activo();
 
 // Ring thread progress, for the game's D3D waits (nfsmw_espera_anillo.cpp): it increases every time

@@ -167,6 +167,13 @@ endif()
 # argument is no longer needed; it can still be passed to change it.
 rexglue_setup_target(nfsmw GPU_PLUGINS xenos)
 
+# The launcher's game art (src/lanzador, LeerArte) next to the executable: the website's images (site/assets/arte).
+if(WIN32)
+    add_custom_command(TARGET nfsmw POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/../site/assets/arte"
+                "$<TARGET_FILE_DIR:nfsmw>/arte")
+endif()
+
 # The SDK's FFmpeg (WMV3 decoder) for the cutscenes: nfsmw_video_wmv3.cpp.
 target_link_libraries(nfsmw PRIVATE libavcodec)
 
