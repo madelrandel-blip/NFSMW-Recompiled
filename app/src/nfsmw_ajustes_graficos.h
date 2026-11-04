@@ -71,11 +71,14 @@ void AplicarAjustesGraficos();
 // nothing, and the video mode settings that the ones above replace.
 void OcultarAjustesSinEfecto();
 
-// An nfsmw_resolucion_interna above 720p ("WxH"): drawn through the game's high mode (nfsmw_render_targets.cpp)
-// with that size, while the video mode stays 1280x720. False for 720p and below, and for "automatico".
+// An nfsmw_resolucion_interna other than 720p ("WxH", 16:9, width a multiple of 32): drawn through the game's high
+// mode (nfsmw_render_targets.cpp) with that size, scene, HUD and front buffer alike, while the video mode stays
+// 1280x720. That works below 720p too (360p to 576p): changing the video mode instead never made the scene smaller
+// and left the start of the story mode without a city. False for 720p, for "automatico" and for the 4:3 640x480.
 inline bool ResolucionAlta(const std::string& valor, uint32_t& ancho, uint32_t& alto) {
   unsigned w = 0, h = 0;
-  if (std::sscanf(valor.c_str(), "%ux%u", &w, &h) != 2 || h <= 720) return false;
+  if (std::sscanf(valor.c_str(), "%ux%u", &w, &h) != 2 || h == 720 || h < 360 || w % 32 != 0 || w * 9 < h * 15)
+    return false;
   ancho = w;
   alto = h;
   return true;

@@ -18,13 +18,10 @@ REXCVAR_DEFINE_STRING(nfsmw_resolucion_interna, "automatico", "Graficos",
                       "portatil, cambiando en marcha al meter y sacar la consola de la base Y siguiendo tambien a "
                       "Reverse-NX. Ojo: con Reverse-NX los relojes no suben, asi que ahi el 1080p cuesta un tercio "
                       "de los FPS. 1280x720 es la de la Xbox 360. 1920x1080 la fija siempre. 1024x576 es el modo de "
-                      "menos resolucion del propio juego: 36 % menos pixeles (este pide reiniciar). "
-                      "640x360 y 640x480 bajan mas, pero OJO: medido el 20/09, esto NO cambia la resolucion a la "
-                      "que DIBUJA el juego -sigue en 1280x720- sino solo el tamano al que se encoge al resolver. "
-                      "Lo que ahorra es el posproceso, las copias y el cubo; la escena no se mueve. De 1280x720 a "
-                      "1024x576 son 2,14 ms reales y el posproceso ya baja a 0,03, asi que por debajo queda poco "
-                      "que rascar y el escalado si se ve")
-    .allowed({"automatico", "640x360", "640x480", "1024x576", "1280x720", "1600x900", "1920x1080", "2560x1440",
+                      "menos resolucion del propio juego. Por debajo de 720p (640x360, 832x468, 960x540, 1024x576) se "
+                      "dibuja de verdad a ese tamano, escena y HUD, y se escala a la pantalla: menos pixeles, mas "
+                      "FPS en moviles; se ve mas borroso. 640x480 (4:3) equivale a 1280x720")
+    .allowed({"automatico", "640x360", "640x480", "832x468", "960x540", "1024x576", "1280x720", "1600x900", "1920x1080", "2560x1440",
               "3840x2160"});
 
 /*
@@ -257,7 +254,17 @@ extern "C" void RexSwitchApmAplicar(void);
 #endif
 
 void AplicarAjustesGraficos() {
-  const std::string resolucion = REXCVAR_GET(nfsmw_resolucion_interna);
+  std::string resolucion = REXCVAR_GET(nfsmw_resolucion_interna);
+  // Below 720p the size used to go into the game's video mode. The scene was still drawn at 1280x720, so it saved
+  // almost nothing, and with that video mode the start of the story mode never loads the city: the track streamer
+  // stops after the first section of zone 318, every time. The 16:9 sizes now go through the render target table
+  // like the high ones (ResolucionAlta); the 4:3 640x480 has no equivalent there and means 1280x720.
+  if (resolucion == "640x480") {
+    REXLOG_WARN("[ajustes] resolucion interna {} ya no se aplica (rompe el modo historia): se usa 1280x720",
+                resolucion);
+    resolucion = "1280x720";
+    rex::cvar::SetFlagByName("nfsmw_resolucion_interna", resolucion);
+  }
   // 1920x1080 is not requested through the video mode. The game has its own table and above 1280x720 it
   // stays at 1280x720, so asking for it does nothing. What does work is writing the size into the mode
   // table of its renderer: nfsmw_render_targets.cpp does that, reading this same cvar, and also switches
