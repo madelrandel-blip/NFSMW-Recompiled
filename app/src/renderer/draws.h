@@ -170,6 +170,12 @@ class Draws {
   uint32_t vs_constants_bytes_ = 0, ps_constants_bytes_ = 0;  // how much of the reused uploads was written
   VkBuffer constants_buffer_ = VK_NULL_HANDLE;
   VkDeviceSize vs_constants_offset_ = 0, ps_constants_offset_ = 0;
+  // The previous draw's shared block (texture sizes and per-draw state) and where it went: an equal block keeps the
+  // same offset, so the descriptor sets do not have to be bound again when the constants did not change either.
+  std::vector<uint8_t> shared_previous_;
+  VkDeviceSize shared_offset_ = 0;
+  VkBuffer shared_buffer_ = VK_NULL_HANDLE;
+  uint64_t shared_frame_ = UINT64_MAX;
   VkDescriptorSet uniform_set_ = VK_NULL_HANDLE;
   VkBuffer uniform_set_buffer_ = VK_NULL_HANDLE;
 

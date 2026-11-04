@@ -741,6 +741,31 @@ TextureBinding TextureCache::Get(const GuestRegisters& registers, uint32_t fetch
   if (fetch.type != xenos::FetchConstantType::kTexture) {
     return Placeholder(dimension);
   }
+  static_assert(sizeof(fetch) == sizeof(Memo::words), "a texture fetch constant is six words");
+  std::array<uint32_t, 6> words;
+  std::memcpy(words.data(), &fetch, sizeof(words));
+  uint64_t hash = uint32_t(dimension);
+  for (uint32_t w : words) {
+    hash = (hash ^ w) * 0x100000001B3ull;
+  }
+  Memo& memo = memo_[(hash ^ (hash >> 29)) % kMemoSize];
+  const uint64_t frame = frames_.frame_number();
+  const uint64_t copies = render_targets_.copy_generation();
+  if (memo.frame == frame && memo.copies == copies && memo.dimension == uint32_t(dimension) && memo.words == words) {
+    ++stats_.memo_hits;
+    return memo.binding;
+  }
+  const TextureBinding binding = Lookup(fetch, dimension);
+  // Uploads go into the frame: if one opened a new slot, the frame number moved and the memo is for that one.
+  memo.words = words;
+  memo.dimension = uint32_t(dimension);
+  memo.frame = frames_.frame_number();
+  memo.copies = render_targets_.copy_generation();
+  memo.binding = binding;
+  return binding;
+}
+
+TextureBinding TextureCache::Lookup(const xenos::xe_gpu_texture_fetch_t& fetch, TextureDimension dimension) {
   ++stats_.lookups;
   TextureBinding binding;
   binding.sampler = SamplerFor(fetch, dimension);

@@ -375,9 +375,9 @@ class VulkanRenderer final : public nativo::DestinosNativos {
     REXLOG_INFO("[renderer] queue submissions per frame: {:.2f} (the presenter's own are not counted)",
                 double(context_->TakeSubmitCount()) / frames);
     REXLOG_INFO("[renderer] {:.1f} fps | per frame: {:.0f} draws in {:.2f} ms, present {:.2f} ms | textures: {:.0f} "
-                "lookups, {:.1f} fingerprints ({:.2f} MB), {:.1f} uploads ({:.2f} MB)",
+                "lookups ({:.0f} more from the frame's memo), {:.1f} fingerprints ({:.2f} MB), {:.1f} uploads ({:.2f} MB)",
                 frames / seconds, double(report_.draws) / frames, double(report_.draw_ns) / 1e6 / frames,
-                double(report_.submit_ns) / 1e6 / frames, double(t.lookups) / frames, double(t.fingerprints) / frames,
+                double(report_.submit_ns) / 1e6 / frames, double(t.lookups) / frames, double(t.memo_hits) / frames, double(t.fingerprints) / frames,
                 double(t.fingerprint_bytes) / 1048576.0 / frames, double(t.uploads) / frames,
                 double(t.upload_bytes) / 1048576.0 / frames);
     {
