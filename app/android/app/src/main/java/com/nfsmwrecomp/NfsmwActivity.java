@@ -1,15 +1,21 @@
 package com.nfsmwrecomp;
 
+import android.Manifest;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.os.Process;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.ParcelFileDescriptor;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Build;
 import android.provider.DocumentsContract;
+import android.provider.Settings;
 import android.provider.OpenableColumns;
 import android.system.ErrnoException;
 import android.system.Os;
@@ -48,6 +54,7 @@ public class NfsmwActivity extends SDLActivity {
     private static final String TAG = "NFSMW";
     private static final String FOLDER_NAME = "NFSMW Recompiled";
     private static final int REQUEST_PICK = 0x4E46;
+    private static final int REQUEST_ACCESS = 0x4E47;
 
     private static File dataFolder;
 
@@ -79,7 +86,85 @@ public class NfsmwActivity extends SDLActivity {
     @Override
     protected String[] getLibraries() {
         // The shared C++ library the others link against, SDL3 (its JNI entry points), the runtime and the game.
-        return new String[] {"c++_shared", "SDL3", "rexruntime", "main"};
+        return new String[] {"c++_shared", "SDL3", "rexruntime", gameLibrary()};
+    }
+
+    // ---- Game modules ---------------------------------------------------------------------------------------------
+    // The game is libmain.so for the Spanish PAL edition and the French, German and Italian ones (the same build with
+    // another language number), and libmain_<edition>.so for the editions that are other builds of the game (USA).
+    // Which one: --nfsmw_modulo=<edition> when the launcher restarts the app for a copy of another edition
+    // (restartApp), otherwise the edition of the last copy played (nfsmw_edicion_copia in nfsmw.toml). The same rule
+    // as nfsmw.exe on Windows (app/anfitrion/main.cpp).
+
+    static final String EXTRA_ARGS = "com.nfsmwrecomp.args";
+
+    /** The command line for the game: the arguments of a restart, or none. */
+    @Override
+    protected String[] getArguments() {
+        String[] args = getIntent() != null ? getIntent().getStringArrayExtra(EXTRA_ARGS) : null;
+        return args != null ? args : new String[0];
+    }
+
+    private String gameLibrary() {
+        String edition = null;
+        for (String arg : getArguments()) {
+            if (arg.startsWith("--nfsmw_modulo=")) {
+                edition = arg.substring("--nfsmw_modulo=".length());
+            }
+        }
+        if (edition == null) {
+            edition = lastCopyEdition();
+        }
+        String family = edition == null || edition.equals("fr") || edition.equals("de") || edition.equals("it")
+                ? "es" : edition;
+        if (family.isEmpty() || family.equals("es")) {
+            return "main";
+        }
+        // With the libraries left inside the APK there is nothing to look at in nativeLibraryDir: trust the build.
+        File dir = new File(getApplicationInfo().nativeLibraryDir);
+        if (new File(dir, "libmain.so").isFile() && !new File(dir, "libmain_" + family + ".so").isFile()) {
+            Log.w(TAG, "no game module for " + family + ", using the Spanish one");
+            return "main";
+        }
+        Log.i(TAG, "game module: libmain_" + family + ".so");
+        return "main_" + family;
+    }
+
+    /** nfsmw_edicion_copia from nfsmw.toml in the data folder, or null. */
+    private static String lastCopyEdition() {
+        if (dataFolder == null) {
+            return null;
+        }
+        try {
+            for (String line : Files.readAllLines(new File(dataFolder, "nfsmw.toml").toPath(), StandardCharsets.UTF_8)) {
+                String trimmed = line.trim();
+                if (trimmed.startsWith("nfsmw_edicion_copia")) {
+                    int a = trimmed.indexOf('"'), b = trimmed.lastIndexOf('"');
+                    return a >= 0 && b > a ? trimmed.substring(a + 1, b) : null;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    /**
+     * Called from the native thread (lanzador/sistema.cpp, Relanzar): starts the game again in a new process with
+     * these arguments (separated by spaces), through RestartActivity, and ends this one. The settings are already
+     * saved.
+     */
+    public void restartApp(String args) {
+        String trimmed = args == null ? "" : args.trim();
+        Intent target = new Intent(this, NfsmwActivity.class);
+        target.putExtra(EXTRA_ARGS, trimmed.isEmpty() ? new String[0] : trimmed.split(" +"));
+        target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        Intent restart = new Intent(this, RestartActivity.class);
+        restart.putExtra(RestartActivity.EXTRA_TARGET, target);
+        restart.putExtra(RestartActivity.EXTRA_PID, Process.myPid());
+        restart.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Log.i(TAG, "restarting with: " + trimmed);
+        startActivity(restart);
+        Runtime.getRuntime().exit(0);
     }
 
     /** SDL picks the orientation from the window size; the launcher and the game are landscape only. */
@@ -92,7 +177,16 @@ public class NfsmwActivity extends SDLActivity {
     static File dataFolder(Context context, boolean create) {
         if (SetupActivity.hasStorageAccess(context)) {
             File visible = new File(Environment.getExternalStorageDirectory(), FOLDER_NAME);
-            if (visible.isDirectory() || (create && visible.mkdirs())) {
+            if (visible.isDirectory()) {
+                return visible;
+            }
+            if (create && visible.mkdirs()) {
+                // Access granted after playing without it (it is asked for when picking the game): the settings,
+                // saves and shader libraries move with the player instead of starting over.
+                File own = context.getExternalFilesDir(null);
+                if (own != null) {
+                    copyTree(own, visible);
+                }
                 return visible;
             }
             if (create) {
@@ -101,6 +195,27 @@ public class NfsmwActivity extends SDLActivity {
         }
         File data = context.getExternalFilesDir(null);
         return data != null ? data : context.getFilesDir();
+    }
+
+    private static void copyTree(File from, File to) {
+        File[] entries = from.listFiles();
+        if (entries == null) {
+            return;
+        }
+        for (File entry : entries) {
+            File target = new File(to, entry.getName());
+            if (entry.isDirectory()) {
+                if (target.isDirectory() || target.mkdirs()) {
+                    copyTree(entry, target);
+                }
+            } else if (!target.exists()) {
+                try {
+                    Files.copy(entry.toPath(), target.toPath());
+                } catch (Exception e) {
+                    Log.w(TAG, "could not copy " + entry, e);
+                }
+            }
+        }
     }
 
     // ---- Exporting the logs -----------------------------------------------------------------------------------------
@@ -199,10 +314,7 @@ public class NfsmwActivity extends SDLActivity {
             if (SetupActivity.hasStorageAccess(this)) {
                 openPicker();
             } else {
-                // The game reads the ISO by path, which needs all files access. It is asked for at launch
-                // (SetupActivity), not here: granting it makes Android kill the app.
-                Toast.makeText(this, R.string.pick_need_access, Toast.LENGTH_LONG).show();
-                finishPick("");
+                askForAccess();
             }
         });
         try {
@@ -211,6 +323,60 @@ public class NfsmwActivity extends SDLActivity {
             Thread.currentThread().interrupt();
         }
         return pickResult != null ? pickResult : "";
+    }
+
+    /**
+     * Storage access, asked for here (when the player picks the game), not at launch. The game reads the .iso by
+     * path, and on Android 11+ only "All files access" allows that for a file that is not a photo, video or song;
+     * Android 10 uses the classic storage permission. Declined, an .iso can still be picked as a document
+     * (openGameDocument); a folder cannot.
+     */
+    private void askForAccess() {
+        new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(R.string.access_title)
+                .setMessage(R.string.access_message)
+                .setCancelable(false)
+                .setPositiveButton(R.string.access_grant, (d, which) -> requestAccess())
+                .setNegativeButton(R.string.access_later, (d, which) -> afterAccess())
+                .show();
+    }
+
+    private void requestAccess() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            for (Intent intent : new Intent[] {
+                    new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            Uri.parse("package:" + getPackageName())),
+                    new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)}) {
+                try {
+                    startActivityForResult(intent, REQUEST_ACCESS);
+                    return;
+                } catch (Exception e) {
+                    Log.w(TAG, "cannot open " + intent.getAction(), e);
+                }
+            }
+            afterAccess();
+        } else {
+            requestPermissions(new String[] {Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    Manifest.permission.READ_EXTERNAL_STORAGE}, REQUEST_ACCESS);
+        }
+    }
+
+    /** Back from the permission (granted or not): on to the picker, unless it was a folder and there is no access. */
+    private void afterAccess() {
+        if (SetupActivity.hasStorageAccess(this) || !pickFolder) {
+            openPicker();
+        } else {
+            Toast.makeText(this, R.string.pick_need_access, Toast.LENGTH_LONG).show();
+            finishPick("");
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_ACCESS) {
+            afterAccess();
+        }
     }
 
     private void openPicker() {
@@ -232,18 +398,53 @@ public class NfsmwActivity extends SDLActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_ACCESS) {
+            afterAccess();
+            return;
+        }
         if (requestCode != REQUEST_PICK) {
             super.onActivityResult(requestCode, resultCode, data);
             return;
         }
         String path = "";
         if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-            path = pathOf(data.getData(), pickFolder);
+            Uri uri = data.getData();
+            if (SetupActivity.hasStorageAccess(this)) {
+                path = pathOf(uri, pickFolder);
+            }
+            if (path.isEmpty() && !pickFolder) {
+                // No storage permission (or no path behind it): the document itself, kept readable across
+                // launches. The game opens it with openGameDocument.
+                try {
+                    getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    path = uri.toString();
+                } catch (Exception e) {
+                    Log.e(TAG, "no persistable permission for " + uri, e);
+                }
+            }
             if (path.isEmpty()) {
                 Toast.makeText(this, R.string.pick_not_a_path, Toast.LENGTH_LONG).show();
             }
         }
         finishPick(path);
+    }
+
+    /**
+     * Called from the native thread (lanzador/sistema.cpp, AbrirDocumento): opens a picked document for reading and
+     * returns /proc/self/fd/N, which the game opens like a file (the launcher reads the .iso and the runtime mounts
+     * it). The descriptor stays open for the whole run. Empty if the document is gone or no longer readable.
+     */
+    public String openGameDocument(String uri) {
+        try {
+            ParcelFileDescriptor file = getContentResolver().openFileDescriptor(Uri.parse(uri), "r");
+            if (file == null) {
+                return "";
+            }
+            return "/proc/self/fd/" + file.detachFd();
+        } catch (Exception e) {
+            Log.e(TAG, "cannot open " + uri, e);
+            return "";
+        }
     }
 
     private void finishPick(String path) {

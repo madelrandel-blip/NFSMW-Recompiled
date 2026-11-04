@@ -11,6 +11,10 @@ namespace nfsmw::sistema {
 // Dialogos nativos. Devuelven vacio si se cancela o si el sistema no tiene
 // dialogo (en Linux se usa zenity si esta instalado). Bloquean hasta cerrarse.
 std::filesystem::path ElegirIso(const std::filesystem::path& inicial);
+
+// An Android document picked with no storage permission (content://..., what ElegirIso returns then), opened for
+// reading: /proc/self/fd/N, valid for the whole run. Empty if it cannot be opened. Elsewhere, the string as a path.
+std::filesystem::path AbrirDocumento(const std::string& uri);
 std::filesystem::path ElegirCarpeta(const std::filesystem::path& inicial);
 
 // Abre una URL en el navegador o una carpeta en el explorador.

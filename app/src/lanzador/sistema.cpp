@@ -7,6 +7,8 @@
 
 #include <cctype>
 #include <cstdio>
+#include <mutex>
+#include <unordered_map>
 #include <vector>
 
 #if defined(_WIN32)
@@ -250,5 +252,68 @@ Resolucion ResolucionPantalla() {
   return {};
 }
 
-bool Relanzar(const std::string& argumentos) { return Lanzar(rex::filesystem::GetExecutablePath(), argumentos); }
+std::filesystem::path AbrirDocumento(const std::string& uri) {
+#if defined(__ANDROID__)
+  // NfsmwActivity.openGameDocument (app/android) opens it with the persistable read permission the picker gave and
+  // returns /proc/self/fd/N. Once per document and process: the descriptor stays open for the whole run.
+  static std::mutex mutex;
+  static std::unordered_map<std::string, std::filesystem::path> abiertos;
+  std::lock_guard<std::mutex> l(mutex);
+  if (auto it = abiertos.find(uri); it != abiertos.end()) return it->second;
+  std::filesystem::path ruta;
+  auto* env = static_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
+  auto activity = static_cast<jobject>(SDL_GetAndroidActivity());
+  if (!env || !activity) return ruta;
+  jclass clase = env->GetObjectClass(activity);
+  if (jmethodID metodo = env->GetMethodID(clase, "openGameDocument", "(Ljava/lang/String;)Ljava/lang/String;")) {
+    jstring texto = env->NewStringUTF(uri.c_str());
+    auto respuesta = static_cast<jstring>(env->CallObjectMethod(activity, metodo, texto));
+    if (respuesta && !env->ExceptionCheck()) {
+      if (const char* c = env->GetStringUTFChars(respuesta, nullptr)) {
+        ruta = c;
+        env->ReleaseStringUTFChars(respuesta, c);
+      }
+    }
+    if (respuesta) env->DeleteLocalRef(respuesta);
+    env->DeleteLocalRef(texto);
+  }
+  if (env->ExceptionCheck()) {
+    env->ExceptionDescribe();
+    env->ExceptionClear();
+  }
+  env->DeleteLocalRef(clase);
+  env->DeleteLocalRef(activity);
+  if (!ruta.empty()) abiertos.emplace(uri, ruta);
+  return ruta;
+#else
+  return std::filesystem::path(std::u8string(uri.begin(), uri.end()));
+#endif
+}
+
+bool Relanzar(const std::string& argumentos) {
+#if defined(__ANDROID__)
+  // NfsmwActivity.restartApp (app/android) opens the game again in a new process with these arguments and ends this
+  // one: it does not return when it works.
+  auto* env = static_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
+  auto activity = static_cast<jobject>(SDL_GetAndroidActivity());
+  if (!env || !activity) return false;
+  bool hecho = false;
+  jclass clase = env->GetObjectClass(activity);
+  if (jmethodID metodo = env->GetMethodID(clase, "restartApp", "(Ljava/lang/String;)V")) {
+    jstring texto = env->NewStringUTF(argumentos.c_str());
+    env->CallVoidMethod(activity, metodo, texto);
+    env->DeleteLocalRef(texto);
+    hecho = !env->ExceptionCheck();
+  }
+  if (env->ExceptionCheck()) {
+    env->ExceptionDescribe();
+    env->ExceptionClear();
+  }
+  env->DeleteLocalRef(clase);
+  env->DeleteLocalRef(activity);
+  return hecho;
+#else
+  return Lanzar(rex::filesystem::GetExecutablePath(), argumentos);
+#endif
+}
 }  // namespace nfsmw::sistema

@@ -114,7 +114,10 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(const std::filesystem::path& pa
       open_flags |= O_RDWR;
       break;
   }
-  int file_descriptor = open(path.c_str(), open_flags);
+  // A file the process holds open (an Android document, /proc/self/fd/N): its own descriptor, duplicated, since
+  // opening that path again goes through storage permission the app may not have.
+  const int held = rex::filesystem::DescriptorFromProcPath(path);
+  int file_descriptor = held >= 0 ? dup(held) : open(path.c_str(), open_flags);
   if (file_descriptor < 0) {
     return nullptr;
   }

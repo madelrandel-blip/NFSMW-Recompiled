@@ -123,6 +123,13 @@ struct FileInfo {
   uint64_t access_timestamp;
   uint64_t write_timestamp;
 };
+// N for a "/proc/self/fd/N" path (a file the process already holds open, like an Android document picked without
+// storage permission), or -1. Such a file is used through that descriptor (dup): reopening the path needs the
+// permission the app does not have.
+int DescriptorFromProcPath(const std::filesystem::path& path);
+// The path names a file: an existing regular file, or one held open (DescriptorFromProcPath).
+bool IsFileOrHeldDescriptor(const std::filesystem::path& path);
+
 bool GetInfo(const std::filesystem::path& path, FileInfo* out_info);
 std::vector<FileInfo> ListFiles(const std::filesystem::path& path);
 

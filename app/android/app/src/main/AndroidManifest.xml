@@ -44,6 +44,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Opens the game again in a new process, to load another game module (NfsmwActivity.restartApp). -->
+        <activity
+            android:name="com.nfsmwrecomp.RestartActivity"
+            android:exported="false"
+            android:process=":reinicio"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity
             android:name="com.nfsmwrecomp.NfsmwActivity"
             android:exported="true"

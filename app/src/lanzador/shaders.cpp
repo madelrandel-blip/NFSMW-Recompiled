@@ -303,7 +303,7 @@ std::vector<Origen> FicherosConShaders(const fs::path& juego) {
       lista.push_back({std::move(rel), std::move(fichero), offset, tam});
   };
   std::error_code ec;
-  if (fs::is_regular_file(juego, ec)) {
+  if (iso::EsImagen(juego)) {
     for (const auto& f : iso::Listar(juego)) anadir(f.ruta, juego, f.offset, f.tam);
   } else {
     for (const auto& e : fs::recursive_directory_iterator(juego, ec)) {
@@ -375,8 +375,7 @@ std::string Generar(const fs::path& juego, const fs::path& salida, const Progres
   // 1. Imagen del ejecutable.
   avisar(Fase::kImagen, 0, 1);
   Bytes xex;
-  std::error_code ec_juego;
-  if (fs::is_regular_file(juego, ec_juego)) {
+  if (iso::EsImagen(juego)) {
     xex = iso::LeerFichero(juego, "default.xex");
     if (xex.empty()) return "No se encuentra default.xex en la imagen del juego.";
   } else {
@@ -394,7 +393,9 @@ std::string Generar(const fs::path& juego, const fs::path& salida, const Progres
   std::vector<char> buf(64 << 20);
   for (size_t i = 0; i < ficheros.size(); ++i) {
     avisar(Fase::kBuscar, int(i), int(ficheros.size()));
-    std::ifstream f(ficheros[i].fichero, std::ios::binary);
+    auto flujo = iso::AbrirImagen(ficheros[i].fichero);
+    if (!flujo) return "No se pudo leer " + ficheros[i].ruta;
+    std::istream& f = *flujo;
     f.seekg(ficheros[i].offset);
     const uint64_t tam = ficheros[i].tam;
     buscador_disco.EmpezarFichero(tam);
