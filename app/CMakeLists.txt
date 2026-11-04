@@ -8,6 +8,12 @@ project(nfsmw LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Android 15+ devices may use 16 KB memory pages: every native library (game, runtime, SDL) is linked
+# with 16 KB segment alignment, or the loader refuses it and the app dies on launch.
+if(ANDROID)
+  add_link_options("LINKER:-z,max-page-size=16384")
+endif()
+
 include(generated/rexglue.cmake)
 
 # Sources
@@ -37,6 +43,8 @@ set(NFSMW_SOURCES
     src/nfsmw_guardas.cpp
     # The language number of the PAL editions that share the Spanish build (French, German, Italian).
     src/nfsmw_idioma_edicion.cpp
+    # CPU per thread, clocks, temperatures and memory in the log, for performance reports on phones.
+    src/nfsmw_monitor_sistema.cpp
     # Linear resamplers of the sound engine in native code, bit-identical
     # (cvar nfsmw_audio_remuestreo_nativo).
     src/nfsmw_audio_remuestreo.cpp
@@ -46,6 +54,8 @@ set(NFSMW_SOURCES
     # Gain-scaled sum of the sound engine (sub_825FDFB0) in native code, bit-identical
     # (cvar nfsmw_audio_suma_nativa).
     src/nfsmw_audio_suma.cpp
+    # EA's mixer must not evict the engine's AEMS layers when its stopwatch says it is late (sub_82601980).
+    src/nfsmw_audio_presupuesto.cpp
     # Environment variables for Mesa/NVK before creating Vulkan (cvar nfsmw_mesa_entorno) and, on the
     # Switch, the size of Mesa's on-disk shader cache.
     src/nfsmw_entorno_mesa.cpp
@@ -272,6 +282,10 @@ set_source_files_properties(src/lanzador/actualizacion.cpp PROPERTIES COMPILE_DE
 
 # Edition of the game this executable is built for (src/edicion.h): es, usa...
 set(NFSMW_EDICION "es" CACHE STRING "Game edition (es, usa, eu)")
+# Diagnostic build, to send to testers: the renderer's CPU and GPU measurements and the system monitor
+# (nfsmw_monitor_sistema.cpp) on by default, so the exported log says where the time goes on their device.
+option(NFSMW_DIAGNOSTICO "Diagnostic build: performance measurements on by default" OFF)
+target_compile_definitions(nfsmw PRIVATE NFSMW_DIAGNOSTICO=$<BOOL:${NFSMW_DIAGNOSTICO}>)
 set_source_files_properties(src/edicion.cpp PROPERTIES COMPILE_DEFINITIONS "NFSMW_EDICION=\"${NFSMW_EDICION}\"")
 
 # Windows: the icon and version in both executables, and the "NFSMW Recomp.exe" starter that sits at the top of the

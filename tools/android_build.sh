@@ -28,7 +28,7 @@ for step in "${steps[@]}"; do
         -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
         -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 -DANDROID_STL=c++_shared \
         -DREXSDK_DIR="$ROOT/sdk" -DREXGLUE_USE_VULKAN=ON -DNFSMW_EDICION="$EDITION" \
-        -DNFSMW_VERSION=1.0.2 -DREXGLUE_RECOMP_DEBUG_INFO=none
+        -DNFSMW_VERSION=1.0.2 -DREXGLUE_RECOMP_DEBUG_INFO=none -DNFSMW_DIAGNOSTICO="${NFSMW_DIAGNOSTICO:-OFF}"
       ;;
     native)
       ninja -C "$BUILD" nfsmw
@@ -36,6 +36,23 @@ for step in "${steps[@]}"; do
       # shared C++ library (ANDROID_STL=c++_shared), without debug symbols.
       rm -rf "$JNI" && mkdir -p "$JNI"
       cp "$BUILD/libmain.so" "$JNI/"
+      # The other editions' game modules (libmain_<edition>.so, chosen by NfsmwActivity), from the trees made by
+      # tools/editions/crear_arbol.py: NFSMW_EDICIONES_EXTRA, e.g. "usa" (default none).
+      for ed in ${NFSMW_EDICIONES_EXTRA:-}; do
+        tree="$ROOT/app_$ed"
+        [ -d "$tree" ] || { echo "no $tree (tools/editions/crear_arbol.py makes it)"; exit 1; }
+        if [ ! -f "$BUILD-$ed/build.ninja" ]; then
+          cmake -S "$tree" -B "$BUILD-$ed" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 -DANDROID_STL=c++_shared \
+            -DREXSDK_DIR="$ROOT/sdk" -DREXGLUE_USE_VULKAN=ON -DNFSMW_EDICION="$ed" \
+            -DNFSMW_VERSION=1.0.2 -DREXGLUE_RECOMP_DEBUG_INFO=none -DNFSMW_DIAGNOSTICO="${NFSMW_DIAGNOSTICO:-OFF}"
+        else
+          cmake -S "$tree" -B "$BUILD-$ed" -DNFSMW_DIAGNOSTICO="${NFSMW_DIAGNOSTICO:-OFF}" > /dev/null
+        fi
+        ninja -C "$BUILD-$ed" nfsmw
+        cp "$BUILD-$ed/libmain.so" "$JNI/libmain_$ed.so"
+      done
       # No Xenos GPU plugin: the game brings its own graphics system (the Vulkan 1.1 renderer).
       for lib in librexruntime.so libSDL3.so; do
         cp "$ROOT/sdk/out/linux-arm64/$lib" "$JNI/"

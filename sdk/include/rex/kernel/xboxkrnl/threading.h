@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <string>
+
 #include <rex/ppc/context.h>
 #include <rex/system/xevent.h>
 #include <rex/system/xthread.h>
@@ -29,6 +31,11 @@ uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, rex::be<uint32_t>* handles
 uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
                                  uint32_t alertable, uint64_t* timeout_ptr);
 uint32_t xeKeSetEvent(rex::system::X_KEVENT* event_ptr, uint32_t increment, uint32_t wait);
+
+// Diagnostic: guest threads blocked in kernel waits (off by default). DescribeLongWaits lists the ones waiting
+// at least min_ms, with the object and the guest return addresses of their stack.
+void SetWaitRegistryEnabled(bool enabled);
+std::string DescribeLongWaits(uint32_t min_ms);
 
 // Guest-memory spinlock helpers (PPCContext* for r13/PCR access)
 uint32_t xeKeKfAcquireSpinLock(PPCContext* ctx, rex::X_KSPINLOCK* lock, bool change_irql = true);

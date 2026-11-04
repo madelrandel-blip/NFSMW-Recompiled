@@ -58,12 +58,15 @@ function(rex_compute_version out_var)
         set(id "dev.g${short_sha}")
     endif()
 
-    # The floor (major, minor) must never regress behind the last tag.
+    # A tag ahead of the floor is not the SDK's: the SDK lives inside a game's repository, whose own release tags
+    # (v1.0.1, v1.0.2...) match the same pattern. The SDK keeps its floor as a development version.
     if(ARG_FLOOR_MAJOR LESS tag_major OR
        (ARG_FLOOR_MAJOR EQUAL tag_major AND ARG_FLOOR_MINOR LESS tag_minor))
-        message(FATAL_ERROR
-            "rex_compute_version: floor version (${ARG_FLOOR_MAJOR}.${ARG_FLOOR_MINOR}) is behind "
-            "tag version (${tag_major}.${tag_minor}). The floor in CMakeLists.txt must not regress.")
+        message(STATUS
+            "rex_compute_version: tag ${tag_major}.${tag_minor} is ahead of the floor "
+            "(${ARG_FLOOR_MAJOR}.${ARG_FLOOR_MINOR}): taken as the game's, not the SDK's.")
+        set(${out_var} "${ARG_FLOOR_MAJOR}.${ARG_FLOOR_MINOR}.0-${id}" PARENT_SCOPE)
+        return()
     endif()
 
     if(ARG_FLOOR_MAJOR EQUAL tag_major AND ARG_FLOOR_MINOR EQUAL tag_minor)

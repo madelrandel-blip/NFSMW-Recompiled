@@ -29,6 +29,7 @@
 #endif
 #include "nfsmw_ajustes_graficos.h"
 #include "nfsmw_entorno_mesa.h"
+#include "nfsmw_monitor_sistema.h"
 #include "nfsmw_nativo_sistema.h"
 #include "nfsmw_perfil_pc.h"
 #include "nfsmw_prueba_entrada.h"
@@ -318,6 +319,9 @@ class NfsmwApp : public rex::ReXApp {
 
     // Sampling CPU profiler, PC only (nfsmw_perfil_pc_desde_s; off by default).
     nfsmw::perfil_pc::Arrancar();
+
+    // CPU per thread, clocks, temperatures and memory in the log (Android; nfsmw_monitor_sistema_s).
+    nfsmw::monitor::Arrancar();
 
     // Trucos activados en el lanzador (nfsmw_trucos.txt).
     nfsmw::trucos::Arrancar(runtime() ? runtime()->memory() : nullptr);

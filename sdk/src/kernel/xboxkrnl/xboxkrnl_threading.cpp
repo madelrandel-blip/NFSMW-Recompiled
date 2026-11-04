@@ -15,7 +15,13 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstdio>
+#include <cstring>
 #include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include <rex/chrono/clock.h>
@@ -40,6 +46,212 @@
 #include <rex/thread/mutex.h>
 
 namespace rex::kernel::xboxkrnl {
+
+// ---- Diagnostic: who is waiting on what --------------------------------------------------------------------
+// Off unless SetWaitRegistryEnabled(true) (the app's diagnostic build turns it on). Each guest thread that blocks
+// in a kernel wait records the object, when it started and the guest return addresses of its stack, so a stall
+// can be read as "thread X waits on object Y since T, called from Z".
+namespace {
+struct WaitRecord {
+  char kind = '?';
+  uint32_t object = 0;  // guest address or handle (kind tells which)
+  uint32_t count = 1;
+  uint64_t since_ms = 0;
+  uint32_t frames[6] = {};
+};
+std::atomic<bool> g_wait_registry{false};
+std::mutex g_wait_mutex;
+std::unordered_map<uint32_t, WaitRecord> g_waits;  // by guest thread id
+
+// The last signal (set, pulse, release or clear) each object received, by handle or guest address.
+struct SignalRecord {
+  char kind = '?';
+  uint32_t count = 0;
+  uint64_t at_ms = 0;
+  uint32_t lr = 0;
+  uint32_t tid = 0;
+  uint32_t frames[6] = {};
+};
+// Per guest thread: the last signal it sent, whatever the object, so a producer that stops can be found.
+std::unordered_map<uint32_t, std::pair<uint32_t, SignalRecord>> g_signals_by_thread;
+std::unordered_map<uint32_t, SignalRecord> g_signals;
+
+uint64_t WaitNowMs() {
+  return uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
+                      std::chrono::steady_clock::now().time_since_epoch())
+                      .count());
+}
+
+uint32_t LoadGuest32(uint32_t address) {
+  if (address < 0x10000 || address >= 0xE0000000u || (address & 3)) return 0;
+  // The back chain of the outermost frame can hold anything: only committed, readable guest pages are read.
+  auto* heap = REX_KERNEL_MEMORY()->LookupHeap(address);
+  uint32_t protect = 0;
+  if (!heap || !heap->QueryProtect(address, &protect) || !(protect & memory::kMemoryProtectRead)) return 0;
+  uint32_t v = 0;
+  std::memcpy(&v, REX_KERNEL_MEMORY()->TranslateVirtual<uint8_t*>(address), sizeof(v));
+  return __builtin_bswap32(v);
+}
+
+class WaitScope {
+ public:
+  WaitScope(char kind, uint32_t object, uint32_t count = 1) {
+    if (!g_wait_registry.load(std::memory_order_relaxed)) return;
+    system::XThread* thread = system::XThread::GetCurrentThread();
+    if (!thread || !thread->thread_state() || !thread->thread_state()->context()) return;
+    const PPCContext* ctx = thread->thread_state()->context();
+    WaitRecord r;
+    r.kind = kind;
+    r.object = object;
+    r.count = count;
+    r.since_ms = WaitNowMs();
+    r.frames[0] = uint32_t(ctx->lr);
+    // PowerPC back chain: [sp] is the caller's sp and the saved lr sits at caller_sp - 8.
+    uint32_t sp = ctx->r1.u32;
+    for (int i = 1; i < 6; ++i) {
+      const uint32_t next = LoadGuest32(sp);
+      if (next == 0 || next <= sp) break;
+      r.frames[i] = LoadGuest32(next - 8);
+      sp = next;
+    }
+    tid_ = thread->thread_id();
+    std::lock_guard<std::mutex> lock(g_wait_mutex);
+    g_waits[tid_] = r;
+  }
+  ~WaitScope() {
+    if (!tid_) return;
+    std::lock_guard<std::mutex> lock(g_wait_mutex);
+    g_waits.erase(tid_);
+  }
+  WaitScope(const WaitScope&) = delete;
+  WaitScope& operator=(const WaitScope&) = delete;
+
+ private:
+  uint32_t tid_ = 0;
+};
+void NoteSignal(char kind, uint32_t key) {
+  if (!g_wait_registry.load(std::memory_order_relaxed)) return;
+  system::XThread* thread = system::XThread::GetCurrentThread();
+  uint32_t lr = 0, tid = 0;
+  uint32_t frames[6] = {};
+  if (thread && thread->thread_state() && thread->thread_state()->context()) {
+    const PPCContext* ctx = thread->thread_state()->context();
+    lr = uint32_t(ctx->lr);
+    tid = thread->thread_id();
+    frames[0] = lr;
+    uint32_t sp = ctx->r1.u32;
+    for (int i = 1; i < 6; ++i) {
+      const uint32_t next = LoadGuest32(sp);
+      if (next == 0 || next <= sp) break;
+      frames[i] = LoadGuest32(next - 8);
+      sp = next;
+    }
+  }
+  std::lock_guard<std::mutex> lock(g_wait_mutex);
+  SignalRecord& r = g_signals[key];
+  r.kind = kind;
+  ++r.count;
+  r.at_ms = WaitNowMs();
+  r.lr = lr;
+  r.tid = tid;
+  std::memcpy(r.frames, frames, sizeof(frames));
+  if (tid) g_signals_by_thread[tid] = {key, r};
+}
+}  // namespace
+
+void SetWaitRegistryEnabled(bool enabled) { g_wait_registry.store(enabled, std::memory_order_relaxed); }
+
+// Where a guest thread is running: `samples` looks at its saved lr and the first return addresses of its stack,
+// `interval_us` apart, and lists the most frequent ones. Racy by design (another thread's registers), read-only and
+// bounded by the page checks of LoadGuest32.
+std::string SampleGuestThread(uint32_t thread_id, int samples, int interval_us) {
+  system::object_ref<system::XThread> target;
+  for (auto& t : REX_KERNEL_OBJECTS()->GetObjectsByType<system::XThread>()) {
+    if (t->thread_id() == thread_id) {
+      target = t;
+      break;
+    }
+  }
+  if (!target || !target->thread_state() || !target->thread_state()->context()) return "";
+  const PPCContext* ctx = target->thread_state()->context();
+  std::unordered_map<uint64_t, int> seen;
+  for (int i = 0; i < samples; ++i) {
+    const uint32_t lr = uint32_t(ctx->lr);
+    const uint32_t sp = ctx->r1.u32;
+    const uint32_t back = LoadGuest32(sp);
+    const uint32_t caller = back > sp ? LoadGuest32(back - 8) : 0;
+    ++seen[(uint64_t(lr) << 32) | caller];
+    std::this_thread::sleep_for(std::chrono::microseconds(interval_us));
+  }
+  std::vector<std::pair<int, uint64_t>> order;
+  for (const auto& [key, n] : seen) order.push_back({n, key});
+  std::sort(order.rbegin(), order.rend());
+  std::string out;
+  char line[64];
+  for (size_t i = 0; i < order.size() && i < 6; ++i) {
+    std::snprintf(line, sizeof(line), "%s%08X<-%08X x%d", i ? ", " : "", uint32_t(order[i].second >> 32),
+                  uint32_t(order[i].second), order[i].first);
+    out += line;
+  }
+  return out;
+}
+
+std::string DescribeLongWaits(uint32_t min_ms) {
+  const uint64_t now = WaitNowMs();
+  std::string out;
+  std::vector<uint32_t> sample_tids;
+  std::unique_lock<std::mutex> lock(g_wait_mutex);
+  for (const auto& [tid, r] : g_waits) {
+    const uint64_t ms = now - r.since_ms;
+    if (ms < min_ms) continue;
+    char line[400];
+    std::snprintf(line, sizeof(line), "%s hilo %u espera %c %08X (x%u) desde hace %llu ms; pila %08X %08X %08X %08X %08X %08X",
+                  out.empty() ? "" : " |", tid, r.kind, r.object, r.count, (unsigned long long)ms, r.frames[0],
+                  r.frames[1], r.frames[2], r.frames[3], r.frames[4], r.frames[5]);
+    out += line;
+    const auto signal = g_signals.find(r.object);
+    if (signal == g_signals.end()) {
+      out += "; ningun aviso a ese objeto";
+    } else {
+      const SignalRecord& g = signal->second;
+      std::snprintf(line, sizeof(line),
+                    "; ultimo aviso %c hace %llu ms del hilo %u, %u avisos, pila %08X %08X %08X %08X %08X %08X",
+                    g.kind, (unsigned long long)(now - g.at_ms), g.tid, g.count, g.frames[0], g.frames[1],
+                    g.frames[2], g.frames[3], g.frames[4], g.frames[5]);
+      out += line;
+      // What the thread that signalled it last did afterwards: its own last signal, to any object.
+      const auto producer = g_signals_by_thread.find(g.tid);
+      if (producer != g_signals_by_thread.end()) {
+        const SignalRecord& q = producer->second.second;
+        std::snprintf(line, sizeof(line),
+                      "; ese hilo avisa por ultima vez a %08X (%c) hace %llu ms, pila %08X %08X %08X %08X %08X %08X",
+                      producer->second.first, q.kind, (unsigned long long)(now - q.at_ms), q.frames[0], q.frames[1],
+                      q.frames[2], q.frames[3], q.frames[4], q.frames[5]);
+        out += line;
+      }
+      const auto busy = g_waits.find(g.tid);
+      if (busy == g_waits.end()) {
+        out += "; ahora no esta en una espera del kernel";
+        sample_tids.push_back(g.tid);
+      } else {
+        const WaitRecord& w = busy->second;
+        std::snprintf(line, sizeof(line), "; ahora espera %c %08X desde hace %llu ms, pila %08X %08X %08X %08X %08X %08X",
+                      w.kind, w.object, (unsigned long long)(now - w.since_ms), w.frames[0], w.frames[1], w.frames[2],
+                      w.frames[3], w.frames[4], w.frames[5]);
+        out += line;
+      }
+    }
+  }
+  lock.unlock();
+  // A producer that is running instead of waiting: where it spends its time.
+  std::sort(sample_tids.begin(), sample_tids.end());
+  sample_tids.erase(std::unique(sample_tids.begin(), sample_tids.end()), sample_tids.end());
+  for (uint32_t tid : sample_tids) {
+    const std::string where = SampleGuestThread(tid, 50, 2000);
+    if (!where.empty()) out += " | hilo " + std::to_string(tid) + " ejecuta (lr<-llamante): " + where;
+  }
+  return out;
+}
 using namespace rex::system;
 using rex::runtime::current_ppc_context;
 
@@ -463,6 +675,7 @@ void KeInitializeEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 event_type, u32 
 }
 
 uint32_t xeKeSetEvent(X_KEVENT* event_ptr, uint32_t increment, uint32_t wait) {
+  NoteSignal('e', REX_KERNEL_MEMORY()->HostToGuestVirtual(event_ptr));
   auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr);
   if (!ev) {
     assert_always();
@@ -477,6 +690,7 @@ u32 KeSetEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 increment, u32 wait) {
 }
 
 u32 KePulseEvent_entry(ppc_ptr_t<X_KEVENT> event_ptr, u32 increment, u32 wait) {
+  NoteSignal('p', event_ptr.guest_address());
   auto ev = XObject::GetNativeObject<XEvent>(REX_KERNEL_STATE(), event_ptr);
   if (!ev) {
     assert_always();
@@ -528,6 +742,7 @@ u32 NtCreateEvent_entry(mapped_u32 handle_ptr, ppc_ptr_t<X_OBJECT_ATTRIBUTES> ob
 }
 
 uint32_t xeNtSetEvent(uint32_t handle, rex::be<uint32_t>* previous_state_ptr) {
+  NoteSignal('E', handle);
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(handle);
@@ -548,6 +763,7 @@ u32 NtSetEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
 }
 
 u32 NtPulseEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
+  NoteSignal('P', handle);
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(handle);
@@ -564,6 +780,7 @@ u32 NtPulseEvent_entry(u32 handle, mapped_u32 previous_state_ptr) {
 }
 
 uint32_t xeNtClearEvent(uint32_t handle) {
+  NoteSignal('C', handle);
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto ev = REX_KERNEL_OBJECTS()->LookupObject<XEvent>(handle);
@@ -613,6 +830,7 @@ uint32_t xeKeReleaseSemaphore(X_KSEMAPHORE* semaphore_ptr, uint32_t increment, u
 
 u32 KeReleaseSemaphore_entry(ppc_ptr_t<X_KSEMAPHORE> semaphore_ptr, u32 increment, u32 adjustment,
                              u32 wait) {
+  NoteSignal('r', semaphore_ptr.guest_address());
   return xeKeReleaseSemaphore(semaphore_ptr, increment, adjustment, wait);
 }
 
@@ -655,6 +873,7 @@ u32 NtCreateSemaphore_entry(mapped_u32 handle_ptr, mapped_void obj_attributes_pt
 }
 
 u32 NtReleaseSemaphore_entry(u32 sem_handle, u32 release_count, mapped_u32 previous_count_ptr) {
+  NoteSignal('R', sem_handle);
   X_STATUS result = X_STATUS_SUCCESS;
   int32_t previous_count = 0;
 
@@ -819,6 +1038,7 @@ u32 NtCancelTimer_entry(u32 timer_handle, mapped_u32 current_state_ptr) {
 
 uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason, uint32_t processor_mode,
                                  uint32_t alertable, uint64_t* timeout_ptr) {
+  WaitScope scope('K', REX_KERNEL_MEMORY()->HostToGuestVirtual(object_ptr));
   auto object = XObject::GetNativeObject<XObject>(REX_KERNEL_STATE(), object_ptr);
 
   if (!object) {
@@ -856,6 +1076,7 @@ u32 NtWaitForSingleObjectEx_entry(u32 object_handle, u32 wait_mode, u32 alertabl
 
   auto object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(object_handle);
   if (object) {
+    WaitScope scope('H', object_handle);
     uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
     result = object->Wait(3, wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
     if (alertable && result == X_STATUS_USER_APC) {
@@ -884,6 +1105,7 @@ u32 KeWaitForMultipleObjects_entry(u32 count, mapped_u32 objects_ptr, u32 wait_t
     objects.push_back(std::move(object_ref));
   }
 
+  WaitScope scope('M', count ? uint32_t(objects_ptr[0]) : 0, count);
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
   X_STATUS result = XObject::WaitMultiple(
       uint32_t(objects.size()), reinterpret_cast<XObject**>(objects.data()), wait_type, wait_reason,
@@ -909,6 +1131,7 @@ uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, rex::be<uint32_t>* handles
     objects.push_back(std::move(object));
   }
 
+  WaitScope scope('N', count ? uint32_t(handles[0]) : 0, count);
   auto result = XObject::WaitMultiple(count, reinterpret_cast<XObject**>(objects.data()), wait_type,
                                       6, wait_mode, alertable, timeout_ptr);
   if (alertable && result == X_STATUS_USER_APC) {
@@ -931,6 +1154,7 @@ u32 NtSignalAndWaitForSingleObjectEx_entry(u32 signal_handle, u32 wait_handle, u
   auto signal_object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(signal_handle);
   auto wait_object = REX_KERNEL_OBJECTS()->LookupObject<XObject>(wait_handle);
   if (signal_object && wait_object) {
+    WaitScope scope('S', wait_handle);
     uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
     result = XObject::SignalAndWait(signal_object.get(), wait_object.get(), 3, 1, alertable,
                                     timeout_ptr ? &timeout : nullptr);
