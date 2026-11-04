@@ -30,21 +30,25 @@ bool build_attn(BuilderContext& ctx) {
   return true;
 }
 
+// The barriers are real fences, not no-ops. x86 orders memory strongly, but ARM (Android) does not, and with no fence
+// the compiler is free to move loads and stores across them on any host. The game publishes data to other threads
+// behind these: its job queue (sub_8261A9C0 and neighbours) ends an enqueue with a sync, and without the fence a
+// worker could see the new entry before what it points to. On a slow ARM phone that left the track streamer waiting
+// forever. There are a few dozen of them in the whole game, so the cost does not matter.
 bool build_sync(BuilderContext& ctx) {
-  // Memory barrier, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  ctx.println("	__atomic_thread_fence(__ATOMIC_SEQ_CST);");
   return true;
 }
 
 bool build_lwsync(BuilderContext& ctx) {
-  // Lightweight memory barrier, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  // Orders everything except a store followed by a load: acquire plus release.
+  ctx.println("	__atomic_thread_fence(__ATOMIC_ACQ_REL);");
   return true;
 }
 
 bool build_eieio(BuilderContext& ctx) {
-  // Enforce in-order execution of I/O, x86 has strong ordering so this is a no-op
-  (void)ctx;
+  // Orders stores to memory and to the GPU (the D3D ring and its write pointer) among themselves.
+  ctx.println("	__atomic_thread_fence(__ATOMIC_SEQ_CST);");
   return true;
 }
 

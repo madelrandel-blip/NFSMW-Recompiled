@@ -306,7 +306,25 @@ class PosixConditionBase {
   virtual ~PosixConditionBase() = default;
   virtual bool Signal() = 0;
 
+  // Counts the threads inside a wait on this object, so a pulse can wake exactly those (see PosixEvent::Pulse).
+  class WaiterScope {
+   public:
+    explicit WaiterScope(PosixConditionBase* handle) : handle_(handle) {
+      handle_->waiters_.fetch_add(1, std::memory_order_acq_rel);
+    }
+    ~WaiterScope() {
+      handle_->waiters_.fetch_sub(1, std::memory_order_acq_rel);
+      handle_->OnWaiterLeft();
+    }
+    WaiterScope(const WaiterScope&) = delete;
+    WaiterScope& operator=(const WaiterScope&) = delete;
+
+   private:
+    PosixConditionBase* handle_;
+  };
+
   WaitResult Wait(std::chrono::milliseconds timeout) {
+    WaiterScope waiter(this);
     bool executed;
     auto predicate = [this] { return this->signaled(); };
 #if defined(__SWITCH__)
@@ -374,6 +392,11 @@ class PosixConditionBase {
     if (handles.size() == 1) {
       auto result = handles[0]->Wait(timeout);
       return std::make_pair(result, 0);
+    }
+    std::vector<std::unique_ptr<WaiterScope>> waiters;
+    waiters.reserve(handles.size());
+    for (auto* handle : handles) {
+      waiters.push_back(std::make_unique<WaiterScope>(handle));
     }
 
     auto start_time = std::chrono::steady_clock::now();
@@ -498,8 +521,11 @@ class PosixConditionBase {
  protected:
   inline virtual bool signaled() const = 0;
   inline virtual void post_execution() = 0;
+  // Called without the lock when a thread leaves a wait on this object, whatever the result.
+  virtual void OnWaiterLeft() {}
   std::condition_variable cond_;
   std::mutex mutex_;
+  std::atomic<int> waiters_{0};
 };
 
 // There really is no native POSIX handle for a single wait/signal construct
@@ -519,6 +545,7 @@ class PosixCondition<Event> : public PosixConditionBase {
   bool Signal() override {
     auto lock = std::unique_lock<std::mutex>(mutex_);
     signal_ = true;
+    pulse_left_ = 0;
     cond_.notify_all();
     return true;
   }
@@ -526,9 +553,34 @@ class PosixCondition<Event> : public PosixConditionBase {
   void Reset() {
     auto lock = std::unique_lock<std::mutex>(mutex_);
     signal_ = false;
+    pulse_left_ = 0;
+  }
+
+  // PulseEvent: wakes the threads waiting right now (one for an auto-reset event, all of them for a manual one) and
+  // leaves the event unsignaled. Signaling and resetting after a fixed pause lost the wakeup whenever the waiter did
+  // not get to run within the pause, which on a slow phone is most of the time: the game's job threads then never
+  // learned there was work, and the track streamer waited forever for a section.
+  void Pulse() {
+    auto lock = std::unique_lock<std::mutex>(mutex_);
+    const int waiting = waiters_.load(std::memory_order_acquire);
+    if (waiting <= 0) {
+      return;  // nobody to wake: a pulse is not remembered
+    }
+    signal_ = true;
+    // Auto-reset: the first waiter to take it clears it (post_execution). Manual: each current waiter leaving the
+    // wait takes one share, and the last share clears it.
+    pulse_left_ = manual_reset_ ? waiting : 0;
+    cond_.notify_all();
   }
 
  private:
+  void OnWaiterLeft() override {
+    if (!manual_reset_) return;
+    auto lock = std::unique_lock<std::mutex>(mutex_);
+    if (pulse_left_ > 0 && --pulse_left_ == 0) {
+      signal_ = false;
+    }
+  }
   inline bool signaled() const override { return signal_; }
   inline void post_execution() override {
     if (!manual_reset_) {
@@ -537,6 +589,7 @@ class PosixCondition<Event> : public PosixConditionBase {
   }
   bool signal_;
   const bool manual_reset_;
+  int pulse_left_ = 0;
 };
 
 template <>
@@ -1362,13 +1415,7 @@ class PosixEvent : public PosixConditionHandle<Event> {
   ~PosixEvent() override = default;
   void Set() override { handle_.Signal(); }
   void Reset() override { handle_.Reset(); }
-  void Pulse() override {
-    using namespace std::chrono_literals;
-    handle_.Signal();
-    MaybeYield();
-    Sleep(10us);
-    handle_.Reset();
-  }
+  void Pulse() override { handle_.Pulse(); }
 };
 
 std::unique_ptr<Event> Event::CreateManualResetEvent(bool initial_state) {
