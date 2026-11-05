@@ -531,6 +531,20 @@ void RenderTargets::Copy(VkCommandBuffer commands, const nativo::RegistrosCopia&
     // the destination go to the image's scale, so the resolved texture is as small as the map.
     const float scale = target->scale;
     uint32_t dest_width = dest_pitch, dest_rows = dest_height;
+    // The guest pitch is the texture width rounded up to 32. When the game copies a rectangle from the origin whose
+    // size rounds up to exactly that pitch, the texture it samples afterwards is the rectangle's size: a 832x468
+    // internal resolution gives quarter and eighth buffers of 208 and 104 pixels in pitches of 224 and 128, and an
+    // image the size of the pitch stretched them, so the bloom and blur showed shifted to the right. At 720p (320 and
+    // 160) the sizes already are multiples of 32 and this changes nothing.
+    if (dx == 0 && dy == 0 && x1 > x0 && y1 > y0) {
+      const uint32_t rect_width = uint32_t(x1 - x0), rect_rows = uint32_t(y1 - y0);
+      if (rect_width < dest_pitch && ((rect_width + 31) & ~31u) == dest_pitch) {
+        dest_width = rect_width;
+      }
+      if (rect_rows < dest_height && ((rect_rows + 31) & ~31u) == dest_height) {
+        dest_rows = rect_rows;
+      }
+    }
     if (scale < 1.0f) {
       x0 = int32_t(std::floor(float(x0) * scale));
       y0 = int32_t(std::floor(float(y0) * scale));
@@ -538,8 +552,8 @@ void RenderTargets::Copy(VkCommandBuffer commands, const nativo::RegistrosCopia&
       y1 = int32_t(std::ceil(float(y1) * scale));
       dx = uint32_t(std::lround(float(dx) * scale));
       dy = uint32_t(std::lround(float(dy) * scale));
-      dest_width = std::max<uint32_t>(1, uint32_t(std::lround(float(dest_pitch) * scale)));
-      dest_rows = std::max<uint32_t>(1, uint32_t(std::lround(float(dest_height) * scale)));
+      dest_width = std::max<uint32_t>(1, uint32_t(std::lround(float(dest_width) * scale)));
+      dest_rows = std::max<uint32_t>(1, uint32_t(std::lround(float(dest_rows) * scale)));
     }
     const bool color_dest = dest_format == uint32_t(xenos::ColorFormat::k_8_8_8_8) ||
                             dest_format == uint32_t(xenos::ColorFormat::k_8_8_8_8_A) ||
