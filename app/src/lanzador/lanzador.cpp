@@ -1283,11 +1283,15 @@ void Lanzador::DibujarGraficos() {
           {"960 × 540 (540p)", "960x540", 540},          {"1024 × 576 (576p)", "1024x576", 576},
           {"1280 × 720 (720p)", "1280x720", 720},        {"1600 × 900 (900p)", "1600x900", 900},
           // Sin 4K: sus cuatro superficies de 32 MB no caben en los 512 MB de la consola y el juego se cierra al arrancar.
-          {"1920 × 1080 (1080p)", "1920x1080", 1080},    {"2560 × 1440 (1440p, exp.)", "2560x1440", 1440}};
+          {"1920 × 1080 (1080p)", "1920x1080", 1080},    {"2560 × 1440 (1440p, supersampling)", "2560x1440", 1440}};
       std::vector<Opcion> resoluciones;
       for (const Res& r : kResoluciones) {
         // 720p siempre (la de la Xbox 360), aunque la pantalla sea mas pequena.
-        if (r.alto <= 720 || r.alto <= pantalla.alto) resoluciones.push_back({r.etiqueta, r.valor});
+        // 1080p and 1440p always: above the screen they work as supersampling (drawn bigger and reduced, very smooth
+        // edges), and a 720p phone can afford 1080p.
+        if (r.alto <= 720 || r.alto <= pantalla.alto || r.alto == 1080 || r.alto == 1440) {
+          resoluciones.push_back({r.etiqueta, r.valor});
+        }
       }
       ComboCvar(T("graf.resolucion"), "nfsmw_resolucion_interna", resoluciones);
       if (pantalla.alto >= 1440) Nota(T("graf.resolucion_nota"));
@@ -1300,6 +1304,8 @@ void Lanzador::DibujarGraficos() {
               {{"@graf.vsync_auto", "automatico"}, {"@graf.vsync_on", "activada"}, {"@graf.vsync_triple", "triple"},
                {"@graf.vsync_off", "apagada"}});
     Nota(T("graf.vsync_nota"));
+    BoolCvar(T("graf.shaders_opt"), "nfsmw_spirv_optimizar");
+    Nota(T("graf.shaders_opt_nota"));
   }
   {
     Tarjeta t(T("graf.imagen"));
