@@ -26,7 +26,7 @@ struct Valor {
 
 // clang-format off
 constexpr Valor kValores[] = {
-  {"nfsmw_resolucion_interna",     {"1024x576", "1280x720", "1280x720", "1920x1080"}},
+  {"nfsmw_resolucion_interna",     {"1280x720", "1280x720", "1280x720", "1920x1080"}},
   {"nfsmw_antialiasing",           {"apagado",  "apagado",  "fxaa",     "fxaa"}},
   {"nfsmw_sombras_corte",          {"250",      "150",      "100",      "100"}},
   {"nfsmw_nativo_sombras_escala",  {"64",       "100",      "100",      "100"}},
@@ -64,7 +64,7 @@ void AplicarXbox360() {
       {"nfsmw_sombras_corte", "100"},
       {"nfsmw_nativo_sombras_escala", "100"},    // 1600x1600, como la Xbox 360
       {"nfsmw_sombras_sin_vegetacion", "false"},
-      {"nfsmw_sombras_mapas", "2"},
+      {"nfsmw_sombras_mapas", "1"},              // misma imagen: el juego pisa el primer mapa sin usarlo
       {"nfsmw_sombras_cada", "1"},
       {"nfsmw_reflejo_carretera", "true"},
       {"nfsmw_reflejo_refresco", "1"},

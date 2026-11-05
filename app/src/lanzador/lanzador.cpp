@@ -94,13 +94,16 @@ void PonerCv(const char* nombre, const std::string& valor) {
 // Los ajustes del lanzador que solo valen al reiniciar el juego: el
 // renderizador se crea antes del lanzador (kInitOnly), el limite de fps es
 // kRequiresRestart y la resolucion interna va al modo de video del arranque.
-constexpr const char* kAjustesConReinicio[] = {"nfsmw_msaa", "nfsmw_limite_fps", "nfsmw_resolucion_interna"};
+constexpr const char* kAjustesConReinicio[] = {"nfsmw_msaa", "nfsmw_limite_fps", "nfsmw_resolucion_interna",
+                                               "nfsmw_sincronizacion"};
 
 std::filesystem::path DesdeUtf8(const std::string& s) { return std::u8string(s.begin(), s.end()); }
 
 std::filesystem::path CarpetaExtraccion() { return rex::filesystem::GetExecutableFolder() / "game_root"; }
 
 bool EsIso(const std::filesystem::path& p) {
+  // A document opened through Android's picker (JuegoGuardado): always an image, it is the only file it picks.
+  if (p.string().rfind("/proc/self/fd/", 0) == 0) return true;
   auto ext = p.extension().string();
   std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return char(std::tolower(c)); });
   return ext == ".iso";
@@ -417,8 +420,13 @@ void Separador() { ImGui::Dummy(ImVec2(0, S(6))); }
 // inercia. Si el arrastre empezo sobre un boton, se cancela su pulsacion (no se pulsa al soltar); los arrastres
 // horizontales siguen siendo de los controles (barras, selectores).
 void DesplazarConDedo() {
-  static bool arrastrando = false;
-  static float inercia = 0.0f;
+  // State per scrolling area (the page and the side menu), so dragging one does not move the other.
+  struct Arrastre {
+    bool arrastrando = false;
+    float inercia = 0.0f;
+  };
+  static std::unordered_map<ImGuiID, Arrastre> estados;
+  auto& [arrastrando, inercia] = estados[ImGui::GetCurrentWindow()->ID];
   const ImGuiIO& io = ImGui::GetIO();
   if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
     if (!arrastrando) {
@@ -533,8 +541,7 @@ constexpr bool kIsoDirecta = true;
 bool ImagenValida(const std::filesystem::path& imagen) {
   static std::string clave;
   static bool valida = false;
-  std::error_code ec;
-  const std::string actual = rex::path_to_utf8(imagen) + "|" + std::to_string(std::filesystem::file_size(imagen, ec));
+  const std::string actual = rex::path_to_utf8(imagen) + "|" + std::to_string(iso::TamanoImagen(imagen));
   if (actual != clave) {
     clave = actual;
     valida = iso::EsImagenDelJuego(imagen);
@@ -542,9 +549,36 @@ bool ImagenValida(const std::filesystem::path& imagen) {
   return valida;
 }
 
-std::filesystem::path CarpetaGuardada(const std::filesystem::path& por_defecto) {
+// The game copy in nfsmw_juego (or `por_defecto`), ready to open: an Android document (content://..., picked with
+// no storage permission) is opened once per process and read through /proc/self/fd/N.
+std::filesystem::path JuegoGuardado(const std::filesystem::path& por_defecto) {
   const std::string guardado = REXCVAR_GET(nfsmw_juego);
-  const auto juego = guardado.empty() ? por_defecto : DesdeUtf8(guardado);
+  if (guardado.empty()) return por_defecto;
+  if (guardado.rfind("content://", 0) == 0) return sistema::AbrirDocumento(guardado);
+  return DesdeUtf8(guardado);
+}
+
+// What the launcher shows for nfsmw_juego: the path, or the file name of an Android document.
+std::string JuegoParaMostrar(const std::filesystem::path& por_defecto) {
+  const std::string guardado = REXCVAR_GET(nfsmw_juego);
+  if (guardado.empty()) return por_defecto.empty() ? std::string() : rex::path_to_utf8(por_defecto);
+  if (guardado.rfind("content://", 0) != 0) return guardado;
+  // content://.../document/primary%3AXbox%20360%2FNeed%20for%20Speed.iso -> Need for Speed.iso
+  std::string nombre;
+  for (size_t i = 0; i < guardado.size(); ++i) {
+    if (guardado[i] == '%' && i + 2 < guardado.size()) {
+      nombre += char(std::strtol(guardado.substr(i + 1, 2).c_str(), nullptr, 16));
+      i += 2;
+    } else {
+      nombre += guardado[i];
+    }
+  }
+  const size_t corte = nombre.find_last_of("/:");
+  return corte == std::string::npos ? nombre : nombre.substr(corte + 1);
+}
+
+std::filesystem::path CarpetaGuardada(const std::filesystem::path& por_defecto) {
+  const auto juego = JuegoGuardado(por_defecto);
   if (juego.empty()) return {};
   if (EsIso(juego) && !kIsoDirecta)
     return iso::CopiaValida(CarpetaExtraccion(), juego) ? CarpetaExtraccion() : juego;
@@ -584,11 +618,10 @@ Lanzador::~Lanzador() {
 }
 
 Lanzador::Estado Lanzador::EstadoJuego() const {
-  const std::string guardado = REXCVAR_GET(nfsmw_juego);
-  const auto juego = guardado.empty() ? juego_por_defecto_ : DesdeUtf8(guardado);
+  const auto juego = JuegoGuardado(juego_por_defecto_);
   if (juego.empty()) return Estado::kNinguno;
   std::error_code ec;
-  if (!std::filesystem::exists(juego, ec)) return Estado::kFalta;
+  if (!std::filesystem::exists(juego, ec) && !iso::EsImagen(juego)) return Estado::kFalta;
   if (EsIso(juego)) {
     if (kIsoDirecta) return ImagenValida(juego) ? Estado::kIsoLista : Estado::kInvalida;
     return iso::CopiaValida(CarpetaExtraccion(), juego) ? Estado::kIsoLista : Estado::kIsoNueva;
@@ -599,15 +632,10 @@ Lanzador::Estado Lanzador::EstadoJuego() const {
 std::filesystem::path Lanzador::CarpetaJuego() const {
   switch (EstadoJuego()) {
     case Estado::kIsoLista:
-      if (kIsoDirecta) {
-        const std::string guardado = REXCVAR_GET(nfsmw_juego);
-        return guardado.empty() ? juego_por_defecto_ : DesdeUtf8(guardado);
-      }
+      if (kIsoDirecta) return JuegoGuardado(juego_por_defecto_);
       return CarpetaExtraccion();
-    case Estado::kCarpeta: {
-      const std::string guardado = REXCVAR_GET(nfsmw_juego);
-      return guardado.empty() ? juego_por_defecto_ : DesdeUtf8(guardado);
-    }
+    case Estado::kCarpeta:
+      return JuegoGuardado(juego_por_defecto_);
     default:
       return {};
   }
@@ -637,8 +665,7 @@ void Lanzador::ArrancarTarea(Tarea tarea) {
   tarea_ = tarea;
 
   if (tarea == Tarea::kExtraer) {
-    const std::string guardado = REXCVAR_GET(nfsmw_juego);
-    const auto imagen = guardado.empty() ? juego_por_defecto_ : DesdeUtf8(guardado);
+    const auto imagen = JuegoGuardado(juego_por_defecto_);
     hilo_ = std::thread([this, imagen] {
       const std::string error = iso::Extraer(imagen, CarpetaExtraccion(),
                                              [this](const std::string& fichero, int hechos, int total) {
@@ -712,6 +739,8 @@ void Lanzador::Jugar() {
   // Copia que juega el modulo de otra edicion: en Windows se relanza este mismo nfsmw.exe con ese modulo; en
   // los demas, su ejecutable, que esta al lado de este.
   if (!ed.empty() && edicion::Familia(ed) != edicion::Propia()) {
+#if !defined(__ANDROID__)
+    // On Android the modules are inside the APK (libmain_<edicion>.so), with no file of their own to look for.
     const auto modulo = edicion::Modulo(edicion::Familia(ed));
     std::error_code ec;
     if (!std::filesystem::is_regular_file(modulo, ec)) {
@@ -719,7 +748,8 @@ void Lanzador::Jugar() {
       error_ = std::string(T("ed.falta_exe")) + " " + rex::path_to_utf8(modulo.filename());
       return;
     }
-#if defined(_WIN32)
+#endif
+#if defined(_WIN32) || defined(__ANDROID__)
     if (sistema::Relanzar("--nfsmw_lanzador_omitir=true --nfsmw_modulo=" + edicion::Familia(ed))) callbacks_.salir();
 #else
     if (sistema::Lanzar(modulo, "--nfsmw_lanzador_omitir=true")) callbacks_.salir();
@@ -990,8 +1020,17 @@ void Lanzador::DibujarLateral(float alto) {
   ImGui::PopFont();
   dl->AddRectFilled(ImVec2(x, S(122)), ImVec2(x + S(36), S(124)), kResalte);
 
-  // Menu.
-  float y = S(156);
+  // Menu, in its own scrolling area: on a phone in landscape the eight pages do not fit below the logo, and the
+  // last ones (Partidas, Trucos...) were out of reach. Dragged with the finger like the page.
+  const float y_menu = S(140);
+  ImGui::SetCursorScreenPos(ImVec2(0, y_menu));
+  ImGui::BeginChild("##menu", ImVec2(ancho, alto - y_menu), ImGuiChildFlags_None,
+                    ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar);
+#if defined(__ANDROID__)
+  DesplazarConDedo();
+#endif
+  dl = ImGui::GetWindowDrawList();
+  float y = ImGui::GetCursorScreenPos().y + S(16);
   for (int i = 0; i < kNumPaginas; ++i) {
     const ImVec2 a(S(14), y), b(ancho - S(14), y + S(50));
     ImGui::SetCursorScreenPos(a);
@@ -1016,6 +1055,10 @@ void Lanzador::DibujarLateral(float alto) {
     ImGui::PopFont();
     y += S(54);
   }
+  // The scrolling extent: down to the last item, plus a margin.
+  ImGui::SetCursorScreenPos(ImVec2(0, y));
+  ImGui::Dummy(ImVec2(0, S(12)));
+  ImGui::EndChild();
 }
 
 void Lanzador::DibujarPie(float ancho, float alto) {
@@ -1123,9 +1166,8 @@ void Lanzador::DibujarInicio() {
   DibujarPortada();
   {
     Tarjeta t(T("juego.titulo"));
-    const std::string guardado = REXCVAR_GET(nfsmw_juego);
-    const auto juego = guardado.empty() ? juego_por_defecto_ : DesdeUtf8(guardado);
-    const std::string ruta = juego.empty() ? T("juego.ninguno") : rex::path_to_utf8(juego);
+    const auto juego = JuegoGuardado(juego_por_defecto_);
+    const std::string ruta = juego.empty() ? T("juego.ninguno") : JuegoParaMostrar(juego_por_defecto_);
 
     // La ruta en un campo, y los dos botones a su derecha.
     const float botones = S(170) * 2 + S(10);
@@ -1140,7 +1182,9 @@ void Lanzador::DibujarInicio() {
                 ruta.c_str());
     dl->PopClipRect();
 
-    const auto inicial = juego.empty() ? rex::filesystem::GetExecutableFolder() : juego.parent_path();
+    const auto inicial = juego.empty() || juego.string().rfind("/proc/", 0) == 0
+                             ? rex::filesystem::GetExecutableFolder()
+                             : juego.parent_path();
     ImGui::SetCursorScreenPos(ImVec2(p.x + campo + S(10), p.y));
     if (Boton(ConId(T("btn.iso"), "iso").c_str(), false, ImVec2(S(170), alto))) {
       const auto elegida = sistema::ElegirIso(inicial);
@@ -1233,23 +1277,35 @@ void Lanzador::DibujarGraficos() {
         int alto;
       };
       static constexpr Res kResoluciones[] = {
-          {"640 × 360 (360p)", "640x360", 360},          {"1024 × 576 (576p)", "1024x576", 576},
+          // Por debajo de 720p se dibuja de verdad a ese tamano (escena, HUD y bufer frontal) con el modo de video en
+          // 720p. Anchos multiplos de 32: por eso 832x468 en lugar de 854x480.
+          {"640 × 360 (360p)", "640x360", 360},          {"832 × 468 (≈480p)", "832x468", 468},
+          {"960 × 540 (540p)", "960x540", 540},          {"1024 × 576 (576p)", "1024x576", 576},
           {"1280 × 720 (720p)", "1280x720", 720},        {"1600 × 900 (900p)", "1600x900", 900},
-          {"1920 × 1080 (1080p)", "1920x1080", 1080},    {"2560 × 1440 (1440p, exp.)", "2560x1440", 1440},
-          {"3840 × 2160 (4K, exp.)", "3840x2160", 2160}};
+          // Sin 4K: sus cuatro superficies de 32 MB no caben en los 512 MB de la consola y el juego se cierra al arrancar.
+          {"1920 × 1080 (1080p)", "1920x1080", 1080},    {"2560 × 1440 (1440p, supersampling)", "2560x1440", 1440}};
       std::vector<Opcion> resoluciones;
       for (const Res& r : kResoluciones) {
         // 720p siempre (la de la Xbox 360), aunque la pantalla sea mas pequena.
-        if (r.alto <= 720 || r.alto <= pantalla.alto) resoluciones.push_back({r.etiqueta, r.valor});
+        // 1080p and 1440p always: above the screen they work as supersampling (drawn bigger and reduced, very smooth
+        // edges), and a 720p phone can afford 1080p.
+        if (r.alto <= 720 || r.alto <= pantalla.alto || r.alto == 1080 || r.alto == 1440) {
+          resoluciones.push_back({r.etiqueta, r.valor});
+        }
       }
       ComboCvar(T("graf.resolucion"), "nfsmw_resolucion_interna", resoluciones);
-      Nota(T("graf.resolucion_baja_nota"));
       if (pantalla.alto >= 1440) Nota(T("graf.resolucion_nota"));
     }
     SegCvar(T("graf.limite"), "nfsmw_limite_fps",
             {{"@graf.limite_30", "30"}, {"@graf.limite_60", "60"}, {"@graf.limite_120", "120"},
              {"@graf.limite_ilimitado", "ilimitado"}});
     Nota(T("graf.limite_nota"));
+    ComboCvar(T("graf.vsync"), "nfsmw_sincronizacion",
+              {{"@graf.vsync_auto", "automatico"}, {"@graf.vsync_on", "activada"}, {"@graf.vsync_triple", "triple"},
+               {"@graf.vsync_off", "apagada"}});
+    Nota(T("graf.vsync_nota"));
+    BoolCvar(T("graf.shaders_opt"), "nfsmw_spirv_optimizar");
+    Nota(T("graf.shaders_opt_nota"));
   }
   {
     Tarjeta t(T("graf.imagen"));

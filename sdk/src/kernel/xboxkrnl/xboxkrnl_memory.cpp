@@ -21,6 +21,8 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 #include <rex/system/kernel_state.h>
+#include <rex/system/thread_state.h>
+#include <rex/system/xthread.h>
 #include <rex/system/xtypes.h>
 
 namespace rex::kernel::xboxkrnl {
@@ -399,8 +401,23 @@ u32 MmAllocatePhysicalMemoryEx_entry(u32 flags, u32 region_size, u32 protect_bit
   uint32_t base_address;
   if (!heap->AllocRange(heap_min_addr, heap_max_addr, adjusted_size, adjusted_alignment,
                         allocation_type, protect, top_down, &base_address)) {
-    // Failed - assume no memory available.
+    // Failed - assume no memory available. Said once with the size: a title that sizes its buffers from the
+    // resolution (4K) runs out here, and the guest only sees a null pointer.
+    auto* thread = system::XThread::GetCurrentThread();
+    REXKRNL_WARN("MmAllocatePhysicalMemoryEx: no room for {:#x} bytes (pages of {} KB, range {:#x}-{:#x}), "
+                 "called from {:08X}",
+                 adjusted_size, page_size / 1024, (uint32_t)min_addr_range, (uint32_t)max_addr_range,
+                 thread && thread->thread_state() && thread->thread_state()->context()
+                     ? uint32_t(thread->thread_state()->context()->lr)
+                     : 0u);
     return 0;
+  }
+  if (adjusted_size >= (8u << 20)) {
+    auto* thread = system::XThread::GetCurrentThread();
+    REXKRNL_INFO("MmAllocatePhysicalMemoryEx: {:#x} bytes at {:#x}, called from {:08X}", adjusted_size, base_address,
+                 thread && thread->thread_state() && thread->thread_state()->context()
+                     ? uint32_t(thread->thread_state()->context()->lr)
+                     : 0u);
   }
   REXKRNL_IMPORT_RESULT("MmAllocatePhysicalMemoryEx", "addr={:#x}", base_address);
 

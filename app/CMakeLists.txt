@@ -8,6 +8,12 @@ project(nfsmw LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Android 15+ devices may use 16 KB memory pages: every native library (game, runtime, SDL) is linked
+# with 16 KB segment alignment, or the loader refuses it and the app dies on launch.
+if(ANDROID)
+  add_link_options("LINKER:-z,max-page-size=16384")
+endif()
+
 include(generated/rexglue.cmake)
 
 # Sources
@@ -37,6 +43,8 @@ set(NFSMW_SOURCES
     src/nfsmw_guardas.cpp
     # The language number of the PAL editions that share the Spanish build (French, German, Italian).
     src/nfsmw_idioma_edicion.cpp
+    # CPU per thread, clocks, temperatures and memory in the log, for performance reports on phones.
+    src/nfsmw_monitor_sistema.cpp
     # Linear resamplers of the sound engine in native code, bit-identical
     # (cvar nfsmw_audio_remuestreo_nativo).
     src/nfsmw_audio_remuestreo.cpp
@@ -46,6 +54,8 @@ set(NFSMW_SOURCES
     # Gain-scaled sum of the sound engine (sub_825FDFB0) in native code, bit-identical
     # (cvar nfsmw_audio_suma_nativa).
     src/nfsmw_audio_suma.cpp
+    # EA's mixer must not evict the engine's AEMS layers when its stopwatch says it is late (sub_82601980).
+    src/nfsmw_audio_presupuesto.cpp
     # Environment variables for Mesa/NVK before creating Vulkan (cvar nfsmw_mesa_entorno) and, on the
     # Switch, the size of Mesa's on-disk shader cache.
     src/nfsmw_entorno_mesa.cpp
@@ -138,6 +148,14 @@ if(WIN32)
     target_sources(nfsmw PRIVATE src/nfsmw_pc_coma_flotante.cpp)
     # Sampling CPU profiler for the PC tests (cvar nfsmw_perfil_pc_desde_s, 0 = never).
     target_sources(nfsmw PRIVATE src/nfsmw_perfil_pc.cpp)
+    # Profiling aid: CodeView symbols for our own code (not the generated one, which would make the link huge),
+    # so the profiler's samples inside the renderer and the native replacements can be named. Off by default.
+    option(NFSMW_SIMBOLOS_PROPIOS "PC: symbols (PDB) for app/src, for profiling" OFF)
+    if(NFSMW_SIMBOLOS_PROPIOS)
+        file(GLOB_RECURSE NFSMW_PROPIOS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+        set_source_files_properties(${NFSMW_PROPIOS} PROPERTIES COMPILE_OPTIONS "-g;-gcodeview")
+        target_link_options(nfsmw PRIVATE "-g" "-Wl,/DEBUG")
+    endif()
     # Dialogo nativo de ficheros del lanzador (IFileOpenDialog) y ShellExecute.
     target_link_libraries(nfsmw PRIVATE ole32 shell32 uuid winhttp)
     # Full symbols (CodeView) of the native renderer in the PDB: without them the profiler only sees the public
@@ -198,6 +216,11 @@ target_include_directories(nfsmw PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generado")
 
 # The SDK's FFmpeg (WMV3 decoder) for the cutscenes: nfsmw_video_wmv3.cpp.
 target_link_libraries(nfsmw PRIVATE libavcodec)
+# Optimizes the SPIR-V of the translated shaders once (renderer/shader_modules.cpp), when the SDK built it.
+if(TARGET SPIRV-Tools-opt)
+    target_link_libraries(nfsmw PRIVATE SPIRV-Tools-opt)
+    target_compile_definitions(nfsmw PRIVATE NFSMW_SPIRV_OPT=1)
+endif()
 
 # PC build with the SDK as a subdirectory (tools/pc/construir_pc.bat):
 # rex_app.cpp includes imgui.h and rexruntime links imgui privately, so its
@@ -272,6 +295,10 @@ set_source_files_properties(src/lanzador/actualizacion.cpp PROPERTIES COMPILE_DE
 
 # Edition of the game this executable is built for (src/edicion.h): es, usa...
 set(NFSMW_EDICION "es" CACHE STRING "Game edition (es, usa, eu)")
+# Diagnostic build, to send to testers: the renderer's CPU and GPU measurements and the system monitor
+# (nfsmw_monitor_sistema.cpp) on by default, so the exported log says where the time goes on their device.
+option(NFSMW_DIAGNOSTICO "Diagnostic build: performance measurements on by default" OFF)
+target_compile_definitions(nfsmw PRIVATE NFSMW_DIAGNOSTICO=$<BOOL:${NFSMW_DIAGNOSTICO}>)
 set_source_files_properties(src/edicion.cpp PROPERTIES COMPILE_DEFINITIONS "NFSMW_EDICION=\"${NFSMW_EDICION}\"")
 
 # Windows: the icon and version in both executables, and the "NFSMW Recomp.exe" starter that sits at the top of the

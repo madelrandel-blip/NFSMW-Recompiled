@@ -3,11 +3,16 @@ package com.nfsmwrecomp;
 import android.app.ActivityManager;
 import android.app.ApplicationExitInfo;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.BatteryManager;
+import android.os.PowerManager;
 import android.os.Build;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -67,6 +72,7 @@ final class CrashReport {
                 .append(", Android ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT)
                 .append("), ").append(Build.HARDWARE).append("\n\n");
 
+        appendDeviceDetails(context, report);
         appendExitReasons(context, report);
 
         File javaCrash = new File(context.getFilesDir(), JAVA_CRASH);
@@ -99,6 +105,65 @@ final class CrashReport {
 
     static final String AUDIO_DUMP = "audio_salida.wav";
 
+    /**
+     * What the game logs do not say about the phone, for performance reports: SoC, cores and their top clocks,
+     * memory, heat and battery, at the time of the export. The game logs the clocks, heat and CPU use while it runs
+     * (nfsmw_monitor_sistema).
+     */
+    private static void appendDeviceDetails(Context context, StringBuilder report) {
+        report.append("== Device ==\n");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            report.append("SoC: ").append(Build.SOC_MANUFACTURER).append(' ').append(Build.SOC_MODEL).append('\n');
+        }
+        report.append("Board: ").append(Build.BOARD).append(", ABIs: ").append(String.join(" ", Build.SUPPORTED_ABIS))
+                .append('\n');
+        int cores = Runtime.getRuntime().availableProcessors();
+        report.append("CPU cores: ").append(cores).append(", top MHz per core:");
+        for (int i = 0; i < cores; ++i) {
+            report.append(' ').append(readLong("/sys/devices/system/cpu/cpu" + i + "/cpufreq/cpuinfo_max_freq") / 1000);
+        }
+        report.append('\n');
+        ActivityManager activities = context.getSystemService(ActivityManager.class);
+        if (activities != null) {
+            ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
+            activities.getMemoryInfo(memory);
+            report.append("RAM: ").append(memory.totalMem >> 20).append(" MB, ").append(memory.availMem >> 20)
+                    .append(" MB free").append(memory.lowMemory ? " (low memory)" : "").append('\n');
+        }
+        PowerManager power = context.getSystemService(PowerManager.class);
+        if (power != null) {
+            report.append("Thermal status: ").append(power.getCurrentThermalStatus())
+                    .append(" (0 none, 1 light, 2 moderate, 3 severe, 4 critical); power saving ")
+                    .append(power.isPowerSaveMode()).append('\n');
+        }
+        Intent battery = context.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        if (battery != null) {
+            report.append("Battery: ").append(battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)).append(" %, ")
+                    .append(battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) / 10.0).append(" C, charging ")
+                    .append(battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0).append('\n');
+        }
+        report.append('\n');
+    }
+
+    private static long readLong(String path) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(path))) {
+            return Long.parseLong(reader.readLine().trim());
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /** nfsmw_012 for nfsmw_012.log and for its rotated parts nfsmw_012.1.log, nfsmw_012.2.log... */
+    private static String logSession(String name) {
+        String base = name.substring(0, name.length() - ".log".length());
+        int dot = base.lastIndexOf('.');
+        return dot > 0 && base.substring(dot + 1).matches("\\d+") ? base.substring(0, dot) : base;
+    }
+
+    /**
+     * The logs of the newest `count` sessions, each with all its parts: a long session rotates every 5 MB into
+     * nfsmw_012.log, nfsmw_012.1.log..., and sending only the newest files lost its beginning.
+     */
     static List<File> newestLogs(Context context, int count) {
         List<File> logs = new ArrayList<>();
         for (File folder : new File[] {NfsmwActivity.dataFolder(context, false), context.getExternalFilesDir(null)}) {
@@ -112,7 +177,19 @@ final class CrashReport {
             }
         }
         logs.sort((a, b) -> Long.compare(b.lastModified(), a.lastModified()));
-        return logs.subList(0, Math.min(count, logs.size()));
+        List<String> sessions = new ArrayList<>();
+        List<File> chosen = new ArrayList<>();
+        for (File log : logs) {
+            String session = logSession(log.getName());
+            if (!sessions.contains(session)) {
+                if (sessions.size() == count) {
+                    continue;
+                }
+                sessions.add(session);
+            }
+            chosen.add(log);
+        }
+        return chosen;
     }
 
     private static void appendExitReasons(Context context, StringBuilder report) {

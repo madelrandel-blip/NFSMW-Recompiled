@@ -63,12 +63,15 @@ class TextureCache {
   // Work done since the last call to TakeStats (performance report).
   struct Stats {
     uint64_t lookups = 0;
+    uint64_t memo_hits = 0;  // answered from this frame's memo (Get with a fetch constant already looked up)
     uint64_t fingerprints = 0;
     uint64_t fingerprint_bytes = 0;
     uint64_t uploads = 0;
     uint64_t upload_bytes = 0;
     uint64_t created = 0;
     uint64_t create_ns = 0;
+    uint64_t upload_ns = 0;       // Upload (guest data converted into upload memory and the copy recorded)
+    uint64_t fingerprint_ns = 0;
   };
   Stats TakeStats() { return std::exchange(stats_, Stats{}); }
   const Stats& stats() const { return stats_; }
@@ -96,6 +99,7 @@ class TextureCache {
     uint64_t fingerprint = 0;
     uint64_t validated_frame = UINT64_MAX;
     uint64_t changed_frame = 0;  // the last frame its data was found changed
+    uint32_t uploads = 0;        // times its data was uploaded (1: only its first upload, never seen changing)
     uint64_t used_frame = 0;
     VkDeviceSize bytes = 0;
   };
@@ -122,6 +126,21 @@ class TextureCache {
   VkSampler SamplerFor(const xenos::xe_gpu_texture_fetch_t& fetch, TextureDimension dimension);
   void DestroyTextureLater(Texture& texture);
   TextureBinding Placeholder(TextureDimension dimension);
+  TextureBinding Lookup(const xenos::xe_gpu_texture_fetch_t& fetch, TextureDimension dimension);
+
+  // What Get answered for each fetch constant this frame. Within a frame the answer for the same six fetch words
+  // cannot change: the texture was validated and uploaded on the first lookup (validated_frame), textures are only
+  // released in EndFrame, and a resolve (copy_generation) invalidates the whole memo. Direct mapped: a collision
+  // only costs a normal lookup.
+  struct Memo {
+    std::array<uint32_t, 6> words{};
+    uint32_t dimension = 0;
+    uint64_t frame = UINT64_MAX;
+    uint64_t copies = 0;
+    TextureBinding binding;
+  };
+  static constexpr uint32_t kMemoSize = 512;
+  std::array<Memo, kMemoSize> memo_{};
 
   const VulkanContext& context_;
   FrameRing& frames_;

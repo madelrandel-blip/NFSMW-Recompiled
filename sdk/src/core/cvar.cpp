@@ -93,6 +93,13 @@ bool ApplyFromSource(FlagEntry& entry, std::string_view value, Source source) {
   return true;
 }
 
+// What the configuration file said for each key, as read. A value the command line overrides for one run is saved
+// back as the file had it, not as the run used it.
+std::unordered_map<std::string, std::string>& GetConfigFileValues() {
+  static std::unordered_map<std::string, std::string> values;
+  return values;
+}
+
 // Recursively apply TOML values
 void ApplyTomlTable(const toml::table& table, const std::string& prefix) {
   for (const auto& [key, value] : table) {
@@ -115,6 +122,10 @@ void ApplyTomlTable(const toml::table& table, const std::string& prefix) {
         continue;
       }
 
+      {
+        std::lock_guard lock(GetRegistryMutex());
+        GetConfigFileValues()[full_key] = value_str;
+      }
       if (GetFlagInfo(full_key) == nullptr) {
         std::lock_guard lock(GetRegistryMutex());
         GetPendingValuesStorage()[full_key].config = value_str;
@@ -550,16 +561,25 @@ static std::string TomlString(const std::string& value) {
   return out;
 }
 
-static std::string SerializeEntry(const FlagEntry& entry) {
-  const std::string value = entry.getter();
+static std::string SerializeValue(const FlagEntry& entry, const std::string& value) {
   return entry.name + " = " + (entry.type == FlagType::String ? TomlString(value) : value) + "\n";
+}
+
+static std::string SerializeEntry(const FlagEntry& entry) {
+  // A value that came from the command line is for that run only (tests, the launcher's relaunch flags): the file
+  // keeps what it had for it, or nothing.
+  if (entry.source == Source::kCommandLine) {
+    const auto it = GetConfigFileValues().find(entry.name);
+    return it != GetConfigFileValues().end() ? SerializeValue(entry, it->second) : std::string();
+  }
+  return entry.getter() != entry.default_value ? SerializeValue(entry, entry.getter()) : std::string();
 }
 
 std::string SerializeToTOML() {
   std::lock_guard lock(GetRegistryMutex());
   std::string result;
   for (const auto& entry : GetRegistryStorage()) {
-    if (entry.getter() != entry.default_value) result += SerializeEntry(entry);
+    result += SerializeEntry(entry);
   }
   return result;
 }
@@ -568,7 +588,7 @@ std::string SerializeToTOML(std::string_view category) {
   std::lock_guard lock(GetRegistryMutex());
   std::string result;
   for (const auto& entry : GetRegistryStorage()) {
-    if (entry.category == category && entry.getter() != entry.default_value) result += SerializeEntry(entry);
+    if (entry.category == category) result += SerializeEntry(entry);
   }
   return result;
 }

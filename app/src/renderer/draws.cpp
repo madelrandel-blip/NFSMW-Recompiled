@@ -33,11 +33,15 @@ REXCVAR_DEFINE_BOOL(nfsmw_sombras_sin_vegetacion, false, "NFSMW",
                     "No dibujar en el mapa de sombras lo que lleva prueba de alfa: arboles, arbustos y vallas de "
                     "alambre. Son el 55 % de los dibujos del pase. Los arboles dejan de proyectar sombra (lo "
                     "encienden los perfiles bajo y medio)");
-REXCVAR_DEFINE_BOOL(nfsmw_perfil_dibujos, false, "NFSMW",
+// On by default in a diagnostic build (NFSMW_DIAGNOSTICO, app/CMakeLists.txt), like nfsmw_gpu_por_pasada.
+#ifndef NFSMW_DIAGNOSTICO
+#define NFSMW_DIAGNOSTICO 0
+#endif
+REXCVAR_DEFINE_BOOL(nfsmw_perfil_dibujos, NFSMW_DIAGNOSTICO != 0, "NFSMW",
                     "Renderizador Vulkan 1.1 (analisis): mide el tiempo de CPU de cada dibujo por etapas (destinos, "
                     "indices, texturas, pasada, pipeline, constantes, vertices, comandos) y lo escribe en el log cada "
                     "5 s; cuesta unas 9 lecturas del reloj por dibujo");
-REXCVAR_DEFINE_BOOL(nfsmw_gpu_por_pasada, false, "NFSMW",
+REXCVAR_DEFINE_BOOL(nfsmw_gpu_por_pasada, NFSMW_DIAGNOSTICO != 0, "NFSMW",
                     "Renderizador Vulkan 1.1 (analisis): marcas de tiempo de GPU entre las pasadas, para el reparto "
                     "\"GPU per frame by piece\" del log. En una GPU de movil pueden impedir que una pasada se solape "
                     "con la siguiente, asi que cuestan algo; el tiempo total del fotograma se mide siempre");
@@ -800,10 +804,20 @@ bool Draws::UploadConstants(const nativo::PeticionDibujo& request, const GuestRe
     ps_constants_generation_ = request.generacion_constantes_ps;
     ps_constants_bytes_ = ps_bytes;
   }
-  VkDeviceSize shared_offset;
-  if (!upload(shared, SharedBlockV11::kSize, SharedBlockV11::kSize, shared_offset)) {
-    return Reject(30, "upload memory full (constants)");
+  // Only within the same frame slot: an offset of another slot's buffer is not covered by this frame's fence.
+  const uint64_t frame = frames_.frame_number();
+  if (shared_previous_.size() != SharedBlockV11::kSize || shared_frame_ != frame || shared_buffer_ != constants_buffer_ ||
+      std::memcmp(shared_previous_.data(), shared, SharedBlockV11::kSize) != 0) {
+    VkDeviceSize shared_offset;
+    if (!upload(shared, SharedBlockV11::kSize, SharedBlockV11::kSize, shared_offset)) {
+      return Reject(30, "upload memory full (constants)");
+    }
+    shared_previous_.assign(shared, shared + SharedBlockV11::kSize);
+    shared_offset_ = shared_offset;
+    shared_buffer_ = constants_buffer_;
+    shared_frame_ = frames_.frame_number();
   }
+  const VkDeviceSize shared_offset = shared_offset_;
   // Each frame slot has a single upload buffer, so the three blocks always share it.
   buffer = constants_buffer_;
   offsets = {uint32_t(vs_constants_offset_), uint32_t(ps_constants_offset_), uint32_t(shared_offset)};
@@ -1185,10 +1199,18 @@ bool Draws::Draw(const nativo::PeticionDibujo& request) {
     bound_.pipeline = pipeline;
   }
   if (bound_.sets_dirty || uniform_set_ != bound_.uniform_set || uniform_offsets != bound_.uniform_offsets) {
-    const VkDescriptorSet sets[2] = {bound_.texture_set, uniform_set_};
     ++Stats().counters().descriptor_binds;
-    fn.vkCmdBindDescriptorSets(commands, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.layout(), 0, 2, sets, 3,
-                               uniform_offsets.data());
+    if (bound_.sets_dirty) {
+      const VkDescriptorSet sets[2] = {bound_.texture_set, uniform_set_};
+      fn.vkCmdBindDescriptorSets(commands, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.layout(), 0, 2, sets, 3,
+                                 uniform_offsets.data());
+    } else {
+      // Only the constants moved: set 1 alone. Binding set 0 again with the same textures makes some GPUs (Intel)
+      // reload their texture binding table for nothing; set 0 stays bound, the layout is the same.
+      ++Stats().counters().uniform_only_binds;
+      fn.vkCmdBindDescriptorSets(commands, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.layout(), 1, 1, &uniform_set_,
+                                 3, uniform_offsets.data());
+    }
     bound_.uniform_set = uniform_set_;
     bound_.uniform_offsets = uniform_offsets;
     bound_.sets_dirty = false;

@@ -19,6 +19,7 @@ struct FrameCounters {
   uint64_t draws = 0;
   uint64_t pipeline_binds = 0;
   uint64_t descriptor_binds = 0;
+  uint64_t uniform_only_binds = 0;  // of those, only the constants set (the textures stayed bound)
   uint64_t texture_set_writes = 0;  // descriptor sets allocated and written for textures
   uint64_t texture_reuses = 0;      // draws that took the previous draw's textures without looking them up
   uint64_t uniform_set_writes = 0;

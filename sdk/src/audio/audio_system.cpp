@@ -32,10 +32,14 @@
 REXCVAR_DEFINE_INT32(
     audio_maxqframes, REX_PLATFORM_ANDROID ? 20 : 8, "Audio",
     "Max buffered audio frames (range 4-64). Lower reduces latency but may cause stuttering.");
-REXCVAR_DEFINE_BOOL(audio_diag_prioridad_critica, false, "Audio",
-                    "Diagnostico (solo PC): Audio Worker y XMA Decoder a prioridad de tiempo critico, "
-                    "como en la Switch, donde van por encima de los hilos del juego y no ceden el "
-                    "nucleo mientras tienen trabajo");
+// On by default on the PC since 04/11: on a two-core laptop (Iris 540) the renderer and three game threads already
+// ask for more than four hardware threads, and at normal priority the XMA contexts went 50-100 ms without input about
+// 200 times per race (crashes and frame drops sounded broken). These threads mostly wait, so the priority only makes
+// them run as soon as they have work, as on the Switch.
+REXCVAR_DEFINE_BOOL(audio_diag_prioridad_critica, true, "Audio",
+                    "Solo PC: Audio Worker y XMA Decoder a prioridad de tiempo critico, como en la Switch, "
+                    "por encima de los hilos del juego. Evita cortes del sonido cuando la CPU va llena "
+                    "(choques, bajones). false = prioridad normal");
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch

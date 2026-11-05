@@ -11,6 +11,7 @@
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
 #include <rex/logging.h>
+#include <rex/ppc/func.h>
 
 #define PSAPI_VERSION 2  // K32EnumProcessModules and friends, in kernel32
 #include <windows.h>
@@ -297,6 +298,12 @@ void Bucle(int desde_s, int duracion_s) {
       std::fprintf(f, "#modulo;%zu;%s;%llX;%llX\n", i, modulos[i].nombre.c_str(),
                    static_cast<unsigned long long>(modulos[i].base),
                    static_cast<unsigned long long>(modulos[i].tam));
+    }
+    // The recompiled functions' host addresses, to name the samples offline (the game module has no symbols):
+    // a sample belongs to the closest function at or below it.
+    for (const PPCFuncMapping* m = PPCFuncMappings; m->host; ++m) {
+      std::fprintf(f, "#funcion;%zX;%llX\n", m->guest,
+                   static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(m->host)));
     }
     for (size_t i = 0; i < hilos.size(); ++i) {
       if (hilos[i].muestras) {

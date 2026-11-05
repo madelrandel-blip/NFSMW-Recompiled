@@ -51,9 +51,14 @@ REXCVAR_DEFINE_INT32(nfsmw_sombras_cada, 1, "NFSMW",
  * sampling both. If that map is the far-range one, distant shadows stay stuck while the car moves. This
  * must be checked in motion.
  */
-REXCVAR_DEFINE_INT32(nfsmw_sombras_mapas, 2, "NFSMW",
-                     "Mapas de sombras que dibuja el juego en carrera: 2 (como el juego) o 1. Con 1 se "
-                     "ahorra la mitad de los dibujos del pase, pero el segundo mapa se queda congelado")
+// In a race the game draws its two maps (views 13 and 14) into the same 1600x1600 depth target and resolves both to
+// the same texture, same address and rectangle, with nothing reading it in between (frame trace, 04/11): the first
+// is overwritten before any use. One map gives the same image, compared live on PC, and saves ~940 draws and a
+// 1600x1600 pass per frame.
+REXCVAR_DEFINE_INT32(nfsmw_sombras_mapas, 1, "NFSMW",
+                     "Mapas de sombras que dibuja el juego en carrera: 1 (por defecto) o 2 (como el juego). El juego "
+                     "dibuja los dos en la misma textura y el primero se pisa sin usarse: con 1 se ve igual y se "
+                     "ahorran unos 940 dibujos por fotograma")
     .range(1, 2);
 
 /*

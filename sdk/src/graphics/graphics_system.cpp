@@ -12,6 +12,7 @@
 #include <rex/graphics/graphics_system.h>
 
 #include <algorithm>
+#include <thread>
 #include <cctype>
 #include <cstdint>
 #include <functional>
@@ -30,6 +31,13 @@
 #include <rex/ui/graphics_provider.h>
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 REXCVAR_DEFINE_STRING(swap_post_effect, "none", "GPU", "Swap post effect: none, fxaa, fxaa_extreme")
     .allowed({"none", "fxaa", "fxaa_extreme"})
@@ -157,17 +165,45 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
         uint64_t vsync_interval_ticks =
             std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
         uint64_t no_vsync_interval_ticks = std::max(uint64_t(1), guest_tick_frequency / 1000);
-        uint64_t last_frame_time = chrono::Clock::QueryGuestTickCount();
+        // One vblank per deadline, woken up close to it. Polling with a 1 ms sleep fired them in bursts: a Windows
+        // Sleep(1) lasts 1 to 15.6 ms, so at 120 Hz (8.3 ms) two vblanks came almost together and then a gap, and
+        // after a late wake-up every missed one went off at once. The game paces its frames on these, so the
+        // counter said 120 but the frames were uneven, and a burst let it run uncapped for a moment.
+#ifdef _WIN32
+        HANDLE timer =
+            CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+#endif
+        uint64_t next_vblank = chrono::Clock::QueryGuestTickCount();
         while (vsync_worker_running_) {
-          uint64_t current_time = chrono::Clock::QueryGuestTickCount();
-          uint64_t interval_ticks =
+          const uint64_t interval_ticks =
               REXCVAR_GET(vsync) ? vsync_interval_ticks : no_vsync_interval_ticks;
-          while (current_time - last_frame_time >= interval_ticks) {
-            MarkVblank();
-            last_frame_time += interval_ticks;
+          next_vblank += interval_ticks;
+          uint64_t now = chrono::Clock::QueryGuestTickCount();
+          if (now > next_vblank + 4 * interval_ticks) {
+            // Far behind (the process was paused or starved): start over from now instead of a burst.
+            next_vblank = now + interval_ticks;
           }
-          rex::thread::Sleep(std::chrono::milliseconds(1));
+          if (next_vblank > now) {
+            const auto wait = std::chrono::microseconds(
+                int64_t((next_vblank - now) * 1000000ull / std::max<uint64_t>(guest_tick_frequency, 1)));
+#ifdef _WIN32
+            LARGE_INTEGER due;
+            due.QuadPart = -int64_t(wait.count()) * 10;  // relative, in 100 ns units
+            if (!timer || !SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE) ||
+                WaitForSingleObject(timer, INFINITE) != WAIT_OBJECT_0) {
+              rex::thread::Sleep(std::chrono::milliseconds(1));
+            }
+#else
+            std::this_thread::sleep_for(wait);
+#endif
+          }
+          MarkVblank();
         }
+#ifdef _WIN32
+        if (timer) {
+          CloseHandle(timer);
+        }
+#endif
         return 0;
       }));
   // TODO: set_can_debugger_suspend not yet ported

@@ -18,13 +18,10 @@ REXCVAR_DEFINE_STRING(nfsmw_resolucion_interna, "automatico", "Graficos",
                       "portatil, cambiando en marcha al meter y sacar la consola de la base Y siguiendo tambien a "
                       "Reverse-NX. Ojo: con Reverse-NX los relojes no suben, asi que ahi el 1080p cuesta un tercio "
                       "de los FPS. 1280x720 es la de la Xbox 360. 1920x1080 la fija siempre. 1024x576 es el modo de "
-                      "menos resolucion del propio juego: 36 % menos pixeles (este pide reiniciar). "
-                      "640x360 y 640x480 bajan mas, pero OJO: medido el 20/09, esto NO cambia la resolucion a la "
-                      "que DIBUJA el juego -sigue en 1280x720- sino solo el tamano al que se encoge al resolver. "
-                      "Lo que ahorra es el posproceso, las copias y el cubo; la escena no se mueve. De 1280x720 a "
-                      "1024x576 son 2,14 ms reales y el posproceso ya baja a 0,03, asi que por debajo queda poco "
-                      "que rascar y el escalado si se ve")
-    .allowed({"automatico", "640x360", "640x480", "1024x576", "1280x720", "1600x900", "1920x1080", "2560x1440",
+                      "menos resolucion del propio juego. Por debajo de 720p (640x360, 832x468, 960x540, 1024x576) se "
+                      "dibuja de verdad a ese tamano, escena y HUD, y se escala a la pantalla: menos pixeles, mas "
+                      "FPS en moviles; se ve mas borroso. 640x480 (4:3) equivale a 1280x720")
+    .allowed({"automatico", "640x360", "640x480", "832x468", "960x540", "1024x576", "1280x720", "1600x900", "1920x1080", "2560x1440",
               "3840x2160"});
 
 /*
@@ -93,6 +90,14 @@ REXCVAR_DEFINE_BOOL(nfsmw_switch_relojes_reverse, false, "Graficos",
  * in the PM4 ring thread spending 6.4-7.5 ms per frame inside presentation without recording the next
  * frame.
  */
+REXCVAR_DEFINE_STRING(nfsmw_sincronizacion, "automatico", "Graficos",
+                      "Sincronizacion vertical de la presentacion. automatico: la de cada plataforma (en PC sin "
+                      "sincronizar, con tearing si el juego va mas rapido que el monitor). activada: espera al "
+                      "refresco del monitor, sin tearing. triple: sin tearing y sin esperar (triple bufer, si la "
+                      "GPU lo permite). apagada: sin sincronizar. Se aplica al reiniciar")
+    .allowed({"automatico", "apagada", "activada", "triple"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
 REXCVAR_DEFINE_STRING(nfsmw_limite_fps, "60", "Graficos",
                       "FPS maximos del juego. 120 e ilimitado son experimentales: el vblank del juego se dispara a 120 Hz o sin tope (1000 Hz). 60: sin limite propio (el juego va al ritmo de un vblank de 60 Hz). 30: "
                       "ritmo fijo de 30 FPS, sin altibajos, con el juego a su velocidad. Se aplica al reiniciar")
@@ -257,7 +262,25 @@ extern "C" void RexSwitchApmAplicar(void);
 #endif
 
 void AplicarAjustesGraficos() {
-  const std::string resolucion = REXCVAR_GET(nfsmw_resolucion_interna);
+  std::string resolucion = REXCVAR_GET(nfsmw_resolucion_interna);
+  // Below 720p the size used to go into the game's video mode. The scene was still drawn at 1280x720, so it saved
+  // almost nothing, and with that video mode the start of the story mode never loads the city: the track streamer
+  // stops after the first section of zone 318, every time. The 16:9 sizes now go through the render target table
+  // like the high ones (ResolucionAlta); the 4:3 640x480 has no equivalent there and means 1280x720.
+  // 4K does not fit in the console's memory: the game sizes four 32 MB screen surfaces (front buffer and scene
+  // targets, 3840x2176) from the resolution in its 512 MB of physical memory, next to a fixed 345 MB streaming pool,
+  // and then the shadow maps find no room and it crashes at startup. 2560x1440 is the largest that fits with margin.
+  if (resolucion == "3840x2160") {
+    REXLOG_WARN("[ajustes] resolucion interna 3840x2160 no cabe en la memoria del juego: se usa 2560x1440");
+    resolucion = "2560x1440";
+    rex::cvar::SetFlagByName("nfsmw_resolucion_interna", resolucion);
+  }
+  if (resolucion == "640x480") {
+    REXLOG_WARN("[ajustes] resolucion interna {} ya no se aplica (rompe el modo historia): se usa 1280x720",
+                resolucion);
+    resolucion = "1280x720";
+    rex::cvar::SetFlagByName("nfsmw_resolucion_interna", resolucion);
+  }
   // 1920x1080 is not requested through the video mode. The game has its own table and above 1280x720 it
   // stays at 1280x720, so asking for it does nothing. What does work is writing the size into the mode
   // table of its renderer: nfsmw_render_targets.cpp does that, reading this same cvar, and also switches
@@ -283,6 +306,16 @@ void AplicarAjustesGraficos() {
   RexSwitchApmAplicar();
   RexSwitchPerfIntervaloSwap(unsigned(REXCVAR_GET(nfsmw_intervalo_swap)));
 #endif
+  // Presentation mode, through the presenter's own switches: it takes the first allowed of immediate, mailbox,
+  // FIFO relaxed and FIFO. "automatico" leaves each platform's defaults.
+  const std::string sincronizacion = REXCVAR_GET(nfsmw_sincronizacion);
+  if (sincronizacion != "automatico") {
+    const bool apagada = sincronizacion == "apagada";
+    Poner("vulkan_allow_present_mode_immediate", apagada ? "true" : "false");
+    Poner("vulkan_allow_present_mode_mailbox", sincronizacion == "triple" ? "true" : "false");
+    Poner("vulkan_allow_present_mode_fifo_relaxed", "false");
+    REXLOG_INFO("[ajustes] sincronizacion vertical: {}", sincronizacion);
+  }
   Poner("resolution", "");  // empty preset: the width and height above apply
   const std::string limite = REXCVAR_GET(nfsmw_limite_fps);
   Poner("video_mode_refresh_rate", limite == "30" ? "30" : limite == "120" ? "120" : limite == "ilimitado" ? "1000" : "60");

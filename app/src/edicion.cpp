@@ -45,8 +45,7 @@ const char* Propia() { return NFSMW_EDICION; }
 
 std::string Detectar(const std::filesystem::path& carpeta_juego) {
   std::string sha;
-  std::error_code ec;
-  if (std::filesystem::is_regular_file(carpeta_juego, ec)) {
+  if (iso::EsImagen(carpeta_juego)) {
     const auto xex = iso::LeerFichero(carpeta_juego, "default.xex");
     if (!xex.empty()) sha = shaders::Sha256Datos(xex.data(), xex.size());
   } else {

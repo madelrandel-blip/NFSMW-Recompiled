@@ -34,10 +34,14 @@ namespace {
 // Cache budget: above it, textures unused for kEvictAfterFrames frames are released.
 constexpr VkDeviceSize kBudgetBytes = VkDeviceSize(512) << 20;
 constexpr uint64_t kEvictAfterFrames = 300;
-// Data checks: every frame while a texture is new or changing; once it has been unchanged for kStableFrames frames,
-// one frame out of kStableCheckInterval (staggered by key, so the work spreads over the frames).
+// Data checks: every frame while a texture is changing; once it has been unchanged for kStableFrames frames, one frame
+// out of kStableCheckInterval (staggered by key, so the work spreads over the frames). A new texture that has not
+// changed since its first upload (nearly all of them: the streamer writes the data before the game draws it) is
+// checked one frame out of kNewCheckInterval meanwhile: after a zone loads, hundreds of new textures checked every
+// frame for two seconds read ~57 MB per frame and took 11-16 ms (PC, 04/11), which was the stutter.
 constexpr uint64_t kStableFrames = 60;
 constexpr uint64_t kStableCheckInterval = 16;
+constexpr uint64_t kNewCheckInterval = 4;
 
 uint32_t Log2(uint32_t value) {
   uint32_t log = 0;
@@ -741,6 +745,31 @@ TextureBinding TextureCache::Get(const GuestRegisters& registers, uint32_t fetch
   if (fetch.type != xenos::FetchConstantType::kTexture) {
     return Placeholder(dimension);
   }
+  static_assert(sizeof(fetch) == sizeof(Memo::words), "a texture fetch constant is six words");
+  std::array<uint32_t, 6> words;
+  std::memcpy(words.data(), &fetch, sizeof(words));
+  uint64_t hash = uint32_t(dimension);
+  for (uint32_t w : words) {
+    hash = (hash ^ w) * 0x100000001B3ull;
+  }
+  Memo& memo = memo_[(hash ^ (hash >> 29)) % kMemoSize];
+  const uint64_t frame = frames_.frame_number();
+  const uint64_t copies = render_targets_.copy_generation();
+  if (memo.frame == frame && memo.copies == copies && memo.dimension == uint32_t(dimension) && memo.words == words) {
+    ++stats_.memo_hits;
+    return memo.binding;
+  }
+  const TextureBinding binding = Lookup(fetch, dimension);
+  // Uploads go into the frame: if one opened a new slot, the frame number moved and the memo is for that one.
+  memo.words = words;
+  memo.dimension = uint32_t(dimension);
+  memo.frame = frames_.frame_number();
+  memo.copies = render_targets_.copy_generation();
+  memo.binding = binding;
+  return binding;
+}
+
+TextureBinding TextureCache::Lookup(const xenos::xe_gpu_texture_fetch_t& fetch, TextureDimension dimension) {
   ++stats_.lookups;
   TextureBinding binding;
   binding.sampler = SamplerFor(fetch, dimension);
@@ -807,15 +836,24 @@ TextureBinding TextureCache::Get(const GuestRegisters& registers, uint32_t fetch
     total_bytes_ += texture.bytes;
   }
   const bool stable = texture.fingerprint && frame - texture.changed_frame >= kStableFrames;
-  if (texture.validated_frame != frame && (!stable || (frame + key) % kStableCheckInterval == 0)) {
+  const uint64_t interval = stable ? kStableCheckInterval : texture.uploads == 1 ? kNewCheckInterval : 1;
+  if (texture.validated_frame != frame && (frame + key) % interval == 0) {
     texture.validated_frame = frame;
+    const auto fingerprint_start = std::chrono::steady_clock::now();
     const uint64_t fingerprint = Fingerprint(fetch, dimension) | 1;  // never 0, which means "not uploaded"
+    const auto upload_start = std::chrono::steady_clock::now();
+    stats_.fingerprint_ns += uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(upload_start - fingerprint_start).count());
     if (fingerprint != texture.fingerprint) {
-      if (!Upload(texture, fetch, format, dimension)) {
+      const bool uploaded = Upload(texture, fetch, format, dimension);
+      stats_.upload_ns += uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                       std::chrono::steady_clock::now() - upload_start)
+                                       .count());
+      if (!uploaded) {
         return Placeholder(dimension);
       }
       texture.fingerprint = fingerprint;
       texture.changed_frame = frame;
+      ++texture.uploads;
     }
   }
   texture.used_frame = frame;

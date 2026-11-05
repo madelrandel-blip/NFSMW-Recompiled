@@ -20,8 +20,63 @@
 #include <stack>
 #include <vector>
 
+#include <rex/filesystem.h>
+
+#if !defined(_WIN32)
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 namespace nfsmw::iso {
 namespace {
+
+#if !defined(_WIN32)
+// An istream over a descriptor the process holds (pread: its own position, so the descriptor can be shared).
+class LectorDescriptor : public std::streambuf {
+ public:
+  explicit LectorDescriptor(int fd) : fd_(fd) { setg(buf_, buf_, buf_); }
+  ~LectorDescriptor() override { close(fd_); }
+
+ protected:
+  int_type underflow() override {
+    const ssize_t n = pread(fd_, buf_, sizeof(buf_), off_t(pos_));
+    if (n <= 0) return traits_type::eof();
+    pos_ += uint64_t(n);
+    setg(buf_, buf_, buf_ + n);
+    return traits_type::to_int_type(buf_[0]);
+  }
+  pos_type seekoff(off_type off, std::ios_base::seekdir dir, std::ios_base::openmode) override {
+    const int64_t actual = int64_t(pos_) - (egptr() - gptr());
+    int64_t destino = off;
+    if (dir == std::ios_base::cur) destino += actual;
+    if (dir == std::ios_base::end) {
+      struct stat st {};
+      if (fstat(fd_, &st) != 0) return pos_type(off_type(-1));
+      destino += int64_t(st.st_size);
+    }
+    if (destino < 0) return pos_type(off_type(-1));
+    pos_ = uint64_t(destino);
+    setg(buf_, buf_, buf_);
+    return pos_type(off_type(destino));
+  }
+  pos_type seekpos(pos_type pos, std::ios_base::openmode modo) override {
+    return seekoff(off_type(pos), std::ios_base::beg, modo);
+  }
+
+ private:
+  int fd_;
+  uint64_t pos_ = 0;
+  char buf_[1 << 16];
+};
+
+class FlujoDescriptor : public std::istream {
+ public:
+  explicit FlujoDescriptor(int fd) : std::istream(nullptr), lector_(fd) { rdbuf(&lector_); }
+
+ private:
+  LectorDescriptor lector_;
+};
+#endif
 
 constexpr int64_t kSector = 2048;
 constexpr char kMagic[] = "MICROSOFT*XBOX*MEDIA";
@@ -42,14 +97,14 @@ uint32_t Leer32(const std::vector<uint8_t>& b, size_t o) {
   return uint32_t(b[o]) | (uint32_t(b[o + 1]) << 8) | (uint32_t(b[o + 2]) << 16) | (uint32_t(b[o + 3]) << 24);
 }
 
-bool MagicEn(std::ifstream& f, int64_t base) {
+bool MagicEn(std::istream& f, int64_t base) {
   char buf[kMagicLen];
   f.clear();
   f.seekg(base + 32 * kSector);
   return f.read(buf, kMagicLen) && std::memcmp(buf, kMagic, kMagicLen) == 0;
 }
 
-int64_t DetectarBase(std::ifstream& f) {
+int64_t DetectarBase(std::istream& f) {
   for (int64_t base : kBasesConocidas)
     if (MagicEn(f, base)) return base;
 
@@ -72,7 +127,7 @@ int64_t DetectarBase(std::ifstream& f) {
   return -1;
 }
 
-std::vector<uint8_t> LeerBloque(std::ifstream& f, int64_t offset, uint32_t tam) {
+std::vector<uint8_t> LeerBloque(std::istream& f, int64_t offset, uint32_t tam) {
   std::vector<uint8_t> b(tam);
   f.clear();
   f.seekg(offset);
@@ -81,7 +136,7 @@ std::vector<uint8_t> LeerBloque(std::ifstream& f, int64_t offset, uint32_t tam) 
   return b;
 }
 
-void Recorrer(std::ifstream& f, int64_t base, uint32_t sector, uint32_t tam, const std::string& prefijo,
+void Recorrer(std::istream& f, int64_t base, uint32_t sector, uint32_t tam, const std::string& prefijo,
               std::vector<Entrada>& salida) {
   if (tam == 0 || tam > (256u << 20)) return;
   const auto tabla = LeerBloque(f, base + int64_t(sector) * kSector, tam);
@@ -177,9 +232,37 @@ std::string Extraer(const std::filesystem::path& imagen, const std::filesystem::
   return {};
 }
 
+std::unique_ptr<std::istream> AbrirImagen(const std::filesystem::path& imagen) {
+#if !defined(_WIN32)
+  if (const int fd = rex::filesystem::DescriptorFromProcPath(imagen); fd >= 0) {
+    const int propio = dup(fd);
+    if (propio < 0) return nullptr;
+    return std::make_unique<FlujoDescriptor>(propio);
+  }
+#endif
+  auto f = std::make_unique<std::ifstream>(imagen, std::ios::binary);
+  if (!*f) return nullptr;
+  return f;
+}
+
+uint64_t TamanoImagen(const std::filesystem::path& imagen) {
+#if !defined(_WIN32)
+  if (const int fd = rex::filesystem::DescriptorFromProcPath(imagen); fd >= 0) {
+    struct stat st {};
+    return fstat(fd, &st) == 0 ? uint64_t(st.st_size) : 0;
+  }
+#endif
+  std::error_code ec;
+  const auto tam = std::filesystem::file_size(imagen, ec);
+  return ec ? 0 : uint64_t(tam);
+}
+
+bool EsImagen(const std::filesystem::path& ruta) { return rex::filesystem::IsFileOrHeldDescriptor(ruta); }
+
 std::vector<Fichero> Listar(const std::filesystem::path& imagen) {
-  std::ifstream f(imagen, std::ios::binary);
-  if (!f) return {};
+  auto flujo = AbrirImagen(imagen);
+  if (!flujo) return {};
+  std::istream& f = *flujo;
   const int64_t base = DetectarBase(f);
   if (base < 0) return {};
   const auto descriptor = LeerBloque(f, base + 32 * kSector, uint32_t(kSector));
@@ -198,8 +281,8 @@ std::vector<uint8_t> LeerFichero(const std::filesystem::path& imagen, std::strin
         !std::equal(e.ruta.begin(), e.ruta.end(), ruta.begin(),
                     [](char a, char b) { return std::tolower(a) == std::tolower(b); }))
       continue;
-    std::ifstream f(imagen, std::ios::binary);
-    return LeerBloque(f, e.offset, uint32_t(e.tam));
+    auto f = AbrirImagen(imagen);
+    return f ? LeerBloque(*f, e.offset, uint32_t(e.tam)) : std::vector<uint8_t>{};
   }
   return {};
 }

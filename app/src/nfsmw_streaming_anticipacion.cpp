@@ -91,6 +91,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -132,6 +133,14 @@ REXCVAR_DEFINE_BOOL(nfsmw_streaming_diag, true, "NFSMW",
                     "Llama a la prediccion tambien SIN adelanto para poder comparar zona a zona y "
                     "para rescatar el resultado si el adelanto se pasa de largo. Cuesta dos "
                     "llamadas por servicio del streamer (2 por fotograma como mucho)");
+
+#ifndef NFSMW_DIAGNOSTICO
+#define NFSMW_DIAGNOSTICO 0
+#endif
+REXCVAR_DEFINE_INT32(nfsmw_streaming_traza_s, NFSMW_DIAGNOSTICO ? 2 : 0, "NFSMW",
+                     "Cada cuantos segundos escribe el estado del streamer de la pista (posicion, "
+                     "velocidad, zona pedida y actual, llamadas). 0 = apagado")
+    .range(0, 60);
 
 namespace nfsmw::streaming_anticipacion {
 namespace {
@@ -199,6 +208,10 @@ std::atomic<uint64_t> g_aplicadas{0};  // of those, the ones where the handoff a
 std::atomic<uint64_t> g_distintas{0};  // times the requested zone changes due to the lookahead
 std::atomic<uint64_t> g_rescates{0};   // times the lookahead overshot and the earlier zone was returned
 std::atomic<uint64_t> g_sin_relevo{0};  // armed but FindZone was never called with the entry
+// Trace counters: calls of the two functions that decide what the streamer queues.
+std::atomic<uint64_t> g_zonas_actuales{0};  // DetermineCurrentZones
+std::atomic<uint64_t> g_secciones{0};       // DetermineStreamingSections
+std::atomic<int64_t> g_proxima_traza_ms{0};
 // Sums for the "before" and "after" averages, in meters.
 std::atomic<uint64_t> g_suma_antes_mm{0};
 std::atomic<uint64_t> g_suma_despues_mm{0};
@@ -227,8 +240,56 @@ void QuizaImprimir() {
       g_distintas.load(std::memory_order_relaxed), g_rescates.load(std::memory_order_relaxed));
 }
 
+// One line every nfsmw_streaming_traza_s seconds with the entry being predicted and the zone returned:
+// it tells whether the streamer runs, where it thinks the player is and what it asks for.
+void QuizaTraza(const uint8_t* base, uint32_t entrada, int32_t zona) {
+  const int32_t periodo = REXCVAR_GET(nfsmw_streaming_traza_s);
+  static std::atomic<bool> dicho{false};
+  if (!dicho.exchange(true)) {
+    REXLOG_INFO("[stream] traza del streamer: cada {} s (nfsmw_streaming_traza_s, 0 = apagada)", periodo);
+  }
+  if (periodo <= 0) return;
+  const int64_t ahora = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
+  int64_t proxima = g_proxima_traza_ms.load(std::memory_order_relaxed);
+  if (ahora < proxima ||
+      !g_proxima_traza_ms.compare_exchange_strong(proxima, ahora + int64_t(periodo) * 1000)) {
+    return;
+  }
+  if (entrada == 0 || entrada + kOffZonaActual + 2u >= kDireccionMaxima) {
+    // Not a readable entry: said as is, since an entry like that is itself what is being looked for.
+    REXLOG_INFO("[stream] traza: entrada {:08X} no valida, zona pedida {} | llamadas: prediccion {}, zonas "
+                "actuales {}, secciones {}",
+                entrada, zona, g_llamadas.load(std::memory_order_relaxed),
+                g_zonas_actuales.load(std::memory_order_relaxed), g_secciones.load(std::memory_order_relaxed));
+    return;
+  }
+  REXLOG_INFO(
+      "[stream] traza: entrada {:08X} pos ({:.1f}, {:.1f}) vel ({:.2f}, {:.2f}) posicion_puesta {} "
+      "zona actual {} pedida {} | llamadas: prediccion {}, zonas actuales {}, secciones {}",
+      entrada, double(LeerFlotante(base, entrada)), double(LeerFlotante(base, entrada + 4)),
+      double(LeerFlotante(base, entrada + kOffVelX)), double(LeerFlotante(base, entrada + kOffVelY)),
+      int(base[entrada + 28]), Leer16Con(base, entrada + kOffZonaActual), zona,
+      g_llamadas.load(std::memory_order_relaxed), g_zonas_actuales.load(std::memory_order_relaxed),
+      g_secciones.load(std::memory_order_relaxed));
+}
+
 }  // namespace
 }  // namespace nfsmw::streaming_anticipacion
+
+// TrackStreamer::DetermineCurrentZones and DetermineStreamingSections: only counted, for the trace.
+REX_EXTERN(__imp__sub_824BEF30);
+REX_HOOK_RAW(sub_824BEF30) {
+  nfsmw::streaming_anticipacion::g_zonas_actuales.fetch_add(1, std::memory_order_relaxed);
+  __imp__sub_824BEF30(ctx, base);
+}
+
+REX_EXTERN(__imp__sub_824BE4E8);
+REX_HOOK_RAW(sub_824BE4E8) {
+  nfsmw::streaming_anticipacion::g_secciones.fetch_add(1, std::memory_order_relaxed);
+  __imp__sub_824BE4E8(ctx, base);
+}
 
 // =================================================================================================
 // TrackPathManager::FindZone(bVector2* pos, int type, TrackPathZone* prev)
@@ -269,6 +330,7 @@ REX_HOOK_RAW(sub_824BE0A8) {
   if (mult_pct <= 100 || g_constantes_mal.load(std::memory_order_relaxed) || entrada == 0 ||
       entrada + kOffZonaActual + 2u >= kDireccionMaxima) {
     __imp__sub_824BE0A8(ctx, base);
+    QuizaTraza(base, entrada, int32_t(int16_t(uint16_t(ctx.r3.u32))));
     QuizaImprimir();
     return;
   }
@@ -285,6 +347,7 @@ REX_HOOK_RAW(sub_824BE0A8) {
                   double(k_seg), double(k_techo));
     }
     __imp__sub_824BE0A8(ctx, base);
+    QuizaTraza(base, entrada, int32_t(int16_t(uint16_t(ctx.r3.u32))));
     QuizaImprimir();
     return;
   }
@@ -296,6 +359,7 @@ REX_HOOK_RAW(sub_824BE0A8) {
   // Stopped or nearly so: there is no direction to look ahead in and the game does not predict either.
   if (!std::isfinite(s) || s <= 1.0f) {
     __imp__sub_824BE0A8(ctx, base);
+    QuizaTraza(base, entrada, int32_t(int16_t(uint16_t(ctx.r3.u32))));
     QuizaImprimir();
     return;
   }
@@ -305,6 +369,7 @@ REX_HOOK_RAW(sub_824BE0A8) {
   const float despues = std::min(k_seg * s * (float(mult_pct) / 100.0f), techo);  // what we want
   if (!(despues > antes + 0.5f)) {
     __imp__sub_824BE0A8(ctx, base);
+    QuizaTraza(base, entrada, int32_t(int16_t(uint16_t(ctx.r3.u32))));
     QuizaImprimir();
     return;
   }
@@ -319,6 +384,7 @@ REX_HOOK_RAW(sub_824BE0A8) {
   float largo = (k_seg * s > k_techo) ? (despues * s / k_techo) : (despues / k_seg);
   if (!std::isfinite(largo) || largo <= 0.0f) {
     __imp__sub_824BE0A8(ctx, base);
+    QuizaTraza(base, entrada, int32_t(int16_t(uint16_t(ctx.r3.u32))));
     QuizaImprimir();
     return;
   }
@@ -387,6 +453,7 @@ REX_HOOK_RAW(sub_824BE0A8) {
     }
   }
 
+  QuizaTraza(base, entrada, int32_t(int16_t(uint16_t(ctx.r3.u32))));
   QuizaImprimir();
 }
 

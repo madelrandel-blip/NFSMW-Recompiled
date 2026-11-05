@@ -608,6 +608,22 @@ REX_HOOK_RAW(sub_8245D320) {
                   base[desc + kDescTiling], Leer32(base, desc + kDescTiras));
     }
   }
+  if (desc != 0) {
+    // Every set once, with its tiling: a set drawn in several tiles replays all its commands once per tile.
+    static std::atomic<uint32_t> listados{0};
+    if (listados.fetch_add(1, std::memory_order_relaxed) < 48) {
+      const uint32_t tiras = Leer32(base, desc + kDescTiras);
+      std::string rects;
+      for (uint32_t t = 0; t < std::min(tiras, 4u); ++t) {
+        const uint32_t r = desc + 44 + t * 16;
+        rects += fmt::format(" [{},{}-{},{}]", Leer32(base, r), Leer32(base, r + 4), Leer32(base, r + 8),
+                             Leer32(base, r + 12));
+      }
+      REXLOG_INFO("[render] registro de conjunto {}x{}, MSAA {}, tiling {} con {} tira(s){} (llamado desde {:08X})",
+                  Leer32(base, desc + kDescAncho), Leer32(base, desc + kDescAlto), Leer32(base, desc + kDescMsaa),
+                  base[desc + kDescTiling], tiras, rects, uint32_t(ctx.lr));
+    }
+  }
   if (REXCVAR_GET(nfsmw_render_sin_mosaico) && !REXCVAR_GET(nfsmw_render_prueba_mantener_msaa) && desc != 0) {
     const uint32_t msaa = Leer32(base, desc + kDescMsaa);
     if (msaa != 0) {

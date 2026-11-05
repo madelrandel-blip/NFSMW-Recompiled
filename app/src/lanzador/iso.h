@@ -7,6 +7,8 @@
 #pragma once
 
 #include <atomic>
+#include <istream>
+#include <memory>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -29,6 +31,14 @@ std::string Extraer(const std::filesystem::path& imagen, const std::filesystem::
 // el marcador que deja EscribirMarcador.
 bool CopiaValida(const std::filesystem::path& destino, const std::filesystem::path& imagen);
 void EscribirMarcador(const std::filesystem::path& destino, const std::filesystem::path& imagen);
+
+// La imagen para leer: un fichero, o un documento de Android que la app tiene abierto (/proc/self/fd/N, ver
+// sistema::AbrirDocumento), leido por su descriptor: reabrir esa ruta pide el permiso de almacenamiento.
+std::unique_ptr<std::istream> AbrirImagen(const std::filesystem::path& imagen);
+// Su tamano en bytes, 0 si no se puede saber.
+uint64_t TamanoImagen(const std::filesystem::path& imagen);
+// Es una imagen (un fichero, o un documento abierto) y no una carpeta.
+bool EsImagen(const std::filesystem::path& ruta);
 
 // Un fichero de la imagen: ruta con '/' (p. ej. "NFS/ZZDATA0.BIN"), donde empieza en el .iso y su tamano.
 struct Fichero {

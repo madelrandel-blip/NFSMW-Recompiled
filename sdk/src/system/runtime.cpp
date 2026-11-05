@@ -11,6 +11,7 @@
 
 #include <rex/chrono/clock.h>
 #include <rex/cvar.h>
+#include <rex/filesystem.h>
 #include <rex/filesystem/devices/disc_image_device.h>
 #include <rex/filesystem/devices/host_path_device.h>
 #include <rex/filesystem/devices/null_device.h>
@@ -299,7 +300,7 @@ bool Runtime::SetupVfs() {
   }
 
   auto abs_game_root = std::filesystem::absolute(game_data_root_);
-  if (!std::filesystem::exists(abs_game_root)) {
+  if (!std::filesystem::exists(abs_game_root) && rex::filesystem::DescriptorFromProcPath(abs_game_root) < 0) {
     REXSYS_ERROR("Runtime::SetupVfs: game_data_root does not exist: {}", abs_game_root.string());
     return false;
   }
@@ -308,7 +309,7 @@ bool Runtime::SetupVfs() {
   auto mount_path = "\\Device\\Harddisk0\\Partition1";
   // A folder with the game, or a disc image (.iso) read in place, without extracting it.
   std::unique_ptr<rex::filesystem::Device> device;
-  if (std::filesystem::is_regular_file(abs_game_root)) {
+  if (rex::filesystem::IsFileOrHeldDescriptor(abs_game_root)) {
     device = std::make_unique<rex::filesystem::DiscImageDevice>(mount_path, abs_game_root);
   } else {
     device = std::make_unique<rex::filesystem::HostPathDevice>(

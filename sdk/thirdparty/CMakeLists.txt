@@ -369,6 +369,17 @@ if(REXGLUE_USE_VULKAN)
     if(NOT TARGET glslang::SPIRV)
         add_library(glslang::SPIRV ALIAS SPIRV)
     endif()
+
+    # SPIRV-Tools optimizer (SPIRV-Tools-opt), for titles that optimize the SPIR-V they translate. Only the
+    # libraries: no executables, tests or install rules. Not on Switch.
+    if(NOT REXGLUE_PLATFORM_SWITCH)
+        set(SPIRV_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
+        set(SPIRV_SKIP_TESTS ON CACHE BOOL "" FORCE)
+        set(SPIRV_WERROR OFF CACHE BOOL "" FORCE)
+        set(SKIP_SPIRV_TOOLS_INSTALL ON CACHE BOOL "" FORCE)
+        set(SPIRV_TOOLS_BUILD_STATIC ON CACHE BOOL "" FORCE)
+        add_subdirectory(spirv-tools EXCLUDE_FROM_ALL)
+    endif()
 endif()
 
 #=============================================================================

@@ -341,19 +341,20 @@ class VulkanRenderer final : public nativo::DestinosNativos {
       report_.worst_frame_ns = std::max(report_.worst_frame_ns, frame_ns);
       if (frame_ns > 40'000'000) {
         ++report_.slow_frames;
-        if (report_.slow_frames <= 3) {
+        if (report_.slow_frames <= 12) {
           const TextureCache::Stats& t = textures_.stats();
           REXLOG_INFO("[renderer] slow frame {:.1f} ms: {} draws in {:.1f} ms, copies {:.1f} ms, present {:.1f} ms, GPU "
                       "waits {:.1f} ms (included in the others), outside the renderer {:.1f} ms | textures: {} created "
-                      "in {:.1f} ms, {} uploads ({:.2f} MB), {} fingerprints ({:.2f} MB)",
+                      "in {:.1f} ms, {} uploads ({:.2f} MB) in {:.1f} ms, {} fingerprints ({:.2f} MB) in {:.1f} ms",
                       double(frame_ns) / 1e6, frame_.draws, double(frame_.draw_ns) / 1e6, double(frame_.copy_ns) / 1e6,
                       double(frame_.present_ns) / 1e6, double(frame_.gpu_wait_ns) / 1e6,
                       double(frame_ns - std::min(frame_ns, frame_.draw_ns + frame_.copy_ns + frame_.present_ns)) / 1e6,
                       t.created - frame_.textures.created, double(t.create_ns - frame_.textures.create_ns) / 1e6,
                       t.uploads - frame_.textures.uploads,
                       double(t.upload_bytes - frame_.textures.upload_bytes) / 1048576.0,
-                      t.fingerprints - frame_.textures.fingerprints,
-                      double(t.fingerprint_bytes - frame_.textures.fingerprint_bytes) / 1048576.0);
+                      double(t.upload_ns - frame_.textures.upload_ns) / 1e6, t.fingerprints - frame_.textures.fingerprints,
+                      double(t.fingerprint_bytes - frame_.textures.fingerprint_bytes) / 1048576.0,
+                      double(t.fingerprint_ns - frame_.textures.fingerprint_ns) / 1e6);
         }
       }
     }
@@ -375,9 +376,9 @@ class VulkanRenderer final : public nativo::DestinosNativos {
     REXLOG_INFO("[renderer] queue submissions per frame: {:.2f} (the presenter's own are not counted)",
                 double(context_->TakeSubmitCount()) / frames);
     REXLOG_INFO("[renderer] {:.1f} fps | per frame: {:.0f} draws in {:.2f} ms, present {:.2f} ms | textures: {:.0f} "
-                "lookups, {:.1f} fingerprints ({:.2f} MB), {:.1f} uploads ({:.2f} MB)",
+                "lookups ({:.0f} more from the frame's memo), {:.1f} fingerprints ({:.2f} MB), {:.1f} uploads ({:.2f} MB)",
                 frames / seconds, double(report_.draws) / frames, double(report_.draw_ns) / 1e6 / frames,
-                double(report_.submit_ns) / 1e6 / frames, double(t.lookups) / frames, double(t.fingerprints) / frames,
+                double(report_.submit_ns) / 1e6 / frames, double(t.lookups) / frames, double(t.memo_hits) / frames, double(t.fingerprints) / frames,
                 double(t.fingerprint_bytes) / 1048576.0 / frames, double(t.uploads) / frames,
                 double(t.upload_bytes) / 1048576.0 / frames);
     {
@@ -436,11 +437,11 @@ class VulkanRenderer final : public nativo::DestinosNativos {
     {
       const FrameCounters c = Stats().Take();
       const auto per = [&](uint64_t v) { return double(v) / frames; };
-      REXLOG_INFO("[renderer] per frame: {:.0f} draws | pipeline binds {:.0f}, descriptor binds {:.0f} (texture sets "
+      REXLOG_INFO("[renderer] per frame: {:.0f} draws | pipeline binds {:.0f}, descriptor binds {:.0f} ({:.0f} constants only; texture sets "
                   "written {:.0f}, uniform sets {:.0f}), textures reused {:.0f}, vertex binds {:.0f}, index binds {:.1f}, viewport {:.0f}, "
                   "scissor {:.0f}, depth bias {:.0f}, blend constants {:.0f}, stencil {:.0f} | VS constants {:.0f} "
                   "uploads ({:.2f} MB), PS {:.0f} ({:.2f} MB)",
-                  per(c.draws), per(c.pipeline_binds), per(c.descriptor_binds), per(c.texture_set_writes),
+                  per(c.draws), per(c.pipeline_binds), per(c.descriptor_binds), per(c.uniform_only_binds), per(c.texture_set_writes),
                   per(c.uniform_set_writes), per(c.texture_reuses), per(c.vertex_buffer_binds), per(c.index_buffer_binds),
                   per(c.viewport_sets), per(c.scissor_sets), per(c.depth_bias_sets), per(c.blend_constant_sets),
                   per(c.stencil_sets), per(c.vs_constant_uploads), per(c.vs_constant_bytes) / 1048576.0,
