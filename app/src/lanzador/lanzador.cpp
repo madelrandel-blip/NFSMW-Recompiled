@@ -94,7 +94,8 @@ void PonerCv(const char* nombre, const std::string& valor) {
 // Los ajustes del lanzador que solo valen al reiniciar el juego: el
 // renderizador se crea antes del lanzador (kInitOnly), el limite de fps es
 // kRequiresRestart y la resolucion interna va al modo de video del arranque.
-constexpr const char* kAjustesConReinicio[] = {"nfsmw_msaa", "nfsmw_limite_fps", "nfsmw_resolucion_interna"};
+constexpr const char* kAjustesConReinicio[] = {"nfsmw_msaa", "nfsmw_limite_fps", "nfsmw_resolucion_interna",
+                                               "nfsmw_sincronizacion"};
 
 std::filesystem::path DesdeUtf8(const std::string& s) { return std::u8string(s.begin(), s.end()); }
 
@@ -1281,8 +1282,8 @@ void Lanzador::DibujarGraficos() {
           {"640 × 360 (360p)", "640x360", 360},          {"832 × 468 (≈480p)", "832x468", 468},
           {"960 × 540 (540p)", "960x540", 540},          {"1024 × 576 (576p)", "1024x576", 576},
           {"1280 × 720 (720p)", "1280x720", 720},        {"1600 × 900 (900p)", "1600x900", 900},
-          {"1920 × 1080 (1080p)", "1920x1080", 1080},    {"2560 × 1440 (1440p, exp.)", "2560x1440", 1440},
-          {"3840 × 2160 (4K, exp.)", "3840x2160", 2160}};
+          // Sin 4K: sus cuatro superficies de 32 MB no caben en los 512 MB de la consola y el juego se cierra al arrancar.
+          {"1920 × 1080 (1080p)", "1920x1080", 1080},    {"2560 × 1440 (1440p, exp.)", "2560x1440", 1440}};
       std::vector<Opcion> resoluciones;
       for (const Res& r : kResoluciones) {
         // 720p siempre (la de la Xbox 360), aunque la pantalla sea mas pequena.
@@ -1295,6 +1296,10 @@ void Lanzador::DibujarGraficos() {
             {{"@graf.limite_30", "30"}, {"@graf.limite_60", "60"}, {"@graf.limite_120", "120"},
              {"@graf.limite_ilimitado", "ilimitado"}});
     Nota(T("graf.limite_nota"));
+    ComboCvar(T("graf.vsync"), "nfsmw_sincronizacion",
+              {{"@graf.vsync_auto", "automatico"}, {"@graf.vsync_on", "activada"}, {"@graf.vsync_triple", "triple"},
+               {"@graf.vsync_off", "apagada"}});
+    Nota(T("graf.vsync_nota"));
   }
   {
     Tarjeta t(T("graf.imagen"));
