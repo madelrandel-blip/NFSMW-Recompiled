@@ -1199,10 +1199,18 @@ bool Draws::Draw(const nativo::PeticionDibujo& request) {
     bound_.pipeline = pipeline;
   }
   if (bound_.sets_dirty || uniform_set_ != bound_.uniform_set || uniform_offsets != bound_.uniform_offsets) {
-    const VkDescriptorSet sets[2] = {bound_.texture_set, uniform_set_};
     ++Stats().counters().descriptor_binds;
-    fn.vkCmdBindDescriptorSets(commands, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.layout(), 0, 2, sets, 3,
-                               uniform_offsets.data());
+    if (bound_.sets_dirty) {
+      const VkDescriptorSet sets[2] = {bound_.texture_set, uniform_set_};
+      fn.vkCmdBindDescriptorSets(commands, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.layout(), 0, 2, sets, 3,
+                                 uniform_offsets.data());
+    } else {
+      // Only the constants moved: set 1 alone. Binding set 0 again with the same textures makes some GPUs (Intel)
+      // reload their texture binding table for nothing; set 0 stays bound, the layout is the same.
+      ++Stats().counters().uniform_only_binds;
+      fn.vkCmdBindDescriptorSets(commands, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines_.layout(), 1, 1, &uniform_set_,
+                                 3, uniform_offsets.data());
+    }
     bound_.uniform_set = uniform_set_;
     bound_.uniform_offsets = uniform_offsets;
     bound_.sets_dirty = false;

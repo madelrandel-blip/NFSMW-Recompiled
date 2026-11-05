@@ -70,6 +70,8 @@ class TextureCache {
     uint64_t upload_bytes = 0;
     uint64_t created = 0;
     uint64_t create_ns = 0;
+    uint64_t upload_ns = 0;       // Upload (guest data converted into upload memory and the copy recorded)
+    uint64_t fingerprint_ns = 0;
   };
   Stats TakeStats() { return std::exchange(stats_, Stats{}); }
   const Stats& stats() const { return stats_; }
@@ -97,6 +99,7 @@ class TextureCache {
     uint64_t fingerprint = 0;
     uint64_t validated_frame = UINT64_MAX;
     uint64_t changed_frame = 0;  // the last frame its data was found changed
+    uint32_t uploads = 0;        // times its data was uploaded (1: only its first upload, never seen changing)
     uint64_t used_frame = 0;
     VkDeviceSize bytes = 0;
   };
