@@ -216,6 +216,11 @@ target_include_directories(nfsmw PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generado")
 
 # The SDK's FFmpeg (WMV3 decoder) for the cutscenes: nfsmw_video_wmv3.cpp.
 target_link_libraries(nfsmw PRIVATE libavcodec)
+# Optimizes the SPIR-V of the translated shaders once (renderer/shader_modules.cpp), when the SDK built it.
+if(TARGET SPIRV-Tools-opt)
+    target_link_libraries(nfsmw PRIVATE SPIRV-Tools-opt)
+    target_compile_definitions(nfsmw PRIVATE NFSMW_SPIRV_OPT=1)
+endif()
 
 # PC build with the SDK as a subdirectory (tools/pc/construir_pc.bat):
 # rex_app.cpp includes imgui.h and rexruntime links imgui privately, so its

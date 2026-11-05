@@ -8,8 +8,10 @@
 
 #include "vulkan_context.h"
 
+#include <atomic>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 
 namespace nfsmw::nativo {
 struct EntradaShader;
@@ -43,6 +45,9 @@ class ShaderModules {
   };
 
   Module Translate(const nativo::EntradaShader& shader);
+  std::vector<uint32_t> Optimized(const std::vector<uint32_t>& spirv);
+  void NoteOptimization(bool optimized);
+  std::atomic<uint32_t> optimized_loaded_{0}, original_loaded_{0};
 
   const VulkanContext& context_;
   std::mutex mutex_;
