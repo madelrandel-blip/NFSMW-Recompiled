@@ -86,10 +86,9 @@ REXCVAR_DEFINE_INT32(nfsmw_audio_diag_retraso_servidor_us, 0, "NFSMW",
                      "Diagnostico: retrasa N microsegundos cada despertar del hilo servidor de "
                      "audio del juego, para imitar en el PC lo que tarda en volver a correr en la "
                      "Switch; 0 = nada");
-REXCVAR_DEFINE_INT32(nfsmw_audio_servidor_prioridad,
-                     (REX_PLATFORM_SWITCH != 0 || REX_PLATFORM_ANDROID != 0) ? 0x2D : 0, "NFSMW",
+REXCVAR_DEFINE_INT32(nfsmw_audio_servidor_prioridad, 0x2D, "NFSMW",
                      "Prioridad de Horizon del hilo servidor de audio del juego (0x1C-0x3A); 0 = la de los hilos "
-                     "del juego (0x3B). Por defecto 45 (0x2D) en la Switch y en Android, para que no espere su turno "
+                     "del juego (0x3B). Por defecto 45 (0x2D) en todas las plataformas, para que no espere su turno "
                      "detras de ellos; en el PC cualquier valor lo sube a THREAD_PRIORITY_HIGHEST y en Android a "
                      "la de audio (nice -16)");
 REXCVAR_DEFINE_BOOL(nfsmw_audio_diag_anillo, REX_PLATFORM_ANDROID != 0, "NFSMW",
