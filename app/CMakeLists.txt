@@ -148,6 +148,14 @@ if(WIN32)
     target_sources(nfsmw PRIVATE src/nfsmw_pc_coma_flotante.cpp)
     # Sampling CPU profiler for the PC tests (cvar nfsmw_perfil_pc_desde_s, 0 = never).
     target_sources(nfsmw PRIVATE src/nfsmw_perfil_pc.cpp)
+    # Profiling aid: CodeView symbols for our own code (not the generated one, which would make the link huge),
+    # so the profiler's samples inside the renderer and the native replacements can be named. Off by default.
+    option(NFSMW_SIMBOLOS_PROPIOS "PC: symbols (PDB) for app/src, for profiling" OFF)
+    if(NFSMW_SIMBOLOS_PROPIOS)
+        file(GLOB_RECURSE NFSMW_PROPIOS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+        set_source_files_properties(${NFSMW_PROPIOS} PROPERTIES COMPILE_OPTIONS "-g;-gcodeview")
+        target_link_options(nfsmw PRIVATE "-g" "-Wl,/DEBUG")
+    endif()
     # Dialogo nativo de ficheros del lanzador (IFileOpenDialog) y ShellExecute.
     target_link_libraries(nfsmw PRIVATE ole32 shell32 uuid winhttp)
     # Full symbols (CodeView) of the native renderer in the PDB: without them the profiler only sees the public
