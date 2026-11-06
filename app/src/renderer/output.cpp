@@ -1,5 +1,7 @@
 #include "output.h"
 
+#include "../nfsmw_ajustes_graficos.h"
+
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/ui/presenter.h>
@@ -15,6 +17,9 @@ REXCVAR_DEFINE_STRING(nfsmw_rcas, "apagado", "Graficos",
                       "Nitidez FSR1 (RCAS de AMD) en la salida del renderizador Vulkan 1.1: apagado, bajo, medio o alto. "
                       "Se aplica en marcha; con FXAA activo no se usa")
     .allowed({"apagado", "bajo", "medio", "alto"});
+
+REXCVAR_DECLARE(std::string, nfsmw_resolucion_interna);
+REXCVAR_DEFINE_BOOL(nfsmw_prueba_aspecto_salida, true, "NFSMW", "Pruebas: presentar con la forma de la imagen");
 
 namespace nfsmw::renderer {
 
@@ -333,6 +338,23 @@ bool Output::Present(rex::ui::Presenter* presenter, const Image& source, uint32_
   }
   width = std::min(width ? width : source.width, source.width);
   height = std::min(height ? height : source.height, source.height);
+  // Wide screens: the game reports its 16:9 output size for the swap, but its front buffer is the wide picture
+  // (nfsmw_panoramico.cpp); present all of it.
+  {
+    uint32_t ancho = 0, alto = 0;
+    if (nfsmw::ajustes::ResolucionAlta(nfsmw::ajustes::ResolucionEnUso(), ancho, alto) &&
+        uint64_t(ancho) * 9 != uint64_t(alto) * 16 && source.width >= ancho && source.height >= alto) {
+      width = ancho;
+      height = alto;
+    }
+  }
+  {
+    static int avisos = 0;
+    if (avisos < 3) {
+      ++avisos;
+      REXLOG_INFO("[panoramico] presentar: imagen {}x{}, pedido {}x{}", source.width, source.height, width, height);
+    }
+  }
   // Post-processing settings changed in the menu (an atomic counter; the cvars are only read then).
   const uint64_t postprocess_version = ajustes::VersionPosproceso();
   if (postprocess_version != postprocess_version_) {
@@ -347,7 +369,12 @@ bool Output::Present(rex::ui::Presenter* presenter, const Image& source, uint32_
   const auto start = Clock::now();
   auto mark = start;
   bool drawn = false;
-  presenter->RefreshGuestOutput(width, height, 1280, 720, [&](rex::ui::Presenter::GuestOutputRefreshContext& base) {
+  // The shape the picture is shown with: 16:9 as the console, or the picture's own when it is wider (wide screens,
+  // nfsmw_panoramico.cpp); otherwise the presenter would put bars at its sides.
+  const bool ancha = REXCVAR_GET(nfsmw_prueba_aspecto_salida) && (uint64_t(width) * 9 * 100 > uint64_t(height) * 16 * 101 ||
+                     uint64_t(width) * 9 * 101 < uint64_t(height) * 16 * 100);  // or narrower (4:3)
+  presenter->RefreshGuestOutput(width, height, ancha ? width : 1280, ancha ? height : 720,
+                                [&](rex::ui::Presenter::GuestOutputRefreshContext& base) {
     const auto entered = Clock::now();
     timing_.before_ns += ns(mark, entered);
     auto& refresh = static_cast<VulkanPresenter::VulkanGuestOutputRefreshContext&>(base);

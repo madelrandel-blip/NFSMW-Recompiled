@@ -136,7 +136,7 @@ struct TamanoAlto {
 };
 TamanoAlto TamanoModoAlto() {
   uint32_t ancho = 0, alto = 0;
-  if (nfsmw::ajustes::ResolucionAlta(REXCVAR_GET(nfsmw_resolucion_interna), ancho, alto)) return {ancho, alto};
+  if (nfsmw::ajustes::ResolucionAlta(nfsmw::ajustes::ResolucionEnUso(), ancho, alto)) return {ancho, alto};
   return {1920, 1080};
 }
 #define kAncho1080p (TamanoModoAlto().ancho)
@@ -331,7 +331,7 @@ uint32_t ModoQueToca() {
     }
     return quiero;
   }
-  const std::string r = REXCVAR_GET(nfsmw_resolucion_interna);
+  const std::string r = nfsmw::ajustes::ResolucionEnUso();
   uint32_t ancho = 0, alto = 0;
   if (nfsmw::ajustes::ResolucionAlta(r, ancho, alto)) {
     return kModo1080p;

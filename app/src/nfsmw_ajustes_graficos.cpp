@@ -5,9 +5,19 @@
 #include "nfsmw_nativo_sistema.h"
 
 #include <rex/cvar.h>
+#include <rex/platform.h>
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#elif REX_PLATFORM_ANDROID
+#include <SDL3/SDL.h>
+#endif
 #include <rex/logging.h>
 #include <rex/ui/overlay/settings_overlay.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstdlib>
 #include <string>
@@ -21,7 +31,7 @@ REXCVAR_DEFINE_STRING(nfsmw_resolucion_interna, "automatico", "Graficos",
                       "menos resolucion del propio juego. Por debajo de 720p (640x360, 832x468, 960x540, 1024x576) se "
                       "dibuja de verdad a ese tamano, escena y HUD, y se escala a la pantalla: menos pixeles, mas "
                       "FPS en moviles; se ve mas borroso. 640x480 (4:3) equivale a 1280x720")
-    .allowed({"automatico", "640x360", "640x480", "832x468", "960x540", "1024x576", "1280x720", "1600x900", "1920x1080", "2560x1440",
+    .allowed({"automatico", "640x360", "640x480", "832x468", "960x540", "1024x576", "1280x720", "1600x900", "1920x1080", "2560x1440", "1600x720", "2400x1080", "2560x1080", "3456x1440",
               "3840x2160"});
 
 /*
@@ -161,6 +171,15 @@ REXCVAR_DEFINE_STRING(nfsmw_resplandor_cielo, "natural", "Graficos",
 
 // The game's color filter, applied live: its "visual treatment" (the yellow tint, the desaturation and the
 // vignette of the final composite). Some players find the tint too strong in some areas of the city.
+// The picture's shape. automatico: the screen's. On a shape other than 16:9 the camera opens or closes its horizontal
+// field of view (nfsmw_panoramico.cpp) and the interface stays 16:9, fitted in the middle.
+REXCVAR_DEFINE_STRING(nfsmw_relacion_aspecto, "automatico", "Graficos",
+                      "Relacion de aspecto de la imagen. automatico: la de la pantalla. Con otra que no sea 16:9 la "
+                      "camara abre o cierra la vista a los lados y el interfaz queda en 16:9 en el centro. Se aplica "
+                      "al reiniciar")
+    .allowed({"automatico", "16:9", "4:3", "19.5:9", "21:9"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+
 REXCVAR_DEFINE_STRING(nfsmw_tratamiento_visual, "original", "Graficos",
                       "Filtro de color del juego (el tono amarillo, la desaturacion y la vineta). original (por "
                       "defecto): como la Xbox 360. suave: a mitad de fuerza. apagado: sin filtro; el resplandor y los "
@@ -260,6 +279,45 @@ extern "C" void RexSwitchApmPedirGpuMhz(int mhz);
 extern "C" void RexSwitchApmPermitirRam1600(int permitir);
 extern "C" void RexSwitchApmAplicar(void);
 #endif
+
+const std::string& ResolucionEnUso() {
+  static const std::string valor = REXCVAR_GET(nfsmw_resolucion_interna);
+  return valor;
+}
+
+float AspectoPantalla() {
+  // As the game started, like the resolution (ResolucionEnUso).
+  static const std::string elegida = REXCVAR_GET(nfsmw_relacion_aspecto);
+  if (elegida == "16:9") return 16.0f / 9.0f;
+  if (elegida == "4:3") return 4.0f / 3.0f;
+  if (elegida == "19.5:9") return 19.5f / 9.0f;
+  if (elegida == "21:9") return 64.0f / 27.0f;  // 2560x1080, what the monitors called 21:9 are
+  static float cache = 0.0f;
+  if (cache > 0.0f) return cache;
+  int w = 0, h = 0;
+#if defined(_WIN32)
+  w = GetSystemMetrics(SM_CXSCREEN);
+  h = GetSystemMetrics(SM_CYSCREEN);
+#elif REX_PLATFORM_ANDROID
+  const SDL_DisplayID pantalla = SDL_GetPrimaryDisplay();
+  const SDL_DisplayMode* modo = SDL_GetCurrentDisplayMode(pantalla);
+  if (!modo) modo = SDL_GetDesktopDisplayMode(pantalla);
+  if (modo) {
+    w = modo->w;
+    h = modo->h;
+  } else {
+    static bool avisado = false;
+    if (!avisado) {
+      avisado = true;
+      REXLOG_WARN("[ajustes] no se pudo leer el tamano de la pantalla: {}", SDL_GetError());
+    }
+  }
+#endif
+  if (w <= 0 || h <= 0) return 0.0f;
+  cache = float(std::max(w, h)) / float(std::min(w, h));  // the game is always landscape
+  REXLOG_INFO("[ajustes] pantalla {}x{} (relacion {:.3f})", w, h, cache);
+  return cache;
+}
 
 void AplicarAjustesGraficos() {
   std::string resolucion = REXCVAR_GET(nfsmw_resolucion_interna);

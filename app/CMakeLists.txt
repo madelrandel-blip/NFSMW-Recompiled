@@ -56,6 +56,12 @@ set(NFSMW_SOURCES
     src/nfsmw_audio_suma.cpp
     # EA's mixer must not evict the engine's AEMS layers when its stopwatch says it is late (sub_82601980).
     src/nfsmw_audio_presupuesto.cpp
+    # Mouse in the game's menus through FEng's own mouse support (test, nfsmw_menu_raton).
+    src/nfsmw_fe_raton.cpp
+    # Our own FPS counter in the game's style (nfsmw_mostrar_fps).
+    src/nfsmw_contador_fps.cpp
+    # Wide screens: the camera opens its horizontal field of view (Hor+).
+    src/nfsmw_panoramico.cpp
     # Environment variables for Mesa/NVK before creating Vulkan (cvar nfsmw_mesa_entorno) and, on the
     # Switch, the size of Mesa's on-disk shader cache.
     src/nfsmw_entorno_mesa.cpp

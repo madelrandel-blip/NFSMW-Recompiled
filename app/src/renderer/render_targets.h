@@ -45,6 +45,7 @@ struct Image {
   // Image pixels per guest pixel: below 1 for a render target drawn smaller than the game asks (the shadow maps,
   // nfsmw_nativo_sombras_escala). Viewports, scissors and resolves are scaled by it.
   float scale = 1.0f;
+  bool sombra = false;  // one of the game's two shadow maps (pitch 1600 and drawn taller than any screen)
   // Render targets only. Where the guest has it (traces), and the state that decides the load and store operations of
   // the passes that use it. Mutable: draws hold const pointers to their targets.
   uint32_t edram_base = 0;
@@ -95,8 +96,10 @@ class RenderTargets {
   uint64_t copy_generation() const { return copy_generation_; }
 
   // A color (format: xenos::ColorRenderTargetFormat) or depth (xenos::DepthRenderTargetFormat) render target.
-  Image* ColorTarget(uint32_t edram_base, uint32_t format, uint32_t pitch);
-  Image* DepthTarget(uint32_t edram_base, uint32_t format, uint32_t pitch);
+  // alto: the bottom of the area the game draws into, when known (a draw's window scissor): it tells the shadow maps
+  // from a wide screen's picture that happens to have their 1600 pitch.
+  Image* ColorTarget(uint32_t edram_base, uint32_t format, uint32_t pitch, uint32_t alto = 0);
+  Image* DepthTarget(uint32_t edram_base, uint32_t format, uint32_t pitch, uint32_t alto = 0);
 
   // The texture a resolve wrote at that guest address, or nullptr.
   const ResolvedTexture* Resolved(uint32_t guest_address) const;

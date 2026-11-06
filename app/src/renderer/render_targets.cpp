@@ -35,10 +35,15 @@ constexpr uint32_t kShadowSide = 1600;
 // percent (read once, so images are never mixed), everything else 1. The maps are drawn into the smaller image
 // and resolved at that size: the scene samples them with normalized coordinates and the texel size of the
 // resolved image (TextureCache), so only their detail goes down.
-float ScaleFor(uint32_t pitch) {
+// A shadow map: the 1600 pitch and drawn below row 1100 (no screen picture is that tall; a 720p one on a 19.5:9 phone
+// is 1568 wide, so its pitch is 1600 too). Without a known height (a resolve before any draw) it counts as a shadow
+// map only at that pitch, as before.
+bool EsSombra(uint32_t pitch, uint32_t alto) { return pitch == kShadowSide && (alto == 0 || alto > 1100); }
+
+float ScaleFor(uint32_t pitch, uint32_t alto) {
   static const float shadow_scale =
       float(std::clamp(REXCVAR_GET(nfsmw_nativo_sombras_escala), 50, 100)) / 100.0f;
-  return pitch == kShadowSide ? shadow_scale : 1.0f;
+  return EsSombra(pitch, alto) ? shadow_scale : 1.0f;
 }
 
 // A side scaled to a whole number of 16-pixel units (an exact multiple keeps the 8-pixel resolve alignment
@@ -340,7 +345,7 @@ void RenderTargets::DestroyImageLater(Image image) {
   });
 }
 
-Image* RenderTargets::ColorTarget(uint32_t edram_base, uint32_t format, uint32_t pitch) {
+Image* RenderTargets::ColorTarget(uint32_t edram_base, uint32_t format, uint32_t pitch, uint32_t alto) {
   if (!pitch) {
     return nullptr;
   }
@@ -349,7 +354,7 @@ Image* RenderTargets::ColorTarget(uint32_t edram_base, uint32_t format, uint32_t
     return &it->second;
   }
   Image image;
-  const float scale = ScaleFor(pitch);
+  const float scale = ScaleFor(pitch, alto);
   if (!CreateImage(image, ScaledSide(pitch, scale), ScaledSide(TargetHeight(pitch), scale), kColorFormat,
                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
@@ -360,12 +365,13 @@ Image* RenderTargets::ColorTarget(uint32_t edram_base, uint32_t format, uint32_t
   image.edram_base = edram_base;
   image.pitch = pitch;
   image.scale = float(image.width) / float(pitch);
+  image.sombra = EsSombra(pitch, alto);
   REXLOG_INFO("[renderer] color render target: EDRAM base {:03X}, format {}, {}x{}, {} sample(s)", edram_base, format,
               image.width, image.height, uint32_t(image.samples));
   return &color_targets_.emplace(key, image).first->second;
 }
 
-Image* RenderTargets::DepthTarget(uint32_t edram_base, uint32_t format, uint32_t pitch) {
+Image* RenderTargets::DepthTarget(uint32_t edram_base, uint32_t format, uint32_t pitch, uint32_t alto) {
   if (!pitch) {
     return nullptr;
   }
@@ -374,7 +380,7 @@ Image* RenderTargets::DepthTarget(uint32_t edram_base, uint32_t format, uint32_t
     return &it->second;
   }
   Image image;
-  const float scale = ScaleFor(pitch);
+  const float scale = ScaleFor(pitch, alto);
   if (!CreateImage(image, ScaledSide(pitch, scale), ScaledSide(TargetHeight(pitch), scale), context_.depth_format(),
                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
@@ -385,6 +391,7 @@ Image* RenderTargets::DepthTarget(uint32_t edram_base, uint32_t format, uint32_t
   image.edram_base = edram_base;
   image.pitch = pitch;
   image.scale = float(image.width) / float(pitch);
+  image.sombra = EsSombra(pitch, alto);
   REXLOG_INFO("[renderer] depth render target: EDRAM base {:03X}, format {}, {}x{}, {} sample(s)", edram_base, format,
               image.width, image.height, uint32_t(image.samples));
   return &depth_targets_.emplace(key, image).first->second;

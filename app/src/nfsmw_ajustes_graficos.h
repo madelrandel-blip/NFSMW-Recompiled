@@ -17,7 +17,11 @@
 #pragma once
 
 #include <cstdint>
+#include <cmath>
 #include <cstdio>
+#include <string>
+
+#include <rex/platform.h>
 #include <string>
 
 namespace nfsmw::ajustes {
@@ -71,14 +75,56 @@ void AplicarAjustesGraficos();
 // nothing, and the video mode settings that the ones above replace.
 void OcultarAjustesSinEfecto();
 
-// An nfsmw_resolucion_interna other than 720p ("WxH", 16:9, width a multiple of 32): drawn through the game's high
+// Width over height the picture should have: the screen's (the primary monitor on PC, the display on Android) with
+// nfsmw_relacion_aspecto = automatico, or the one chosen there; 0 if unknown.
+float AspectoPantalla();
+
+// nfsmw_resolucion_interna as the game started: the render targets are sized then, so everything that follows the
+// picture's size (the wide camera, the interface's 16:9 middle, the presented shape) must keep using it until a
+// restart, even after the setting is changed in the menus.
+const std::string& ResolucionEnUso();
+
+// An nfsmw_resolucion_interna other than 720p ("WxH", 16:9 or wider, width a multiple of 32): drawn through the game's high
 // mode (nfsmw_render_targets.cpp) with that size, scene, HUD and front buffer alike, while the video mode stays
 // 1280x720. That works below 720p too (360p to 576p): changing the video mode instead never made the scene smaller
 // and left the start of the story mode without a city. False for 720p, for "automatico" and for the 4:3 640x480.
+// On a screen wider than 16:9 (not on the Switch) every 16:9 choice keeps its height and takes the screen's shape:
+// 1080p on a 21:9 monitor draws 2528x1080, 720p on a 19.5:9 phone 1568x720 (widths a multiple of 32). The camera
+// opens to the sides (nfsmw_panoramico.cpp) and the interface stays 16:9 in the middle. "automatico" is 1080 high on
+// PC and 720 on Android there; elsewhere it keeps its own meaning.
+inline bool AnchoDePantalla(unsigned alto, unsigned& ancho) {
+#if !REX_PLATFORM_SWITCH
+  const float aspecto = AspectoPantalla();
+  if (aspecto > 0.0f && std::abs(aspecto / (16.0f / 9.0f) - 1.0f) > 0.02f) {
+    ancho = unsigned(float(alto) * aspecto / 32.0f + 0.5f) * 32u;
+    return true;
+  }
+#endif
+  (void)alto;
+  (void)ancho;
+  return false;
+}
 inline bool ResolucionAlta(const std::string& valor, uint32_t& ancho, uint32_t& alto) {
   unsigned w = 0, h = 0;
-  if (std::sscanf(valor.c_str(), "%ux%u", &w, &h) != 2 || h == 720 || h < 360 || w % 32 != 0 || w * 9 < h * 15)
-    return false;
+  if (valor == "automatico") {
+    h = REX_PLATFORM_ANDROID ? 720u : 1080u;
+    if (!AnchoDePantalla(h, w)) return false;
+    ancho = w;
+    alto = h;
+    return true;
+  }
+  if (std::sscanf(valor.c_str(), "%ux%u", &w, &h) != 2) return false;
+  // A 16:9 choice on a wider screen: same height, the screen's width (1280x720 included, through the high mode).
+  if (w * 9 == h * 16 || (w == 832 && h == 468)) {
+    unsigned ancha = 0;
+    if (h >= 360 && AnchoDePantalla(h, ancha)) {
+      ancho = ancha;
+      alto = h;
+      return true;
+    }
+  }
+  // 1280x720 is the game's own mode (2); a wider 720 (phones) goes through the high one.
+  if ((h == 720 && w <= 1280) || h < 360 || w % 32 != 0 || w * 9 < h * 15) return false;
   ancho = w;
   alto = h;
   return true;

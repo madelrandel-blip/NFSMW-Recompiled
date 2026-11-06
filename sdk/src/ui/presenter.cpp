@@ -1541,6 +1541,7 @@ void Presenter::UpdateSurfacePaintConnectionFromUIThread(bool* repaint_needed_ou
           surface_paint_connection_has_implicit_vsync_ = is_vsync_implicit;
           surface_width_in_paint_connection_ = surface_width;
           surface_height_in_paint_connection_ = surface_height;
+          REXLOG_INFO("[presentador] superficie de {}x{}", surface_width, surface_height);
           if (!is_reconnect) {
             *repaint_needed_out = true;
           }

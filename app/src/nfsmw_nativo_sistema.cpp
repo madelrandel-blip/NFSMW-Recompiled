@@ -421,6 +421,12 @@ REXCVAR_DEFINE_INT32(nfsmw_nativo_oclusion_escala, 0, "NFSMW",
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 
 // The 30 FPS guard lives in nfsmw_recorte_sombras.cpp, which owns the switch.
+namespace nfsmw::nativo {
+// Vblank rate chosen live (the in-game graphics options' experimental FPS limit row); 0 = the video mode's.
+std::atomic<double> g_hz_vblank_en_vivo{0.0};
+void FijarHzVblank(double hz) { g_hz_vblank_en_vivo.store(hz, std::memory_order_relaxed); }
+}  // namespace nfsmw::nativo
+
 namespace nfsmw::guardia30 {
 void Latir(double ms);
 void Informe();
@@ -1614,11 +1620,17 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
   int BucleVblank() {
     rex::system::X_VIDEO_MODE modo;
     rex::kernel::xboxkrnl::VdQueryVideoMode(&modo);
-    const double hz = std::max(1.0, double(float(modo.refresh_rate)));
-    const auto intervalo =
-        std::chrono::duration_cast<Reloj::duration>(std::chrono::duration<double>(1.0 / hz));
+    double hz = std::max(1.0, double(float(modo.refresh_rate)));
+    auto intervalo = std::chrono::duration_cast<Reloj::duration>(std::chrono::duration<double>(1.0 / hz));
     auto siguiente = Reloj::now() + intervalo;
     while (activo_.load(std::memory_order_acquire)) {
+      const double vivo = g_hz_vblank_en_vivo.load(std::memory_order_relaxed);
+      if (vivo > 0.0 && vivo != hz) {
+        hz = vivo;
+        intervalo = std::chrono::duration_cast<Reloj::duration>(std::chrono::duration<double>(1.0 / hz));
+        siguiente = Reloj::now() + intervalo;
+        REXLOG_INFO("[ajustes juego] vblank a {} Hz", hz);
+      }
       const auto ahora = Reloj::now();
       // After a long pause (debugger, loading) hundreds of vblanks are not replayed.
       if (ahora - siguiente > std::chrono::milliseconds(250)) {

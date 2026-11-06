@@ -562,10 +562,14 @@ void Aplicar(uint8_t* base, uint32_t vista) {
  * sub_82441100 calls it once per active view per frame, before drawing anything. Hooking here is the
  * only way to guarantee our value is the last one written.
  */
+namespace nfsmw::panoramico {
+void ConstruirProyeccion(PPCContext& ctx, uint8_t* base);
+}
+
 REX_EXTERN(__imp__sub_8243EC28);
 REX_HOOK_RAW(sub_8243EC28) {
   const uint32_t vista = ctx.r4.u32;  // r4 may be clobbered inside: save it first
-  __imp__sub_8243EC28(ctx, base);
+  nfsmw::panoramico::ConstruirProyeccion(ctx, base);  // the original, with the wide screen field of view
   nfsmw::escena_detalle::Aplicar(base, vista);
 }
 

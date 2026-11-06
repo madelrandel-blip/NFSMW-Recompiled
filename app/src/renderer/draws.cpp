@@ -24,6 +24,20 @@
 #define XXH_FORCE_MEMORY_ACCESS 0
 #define XXH_INLINE_ALL
 #include <xxhash.h>
+#include <mutex>
+#include <set>
+
+REXCVAR_DEFINE_BOOL(nfsmw_panoramico_hud, true, "Graficos",
+                    "Pantallas anchas: el interfaz (lo que se dibuja en pixeles de pantalla) en el centro a 16:9");
+REXCVAR_DECLARE(std::string, nfsmw_resolucion_interna);
+namespace {
+// The width of the wide picture (0 when it is not wider than 16:9).
+uint32_t AnchoPanoramico() {
+  uint32_t w = 0, h = 0;
+  if (!nfsmw::ajustes::ResolucionAlta(nfsmw::ajustes::ResolucionEnUso(), w, h) || !h) return 0;
+  return (w * 9 > h * 16 + h / 8 || w * 9 + h / 8 < h * 16) ? w : 0;
+}
+}  // namespace
 
 REXCVAR_DEFINE_BOOL(nfsmw_recortar_pasadas, true, "Graficos",
                     "Renderizador Vulkan 1.1: el area de cada pasada cubre solo lo que el juego dibuja en sus "
@@ -63,7 +77,7 @@ constexpr uint32_t kPixelConstantBytes = 224 * 16;
 // microcode, the same in every edition.
 constexpr uint64_t kCompositeFingerprint = 0x19C0C358044A29BFull;
 constexpr uint32_t kTreatmentBytes = 11 * 16;  // c0 to c10
-void ApplyVisualTreatment(float* c, int mode) {
+void ApplyVisualTreatment(float* c, int mode, bool vineta) {
   static constexpr float kNeutral[4][4] = {{0, 1, 1, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
   const float f = mode == 2 ? 1.0f : 0.5f;
   for (int k = 0; k < 4; ++k) {
@@ -72,11 +86,10 @@ void ApplyVisualTreatment(float* c, int mode) {
       v += (kNeutral[k][i] - v) * f;
     }
   }
-  c[1 * 4 + 0] *= 1.0f - f;
+  if (vineta) c[1 * 4 + 0] *= 1.0f - f;  // VisualEffectVignette.x, only in the composite
 }
 constexpr uint32_t kMaxVerticesPerDraw = 1u << 20;
 constexpr uint64_t kGuestMemoryBytes = 0x20000000;
-constexpr uint32_t kShadowPitch = 1600;  // the game's two shadow maps (RenderTargets' kShadowSide)
 
 // Specialization constant bits (shader_common.h).
 constexpr uint32_t kSpecAlphaTest = 1u << 1;
@@ -463,6 +476,13 @@ void Draws::ComputeFraming(const GuestRegisters& r, Framing& out) const {
     viewport.y = 0.0f;
     viewport.width = float(pass_.width);
     viewport.height = float(pass_.height);
+    // Wide screens: the screen-space draws (the interface) squeezed into the 16:9 middle of a wider target.
+    const float ancho_16_9 = pass_height * 16.0f / 9.0f;
+    if (REXCVAR_GET(nfsmw_panoramico_hud) && pass_width > ancho_16_9 * 1.01f && pass_height >= 360.0f) {
+      const float k = ancho_16_9 / pass_width;
+      ndc[0] *= k;
+      ndc[2] *= k;
+    }
   }
   empty = viewport.width < 1.0f || std::abs(viewport.height) < 1.0f;
 
@@ -780,14 +800,27 @@ bool Draws::UploadConstants(const nativo::PeticionDibujo& request, const GuestRe
   // The final composite with the color filter changed: its own copy of the constants, and the next draw uploads the
   // game's again.
   const int treatment = ajustes::TratamientoVisual();
-  if (treatment != 0 && request.ps && request.ps->shader && request.ps->shader->huella == kCompositeFingerprint &&
+  // The rear-view mirror is tinted by another shader with the same curve: any draw whose c6..c9 are exactly the
+  // composite's (seen last) gets the neutral curve too, without touching its other registers.
+  static std::array<uint8_t, 64> curva_compuesta{};
+  static bool hay_curva = false;
+  const bool compuesta = request.ps && request.ps->shader && request.ps->shader->huella == kCompositeFingerprint;
+  if (compuesta && ps_bytes >= kTreatmentBytes) {
+    std::memcpy(curva_compuesta.data(), r.data() + kPixelConstantsRegister + 6 * 16, 64);
+    hay_curva = true;
+  }
+  // Disabled: other shaders (the tyres' material in the main menu) had the same four registers and turned cyan,
+  // and the mirror kept its tint. The mirror needs its own shader identified.
+  const bool misma_curva = false;
+  (void)hay_curva;
+  if (treatment != 0 && request.ps && request.ps->shader && (compuesta || misma_curva) &&
       ps_bytes >= kTreatmentBytes) {
     FrameRing::Allocation allocation;
     if (!frames_.Allocate(kPixelConstantBytes, alignment, allocation)) {
       return Reject(30, "upload memory full (constants)");
     }
     std::memcpy(allocation.data, r.data() + kPixelConstantsRegister, ps_bytes);
-    ApplyVisualTreatment(reinterpret_cast<float*>(allocation.data), treatment);
+    ApplyVisualTreatment(reinterpret_cast<float*>(allocation.data), treatment, /*vineta=*/compuesta);
     if (constants_buffer_ != allocation.buffer) {
       vs_constants_generation_ = UINT64_MAX;
       constants_buffer_ = allocation.buffer;
@@ -889,6 +922,7 @@ bool Draws::Draw(const nativo::PeticionDibujo& request) {
   const uint32_t color_mask_register = ps ? r[gr::XE_GPU_REG_RB_COLOR_MASK] : 0;
   std::array<const Image*, kMaxColorTargets + 1> targets{};
   uint32_t write_masks = 0;
+  const uint32_t alto_dibujo = (r[gr::XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR] >> 16) & 0x7FFF;
   for (uint32_t i = 0; i < kMaxColorTargets; ++i) {
     const uint32_t mask = (color_mask_register >> (i * 4)) & 0xF;
     if (!mask || !ps || !((ps->salidas >> i) & 0x1)) {
@@ -900,7 +934,7 @@ bool Draws::Draw(const nativo::PeticionDibujo& request) {
         format != uint32_t(xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA)) {
       return Reject(200 + format, "color render target format not supported");
     }
-    targets[i] = render_targets_.ColorTarget(info & 0xFFF, format, pitch);
+    targets[i] = render_targets_.ColorTarget(info & 0xFFF, format, pitch, alto_dibujo);
     if (!targets[i]) {
       return false;
     }
@@ -909,7 +943,7 @@ bool Draws::Draw(const nativo::PeticionDibujo& request) {
   const uint32_t depth_control = r[gr::XE_GPU_REG_RB_DEPTHCONTROL];
   if (depth_control & 0x3) {  // stencil or depth test
     const uint32_t info = r[gr::XE_GPU_REG_RB_DEPTH_INFO];
-    targets[kMaxColorTargets] = render_targets_.DepthTarget(info & 0xFFF, (info >> 16) & 0x1, pitch);
+    targets[kMaxColorTargets] = render_targets_.DepthTarget(info & 0xFFF, (info >> 16) & 0x1, pitch, alto_dibujo);
   }
   bool any_target = false;
   for (const Image* target : targets) {
@@ -921,7 +955,7 @@ bool Draws::Draw(const nativo::PeticionDibujo& request) {
   // Vegetation in the shadow maps (nfsmw_sombras_sin_vegetacion, on in the low and medium profiles): in the maps'
   // depth-only passes, a draw that writes no color and cuts its shape by alpha (alpha test or discard) is a tree,
   // a fence or a bush. Dropped whole, as the legacy renderer does (on the Switch -1.2 ms of GPU and -3.1 ms of CPU).
-  if (targets[kMaxColorTargets] && pitch == kShadowPitch && ps && REXCVAR_GET(nfsmw_sombras_sin_vegetacion)) {
+  if (targets[kMaxColorTargets] && targets[kMaxColorTargets]->sombra && ps && REXCVAR_GET(nfsmw_sombras_sin_vegetacion)) {
     bool color = false;
     for (uint32_t i = 0; i < kMaxColorTargets; ++i) {
       color |= targets[i] != nullptr;
@@ -1033,6 +1067,29 @@ bool Draws::Draw(const nativo::PeticionDibujo& request) {
     framing_width_ = pass_.width;
     framing_height_ = pass_.height;
   }
+  // Diagnostic (wide screens): every shader pair drawing into a target wider than 16:9, once, to tell the
+  // interface from the scene.
+  {
+    static std::set<uint64_t> tamanos;
+    static std::mutex mt;
+    std::lock_guard<std::mutex> l(mt);
+    if (tamanos.insert(uint64_t(pass_.width) << 32 | pass_.height).second && tamanos.size() < 40)
+      REXLOG_INFO("[panoramico] pasada de {}x{} (escala {:.2f})", pass_.width, pass_.height, pass_.scale);
+  }
+  if (REXCVAR_GET(nfsmw_panoramico_hud) && pass_.width == AnchoPanoramico()) {
+    static std::mutex m;
+    static std::set<uint64_t> vistos;
+    const uint64_t vs_h = request.vs->shader ? request.vs->shader->huella : 0;
+    const uint64_t ps_h = (ps && ps->shader) ? ps->shader->huella : 0;
+    std::lock_guard<std::mutex> l(m);
+    if (vistos.size() < 200 && vistos.insert(vs_h * 31 + ps_h).second) {
+      REXLOG_INFO("[panoramico] dibujo en {}x{}: vs {:016X} ps {:016X}, recorte {}, viewport {:.0f},{:.0f} {:.0f}x{:.0f}, "
+                  "profundidad {}", pass_.width, pass_.height, vs_h, ps_h,
+                  ((r[gr::XE_GPU_REG_PA_CL_CLIP_CNTL] >> 16) & 0x1) ? "no" : "si", framing_.viewport.x,
+                  framing_.viewport.y, framing_.viewport.width, framing_.viewport.height,
+                  pass_.targets[kMaxColorTargets] ? "si" : "no");
+    }
+  }
   if (framing_.empty) {
     return true;
   }
@@ -1058,7 +1115,35 @@ bool Draws::Draw(const nativo::PeticionDibujo& request) {
     pass_.drawn_width = std::max(pass_.drawn_width, right);
     pass_.drawn_height = std::max(pass_.drawn_height, bottom);
   }
-  ApplyFraming(commands, framing_);
+  // Wide screens: the interface's shaders (measured: the ones drawing into the wide picture without depth) are
+  // squeezed into its 16:9 middle, so menus and the HUD keep their shape while the 3D scene fills the width.
+  {
+    const uint64_t vs_h = request.vs->shader ? request.vs->shader->huella : 0;
+    const uint32_t ancho = AnchoPanoramico();
+    // The target's pitch is rounded up (1568 wide is a 1600 pitch on Android): the game's viewport has the real width.
+    if (REXCVAR_GET(nfsmw_panoramico_hud) && ancho && uint32_t(framing_.viewport.width / pass_.scale + 0.5f) == ancho &&
+        !pass_.targets[kMaxColorTargets] &&
+        // Blended (the interface always is); the opaque full-screen copy of the scene uses the same shaders and must
+        // keep the whole width.
+        r[gr::XE_GPU_REG_RB_BLENDCONTROL0] != 0x00010001u &&
+        (vs_h == 0xE39080B2EF1596A4ull || vs_h == 0x15E1890E615AD334ull || vs_h == 0xC9C041DEB768ADECull ||
+         vs_h == 0x70FEE3D9DFE25D79ull)) {
+      Framing estrecho = framing_;
+      const float k = (estrecho.viewport.height * 16.0f / 9.0f) / estrecho.viewport.width;
+      if (k < 0.99f) {  // wider picture: the interface keeps its height, in the middle
+        const float nuevo = estrecho.viewport.width * k;
+        estrecho.viewport.x += (estrecho.viewport.width - nuevo) * 0.5f;
+        estrecho.viewport.width = nuevo;
+      } else if (k > 1.01f) {  // narrower (4:3): it keeps the width and gets shorter, in the middle
+        const float nuevo = estrecho.viewport.height / k;
+        estrecho.viewport.y += (estrecho.viewport.height - nuevo) * 0.5f;
+        estrecho.viewport.height = nuevo;
+      }
+      ApplyFraming(commands, estrecho);
+    } else {
+      ApplyFraming(commands, framing_);
+    }
+  }
   const VkViewport& viewport = framing_.viewport;
   const float* ndc = framing_.ndc;
 

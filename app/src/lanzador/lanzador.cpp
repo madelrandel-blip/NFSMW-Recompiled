@@ -1283,7 +1283,10 @@ void Lanzador::DibujarGraficos() {
           {"960 × 540 (540p)", "960x540", 540},          {"1024 × 576 (576p)", "1024x576", 576},
           {"1280 × 720 (720p)", "1280x720", 720},        {"1600 × 900 (900p)", "1600x900", 900},
           // Sin 4K: sus cuatro superficies de 32 MB no caben en los 512 MB de la consola y el juego se cierra al arrancar.
-          {"1920 × 1080 (1080p)", "1920x1080", 1080},    {"2560 × 1440 (1440p, supersampling)", "2560x1440", 1440}};
+          {"1920 × 1080 (1080p)", "1920x1080", 1080},    {"2560 × 1440 (1440p, supersampling)", "2560x1440", 1440},
+          // Wide screens: the camera opens to the sides and the interface stays 16:9 in the middle.
+          {"1600 × 720 (20:9)", "1600x720", 720},       {"2400 × 1080 (20:9)", "2400x1080", 1080},
+          {"2560 × 1080 (21:9)", "2560x1080", 1080},    {"3456 × 1440 (21:9)", "3456x1440", 1440}};
       std::vector<Opcion> resoluciones;
       for (const Res& r : kResoluciones) {
         // 720p siempre (la de la Xbox 360), aunque la pantalla sea mas pequena.
@@ -1332,13 +1335,15 @@ void Lanzador::DibujarGraficos() {
     Tarjeta t(T("graf.detalle"));
     ComboCvar(T("graf.sombras_dist"), "nfsmw_sombras_corte",
               {{"@val.corta", "250"}, {"@val.media", "150"}, {"@val.normal", "100"}});
-    SegCvar(T("graf.sombras_res"), "nfsmw_nativo_sombras_escala", {{"@val.media", "64"}, {"@val.alta", "100"}});
+    SegCvar(T("graf.sombras_res"), "nfsmw_nativo_sombras_escala",
+            {{"@val.baja", "50"}, {"@val.media", "64"}, {"@val.alta", "100"}});
     BoolCvar(T("graf.sombras_veg"), "nfsmw_sombras_sin_vegetacion", true);
     ComboCvar(T("graf.reflejos"), "nfsmw_reflejo_refresco",
               {{"@val.cada8", "8"}, {"@val.cada4", "4"}, {"@val.cada2", "2"}, {"@val.cada1", "1"}});
     SegCvar(T("graf.coche"), "nfsmw_cubemap_caras_max",
             {{"@perfil.bajo", "1"}, {"@perfil.medio", "2"}, {"@val.completo", "-1"}});
-    SegCvar(T("graf.distancia"), "nfsmw_escena_detalle_minimo", {{"@val.reducida", "6"}, {"@val.normal", "0"}});
+    SegCvar(T("graf.distancia"), "nfsmw_escena_detalle_minimo",
+            {{"@val.baja", "8"}, {"@val.reducida", "6"}, {"@val.normal", "0"}});
   }
 }
 

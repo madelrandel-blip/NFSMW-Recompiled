@@ -33,11 +33,16 @@
 #include "nfsmw_nativo_sistema.h"
 #include "nfsmw_perfil_pc.h"
 #include "nfsmw_prueba_entrada.h"
+#include "nfsmw_fe_raton.h"
 #include "nfsmw_tactil.h"
 #include "nfsmw_video_nativo.h"  // HANG WATCHDOG - cutscene frames with FFmpeg
 #include "lanzador/lanzador.h"
 #include "lanzador/sistema.h"
 #include "lanzador/trucos.h"
+
+namespace nfsmw::contador_fps {
+void Mostrar(rex::ui::ImGuiDrawer* drawer);
+}
 
 class NfsmwApp : public rex::ReXApp {
  public:
@@ -63,6 +68,7 @@ class NfsmwApp : public rex::ReXApp {
     // Automated tests: virtual gamepad if nfsmw_prueba_botones has a script.
     nfsmw::prueba::EnvolverEntrada(config);
     nfsmw::tactil::EnvolverEntrada(config);
+    nfsmw::fe_raton::EnvolverEntrada(config);
   }
 
   // Available hooks, unused:
@@ -301,6 +307,8 @@ class NfsmwApp : public rex::ReXApp {
   void OnPostSetup() override {
     // On-screen controls over the game (Android; nfsmw_tactil).
     nfsmw::tactil::MostrarControles(imgui_drawer());
+    // Our FPS counter (nfsmw_mostrar_fps), drawn when it is on.
+    nfsmw::contador_fps::Mostrar(imgui_drawer());
 #if defined(NFSMW_NATIVE_SHADER_LIBRARY)
     nfsmw::native::IniciarBibliotecaShaders();
 #endif
