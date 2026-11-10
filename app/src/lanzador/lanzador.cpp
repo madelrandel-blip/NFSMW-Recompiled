@@ -1578,12 +1578,17 @@ void DibujarMapaMando() {
   Nota(T("ctl.mapa_mando_nota"));
 }
 
-// Lectura en vivo del volante, para ver que eje es cada cosa y asignar botones pulsandolos.
-struct Volante {
-  bool iniciado = false;
+// Lectura en vivo del volante, para ver que eje es cada cosa y asignar botones pulsandolos. Algunos juegos de volante
+// (Fanatec y otros) se presentan como varios dispositivos (base, pedales, cambio): se abren todos los que no son
+// mandos y cada funcion recuerda de cual sale (volante_disp_*).
+struct Dispositivo {
   SDL_Joystick* joy = nullptr;
   std::string nombre;
-  std::vector<int16_t> reposo;      // ejes al empezar a detectar
+  std::vector<int16_t> reposo;  // ejes al empezar a detectar
+};
+struct Volante {
+  bool iniciado = false;
+  std::vector<Dispositivo> disp;
   const char* esperando = nullptr;  // cvar de eje, o nombre de boton del juego
   bool esperando_eje = false;
 };
@@ -1595,31 +1600,44 @@ void AbrirVolante() {
     if (!g_volante.iniciado) return;
   }
   SDL_UpdateJoysticks();
-  if (g_volante.joy && SDL_JoystickConnected(g_volante.joy)) return;
-  g_volante.joy = nullptr;
+  std::erase_if(g_volante.disp, [](const Dispositivo& d) { return !SDL_JoystickConnected(d.joy); });
   int n = 0;
   SDL_JoystickID* ids = SDL_GetJoysticks(&n);
   for (int i = 0; ids && i < n; ++i) {
     if (SDL_IsGamepad(ids[i])) continue;  // los mandos van por el otro camino
-    // Solo volantes, como el driver (volante_cualquier_joystick).
-    if (Cv("volante_cualquier_joystick") != "true" && SDL_GetJoystickTypeForID(ids[i]) != SDL_JOYSTICK_TYPE_WHEEL) continue;
-    g_volante.joy = SDL_OpenJoystick(ids[i]);
-    if (g_volante.joy) {
-      const char* nombre = SDL_GetJoystickName(g_volante.joy);
-      g_volante.nombre = nombre ? nombre : "";
-      break;
+    bool abierto = false;
+    for (const Dispositivo& d : g_volante.disp) abierto |= SDL_GetJoystickID(d.joy) == ids[i];
+    if (abierto) continue;
+    if (SDL_Joystick* joy = SDL_OpenJoystick(ids[i])) {
+      const char* nombre = SDL_GetJoystickName(joy);
+      // El de tipo volante primero: es el que se usa si no se elige otro.
+      Dispositivo d{joy, nombre ? nombre : "", {}};
+      if (SDL_GetJoystickType(joy) == SDL_JOYSTICK_TYPE_WHEEL) g_volante.disp.insert(g_volante.disp.begin(), d);
+      else g_volante.disp.push_back(d);
     }
   }
   SDL_free(ids);
+}
+
+// El dispositivo elegido para una funcion (volante_disp_*): por nombre; vacio, el primero (el de tipo volante).
+Dispositivo* DispositivoDe(const char* cvar_disp) {
+  const std::string nombre = Cv(cvar_disp);
+  for (Dispositivo& d : g_volante.disp)
+    if (!nombre.empty() && d.nombre == nombre) return &d;
+  return g_volante.disp.empty() ? nullptr : &g_volante.disp.front();
 }
 
 void DibujarVolante() {
   Tarjeta t(T("ctl.volante"));
   BoolCvar(T("ctl.volante_activo"), "volante_activo");
   AbrirVolante();
-  SDL_Joystick* joy = g_volante.joy;
+  SDL_Joystick* joy = g_volante.disp.empty() ? nullptr : g_volante.disp.front().joy;
   Fila(T("ctl.volante_dispositivo"));
-  TextoColor(joy ? kTexto : kNota, joy ? g_volante.nombre.c_str() : T("ctl.volante_ninguno"));
+  {
+    std::string lista;
+    for (const Dispositivo& d : g_volante.disp) lista += (lista.empty() ? "" : "  +  ") + d.nombre;
+    TextoColor(joy ? kTexto : kNota, joy ? lista.c_str() : T("ctl.volante_ninguno"));
+  }
   if (!joy) {
     Nota(T("ctl.volante_nota"));
     return;
@@ -1630,18 +1648,28 @@ void DibujarVolante() {
   if (g_volante.esperando && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
     g_volante.esperando = nullptr;
   } else if (g_volante.esperando && g_volante.esperando_eje) {
+    // El eje que mas se mueve en cualquiera de los dispositivos: se guardan el eje y el dispositivo.
     int mejor = -1, distancia = 12000;
-    for (int e = 0; e < ejes && e < int(g_volante.reposo.size()); ++e) {
-      const int d = std::abs(int(SDL_GetJoystickAxis(joy, e)) - g_volante.reposo[size_t(e)]);
-      if (d > distancia) distancia = d, mejor = e;
+    const Dispositivo* de = nullptr;
+    for (const Dispositivo& d : g_volante.disp) {
+      const int n = SDL_GetNumJoystickAxes(d.joy);
+      for (int e = 0; e < n && e < int(d.reposo.size()); ++e) {
+        const int dist = std::abs(int(SDL_GetJoystickAxis(d.joy, e)) - d.reposo[size_t(e)]);
+        if (dist > distancia) distancia = dist, mejor = e, de = &d;
+      }
     }
-    if (mejor >= 0) {
+    if (mejor >= 0 && de) {
       PonerCv(g_volante.esperando, std::to_string(mejor));
+      // volante_eje_direccion -> volante_disp_direccion
+      std::string disp = std::string("volante_disp_") + (std::string(g_volante.esperando).substr(std::strlen("volante_eje_")));
+      PonerCv(disp.c_str(), de == &g_volante.disp.front() ? std::string() : de->nombre);
       g_volante.esperando = nullptr;
     }
   } else if (g_volante.esperando) {
-    for (int b = 0; b < botones; ++b) {
-      if (!SDL_GetJoystickButton(joy, b)) continue;
+    // Buttons of any device of the set (the game takes them from all of them).
+    for (const Dispositivo& dd : g_volante.disp)
+    for (int b = 0; b < SDL_GetNumJoystickButtons(dd.joy) && g_volante.esperando; ++b) {
+      if (!SDL_GetJoystickButton(dd.joy, b)) continue;
       const std::string numero = std::to_string(b);
       auto pares = LeerPares(Cv("volante_botones"));
       std::erase_if(pares, [&](const auto& p) { return p.first == g_volante.esperando || p.second == numero; });
@@ -1664,17 +1692,22 @@ void DibujarVolante() {
   for (const auto& e : kEjes) {
     const int eje = std::atoi(Cv(e.cvar).c_str());
     const bool espera = g_volante.esperando == e.cvar;
-    const std::string valor = espera ? std::string(T("ctl.mueve")) : std::string(T("ctl.eje")) + " " + std::to_string(eje);
+    const std::string cvar_disp = std::string("volante_disp_") + (std::string(e.cvar).substr(std::strlen("volante_eje_")));
+    Dispositivo* de = DispositivoDe(cvar_disp.c_str());
+    std::string valor = espera ? std::string(T("ctl.mueve")) : std::string(T("ctl.eje")) + " " + std::to_string(eje);
+    if (!espera && g_volante.disp.size() > 1 && de) valor += "  (" + de->nombre + ")";
     const float x0 = ImGui::GetCursorPosX();
     if (FilaAsignable(T(e.etiqueta), valor, e.cvar, espera)) {
       g_volante.esperando = espera ? nullptr : e.cvar;
       g_volante.esperando_eje = true;
-      g_volante.reposo.clear();
-      for (int i = 0; i < ejes; ++i) g_volante.reposo.push_back(SDL_GetJoystickAxis(joy, i));
+      for (Dispositivo& d : g_volante.disp) {
+        d.reposo.clear();
+        for (int i = 0; i < SDL_GetNumJoystickAxes(d.joy); ++i) d.reposo.push_back(SDL_GetJoystickAxis(d.joy, i));
+      }
     }
     // Barra con la posicion del eje, a la derecha del boton.
     ImGui::SameLine(0, S(12));
-    const float v = eje < ejes ? (SDL_GetJoystickAxis(joy, eje) + 32768.0f) / 65535.0f : 0.0f;
+    const float v = de && eje < SDL_GetNumJoystickAxes(de->joy) ? (SDL_GetJoystickAxis(de->joy, eje) + 32768.0f) / 65535.0f : 0.0f;
     const ImVec2 p = ImGui::GetCursorScreenPos();
     const float w = std::max(S(40), x0 + g_interior - ImGui::GetCursorPosX());
     const float y = p.y + S(13), h = S(8);

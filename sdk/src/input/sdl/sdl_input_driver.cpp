@@ -36,6 +36,13 @@ REXCVAR_DEFINE_BOOL(volante_cualquier_joystick, false, "Input",
                     "que se presentan como volante. Encendido, un panel tactil, un mando virtual o un teclado con "
                     "interfaz de joystick ocupa el puesto del jugador 1 y el juego pide iniciar sesion");
 REXCVAR_DEFINE_INT32(volante_eje_direccion, 0, "Input", "Eje del volante para girar").range(0, 15);
+// The device each function comes from, by name: some wheel sets show up as several devices (base, pedals, shifter).
+// Empty: the first wheel found.
+REXCVAR_DEFINE_STRING(volante_disp_direccion, "", "Input", "Dispositivo del eje de direccion (vacio: el volante)");
+REXCVAR_DEFINE_STRING(volante_disp_acelerador, "", "Input", "Dispositivo del eje del acelerador (vacio: el volante)");
+REXCVAR_DEFINE_STRING(volante_disp_freno, "", "Input", "Dispositivo del eje del freno (vacio: el volante)");
+REXCVAR_DEFINE_STRING(volante_disp_botones, "", "Input",
+                      "Dispositivo de los botones y la cruceta (vacio: todos los del volante)");
 REXCVAR_DEFINE_INT32(volante_eje_acelerador, 1, "Input", "Eje del pedal del acelerador (gatillo derecho)")
     .range(0, 15);
 REXCVAR_DEFINE_INT32(volante_eje_freno, 2, "Input", "Eje del pedal del freno (gatillo izquierdo)").range(0, 15);
@@ -754,19 +761,49 @@ void SDLInputDriver::OnControllerDeviceButtonChangedLocked(const SDL_Event& even
 
 // Steering wheels and other joysticks SDL does not know as gamepads (volante_activo). Gamepads also
 // raise joystick events; those are left to the gamepad path.
+namespace {
+// Whether a joystick is the device a function is assigned to: by name; an empty assignment is the main wheel.
+bool EsDispositivo(const std::string& elegido, SDL_JoystickID id, bool principal) {
+  // Nothing chosen: the device that presents itself as a wheel (whichever was opened first), or the first one.
+  if (elegido.empty()) return principal || SDL_GetJoystickTypeForID(id) == SDL_JOYSTICK_TYPE_WHEEL;
+  const char* nombre = SDL_GetJoystickNameForID(id);
+  return nombre && elegido == nombre;
+}
+bool Elegido(SDL_JoystickID id) {
+  const char* nombre = SDL_GetJoystickNameForID(id);
+  if (!nombre) return false;
+  for (const std::string& d : {std::string(REXCVAR_GET(volante_disp_direccion)), std::string(REXCVAR_GET(volante_disp_acelerador)),
+                               std::string(REXCVAR_GET(volante_disp_freno)), std::string(REXCVAR_GET(volante_disp_botones))})
+    if (!d.empty() && d == nombre) return true;
+  return false;
+}
+}  // namespace
+
 void SDLInputDriver::OnWheelAddedLocked(const SDL_Event& event) {
   if (!REXCVAR_GET(volante_activo) || SDL_IsGamepad(event.jdevice.which) ||
       GetControllerIndexFromInstanceID(event.jdevice.which)) {
     return;
   }
-  // Only real wheels by default: any other non-gamepad joystick would take guest user 0 from the pad.
-  if (!REXCVAR_GET(volante_cualquier_joystick) &&
+  for (SDL_Joystick* j : wheel_extras_)
+    if (SDL_GetJoystickID(j) == event.jdevice.which) return;
+  // Only real wheels by default, and the devices chosen for a function: any other non-gamepad joystick would take
+  // guest user 0 from the pad.
+  if (!REXCVAR_GET(volante_cualquier_joystick) && !Elegido(event.jdevice.which) &&
       SDL_GetJoystickTypeForID(event.jdevice.which) != SDL_JOYSTICK_TYPE_WHEEL) {
     return;
   }
   SDL_Joystick* joy = SDL_OpenJoystick(event.jdevice.which);
   if (!joy) {
     return;
+  }
+  // A second device of the set (pedals, shifter...): it joins the wheel already open instead of being another pad.
+  for (const auto& c : controllers_) {
+    if (c.joy) {
+      wheel_extras_.push_back(joy);
+      REXLOG_INFO("SDL volante: \"{}\" ({} ejes, {} botones) se suma al volante", SDL_GetJoystickName(joy),
+                  SDL_GetNumJoystickAxes(joy), SDL_GetNumJoystickButtons(joy));
+      return;
+    }
   }
   ControllerState state = {};
   state.joy = joy;
@@ -780,10 +817,27 @@ void SDLInputDriver::OnWheelAddedLocked(const SDL_Event& event) {
 }
 
 void SDLInputDriver::OnWheelEventLocked(const SDL_Event& event) {
-  const auto idx = GetControllerIndexFromInstanceID(event.jdevice.which);
-  if (!idx || !controllers_.at(*idx).joy) {
+  auto idx = GetControllerIndexFromInstanceID(event.jdevice.which);
+  bool principal = idx.has_value();
+  if (!idx) {
+    // One of the set's other devices: its events go to the wheel's pad.
+    auto extra = std::find_if(wheel_extras_.begin(), wheel_extras_.end(),
+                              [&](SDL_Joystick* j) { return SDL_GetJoystickID(j) == event.jdevice.which; });
+    if (extra == wheel_extras_.end()) return;
+    if (event.type == SDL_EVENT_JOYSTICK_REMOVED) {
+      SDL_CloseJoystick(*extra);
+      wheel_extras_.erase(extra);
+      REXLOG_INFO("SDL volante: dispositivo adicional desconectado");
+      return;
+    }
+    for (size_t i = 0; i < controllers_.size(); ++i)
+      if (controllers_[i].joy) idx = i;
+    if (!idx) return;
+  }
+  if (!controllers_.at(*idx).joy) {
     return;
   }
+  const SDL_JoystickID origen = event.jdevice.which;
   auto& controller = controllers_.at(*idx);
   auto& pad = controller.state.gamepad;
   switch (event.type) {
@@ -793,11 +847,14 @@ void SDLInputDriver::OnWheelEventLocked(const SDL_Event& event) {
       REXLOG_INFO("SDL volante desconectado");
       return;
     case SDL_EVENT_JOYSTICK_AXIS_MOTION:
-      if (event.jaxis.axis == REXCVAR_GET(volante_eje_direccion)) {
+      if (event.jaxis.axis == REXCVAR_GET(volante_eje_direccion) &&
+          EsDispositivo(REXCVAR_GET(volante_disp_direccion), origen, principal)) {
         pad.thumb_lx = Direccion(event.jaxis.value);
-      } else if (event.jaxis.axis == REXCVAR_GET(volante_eje_acelerador)) {
+      } else if (event.jaxis.axis == REXCVAR_GET(volante_eje_acelerador) &&
+                 EsDispositivo(REXCVAR_GET(volante_disp_acelerador), origen, principal)) {
         pad.right_trigger = Pedal(event.jaxis.value);
-      } else if (event.jaxis.axis == REXCVAR_GET(volante_eje_freno)) {
+      } else if (event.jaxis.axis == REXCVAR_GET(volante_eje_freno) &&
+                 EsDispositivo(REXCVAR_GET(volante_disp_freno), origen, principal)) {
         pad.left_trigger = Pedal(event.jaxis.value);
       } else {
         return;
@@ -805,6 +862,9 @@ void SDLInputDriver::OnWheelEventLocked(const SDL_Event& event) {
       break;
     case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
     case SDL_EVENT_JOYSTICK_BUTTON_UP: {
+      // Buttons from any device of the set unless one is chosen.
+      if (!REXCVAR_GET(volante_disp_botones).empty() && !EsDispositivo(REXCVAR_GET(volante_disp_botones), origen, principal))
+        return;
       const uint16_t botones = BotonDelVolante(event.jbutton.button);
       if (!botones) {
         return;

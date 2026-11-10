@@ -36,9 +36,10 @@ constexpr uint32_t kShadowSide = 1600;
 // and resolved at that size: the scene samples them with normalized coordinates and the texel size of the
 // resolved image (TextureCache), so only their detail goes down.
 // A shadow map: the 1600 pitch and drawn below row 1100 (no screen picture is that tall; a 720p one on a 19.5:9 phone
-// is 1568 wide, so its pitch is 1600 too). Without a known height (a resolve before any draw) it counts as a shadow
-// map only at that pitch, as before.
-bool EsSombra(uint32_t pitch, uint32_t alto) { return pitch == kShadowSide && (alto == 0 || alto > 1100); }
+// is 1568 wide, so its pitch is 1600 too). Without a known height (a clear or a resolve before any draw) it is not
+// one: the game always draws its shadow maps before copying them, and taking a wide picture for a shadow map drew it
+// at half resolution (720p on a phone with the USA copy).
+bool EsSombra(uint32_t pitch, uint32_t alto) { return pitch == kShadowSide && alto > 1100; }
 
 float ScaleFor(uint32_t pitch, uint32_t alto) {
   static const float shadow_scale =

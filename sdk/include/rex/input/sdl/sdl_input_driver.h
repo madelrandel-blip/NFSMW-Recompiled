@@ -102,6 +102,9 @@ class SDLInputDriver final : public InputDriver, public rex::ui::WindowListener 
   // Appended in connection order, never re-sorted, and unbounded: the
   // assignment decides how many the guest sees.
   std::vector<ControllerState> controllers_;
+  // More joysticks of the same wheel set (Fanatec and others split the base, the pedals and the shifter into
+  // separate devices): they feed the first wheel's state, as one pad.
+  std::vector<SDL_Joystick*> wheel_extras_;
   std::mutex controllers_mutex_;
   std::mutex event_queue_mutex_;
   std::vector<SDL_Event> pending_events_;
